@@ -2,7 +2,17 @@ import { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Check, Clock, Sparkles, CheckCircle2 } from 'lucide-react-native';
-import { Screen, Card, Badge, Avatar, Button } from '@/components/ui';
+import {
+  Screen,
+  Card,
+  Badge,
+  Avatar,
+  Button,
+  MascotFloat,
+  PopView,
+  PulseView,
+  StaggerRow,
+} from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -47,11 +57,13 @@ export default function WaitingScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Mascot Banner */}
         <View style={styles.topBanner}>
-          <Image
-            source={mascotImages.searching}
-            style={styles.mascotImage}
-            resizeMode="contain"
-          />
+          <MascotFloat floatDistance={5} duration={2400}>
+            <Image
+              source={mascotImages.searching}
+              style={styles.mascotImage}
+              resizeMode="contain"
+            />
+          </MascotFloat>
           <Text style={styles.title}>Cevabın Alındı!</Text>
           <Text style={styles.subtitle}>
             {isGuessPhase
@@ -73,38 +85,43 @@ export default function WaitingScreen() {
         {/* Player Status List */}
         <Text style={styles.listTitle}>OYUNCU DURUMLARI</Text>
         <View style={styles.playersListWrap}>
-          {playersList.map((player) => {
+          {playersList.map((player, idx) => {
             const hasDone = isGuessPhase ? picks[player.id] !== undefined : !!fakeAnswers[player.id];
             const isSelf = player.id === me?.id;
             return (
-              <Card
-                key={player.id}
-                variant={isSelf ? 'accent' : 'surface'}
-                style={[styles.playerRow, isSelf && styles.playerRowSelf]}
-              >
-                <Avatar avatarKey={player.avatarKey} size={42} ring={isSelf} />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
-                      {player.name}
-                    </Text>
-                    {isSelf && <Badge tone="neutral">SEN</Badge>}
+              <StaggerRow key={player.id} index={idx} delay={60}>
+                <Card
+                  variant={isSelf ? 'accent' : 'surface'}
+                  style={[styles.playerRow, isSelf && styles.playerRowSelf]}
+                >
+                  <Avatar avatarKey={player.avatarKey} size={42} ring={isSelf} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
+                        {player.name}
+                      </Text>
+                      {isSelf && <Badge tone="neutral">SEN</Badge>}
+                    </View>
+                    <Text style={styles.playerScore}>{player.score} Puan</Text>
                   </View>
-                  <Text style={styles.playerScore}>{player.score} Puan</Text>
-                </View>
 
-                {hasDone ? (
-                  <View style={styles.answeredBadge}>
-                    <CheckCircle2 color="#171026" size={14} strokeWidth={2.5} />
-                    <Text style={styles.answeredText}>TAMAM</Text>
-                  </View>
-                ) : (
-                  <View style={styles.pendingBadge}>
-                    <Clock color={colors.yellow} size={14} />
-                    <Text style={styles.pendingText}>Düşünüyor…</Text>
-                  </View>
-                )}
-              </Card>
+                  {hasDone ? (
+                    <PopView duration={300}>
+                      <View style={styles.answeredBadge}>
+                        <CheckCircle2 color="#171026" size={14} strokeWidth={2.5} />
+                        <Text style={styles.answeredText}>TAMAM</Text>
+                      </View>
+                    </PopView>
+                  ) : (
+                    <PulseView minScale={0.96} maxScale={1.03} duration={1400}>
+                      <View style={styles.pendingBadge}>
+                        <Clock color={colors.yellow} size={14} />
+                        <Text style={styles.pendingText}>Düşünüyor…</Text>
+                      </View>
+                    </PulseView>
+                  )}
+                </Card>
+              </StaggerRow>
             );
           })}
         </View>

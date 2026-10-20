@@ -2,7 +2,17 @@ import { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
 import { CheckCircle2, AlertTriangle, Zap, ShieldAlert, ArrowRight, HelpCircle } from 'lucide-react-native';
-import { Screen, Button, Card, Badge, Avatar } from '@/components/ui';
+import {
+  Screen,
+  Button,
+  Card,
+  Badge,
+  Avatar,
+  MascotFloat,
+  PopView,
+  ShakeView,
+  StaggerRow,
+} from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -90,7 +100,9 @@ export default function ResultScreen() {
         {/* Top Mascot Hero Banner */}
         <View style={styles.topHeader}>
           <View style={styles.mascotCircle}>
-            <Image source={mascotSource} style={styles.mascotImage} resizeMode="contain" />
+            <MascotFloat floatDistance={5} duration={2400}>
+              <Image source={mascotSource} style={styles.mascotImage} resizeMode="contain" />
+            </MascotFloat>
           </View>
 
           <View style={styles.roundBadge}>
@@ -101,96 +113,106 @@ export default function ResultScreen() {
 
           <Text style={styles.headerTitleText}>{headerTitle}</Text>
 
-          <View
-            style={[
-              styles.scorePill,
-              pointsDelta > 0
-                ? styles.scorePillPos
-                : pointsDelta < 0
-                ? styles.scorePillNeg
-                : styles.scorePillZero,
-            ]}
-          >
-            <Text
+          <PopView delay={100} duration={350}>
+            <View
               style={[
-                styles.mainScoreText,
+                styles.scorePill,
                 pointsDelta > 0
-                  ? { color: colors.lime }
+                  ? styles.scorePillPos
                   : pointsDelta < 0
-                  ? { color: colors.dangerSoft }
-                  : { color: colors.textSecondary },
+                  ? styles.scorePillNeg
+                  : styles.scorePillZero,
               ]}
             >
-              {pointsDelta > 0 ? `+${pointsDelta}` : pointsDelta} PUAN
-            </Text>
-          </View>
+              <Text
+                style={[
+                  styles.mainScoreText,
+                  pointsDelta > 0
+                    ? { color: colors.lime }
+                    : pointsDelta < 0
+                    ? { color: colors.dangerSoft }
+                    : { color: colors.textSecondary },
+                ]}
+              >
+                {pointsDelta > 0 ? `+${pointsDelta}` : pointsDelta} PUAN
+              </Text>
+            </View>
+          </PopView>
         </View>
 
         {/* Outcome Cards */}
         <View style={styles.outcomesList}>
           {/* 1. DOĞRU BİLDİN */}
           {isCorrect ? (
-            <Card variant="surface" glow="lime" style={styles.outcomeSuccessCard}>
-              <View style={styles.outcomeRow}>
-                <View style={[styles.outcomeIconWrap, { backgroundColor: colors.lime }]}>
-                  <CheckCircle2 color="#171026" size={24} strokeWidth={2.5} />
+            <PopView delay={200} duration={380}>
+              <Card variant="surface" glow="lime" style={styles.outcomeSuccessCard}>
+                <View style={styles.outcomeRow}>
+                  <View style={[styles.outcomeIconWrap, { backgroundColor: colors.lime }]}>
+                    <CheckCircle2 color="#171026" size={24} strokeWidth={2.5} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.outcomeSuccessTitle}>DOĞRU BİLDİN!</Text>
+                    <Text style={styles.outcomeDesc}>Gerçek cevabı buldun</Text>
+                  </View>
+                  <Badge tone="lime" sticker>+100</Badge>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.outcomeSuccessTitle}>DOĞRU BİLDİN!</Text>
-                  <Text style={styles.outcomeDesc}>Gerçek cevabı buldun</Text>
-                </View>
-                <Badge tone="lime" sticker>+100</Badge>
-              </View>
-            </Card>
+              </Card>
+            </PopView>
           ) : !zartalandın ? (
-            <Card variant="surface" style={styles.outcomeWrongCard}>
-              <View style={styles.outcomeRow}>
-                <View style={[styles.outcomeIconWrap, { backgroundColor: colors.bgSurfaceAlt }]}>
-                  <AlertTriangle color={colors.textMuted} size={22} />
+            <PopView delay={200} duration={380}>
+              <Card variant="surface" style={styles.outcomeWrongCard}>
+                <View style={styles.outcomeRow}>
+                  <View style={[styles.outcomeIconWrap, { backgroundColor: colors.bgSurfaceAlt }]}>
+                    <AlertTriangle color={colors.textMuted} size={22} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.outcomeWrongTitle}>YANLIŞ TAHMİN</Text>
+                    <Text style={styles.outcomeDesc}>Doğru cevabı bulamadın</Text>
+                  </View>
+                  <Badge tone="neutral">0 P</Badge>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.outcomeWrongTitle}>YANLIŞ TAHMİN</Text>
-                  <Text style={styles.outcomeDesc}>Doğru cevabı bulamadın</Text>
-                </View>
-                <Badge tone="neutral">0 P</Badge>
-              </View>
-            </Card>
+              </Card>
+            </PopView>
           ) : null}
 
           {/* 2. ZARTALADIN */}
           {zartaladın && (
-            <Card variant="surface" glow="orange" style={styles.outcomeZartalaCard}>
-              <View style={styles.outcomeRow}>
-                <View style={[styles.outcomeIconWrap, { backgroundColor: colors.orange }]}>
-                  <Zap color="#FFF" size={24} strokeWidth={2.5} />
+            <PopView delay={320} duration={380}>
+              <Card variant="surface" glow="orange" style={styles.outcomeZartalaCard}>
+                <View style={styles.outcomeRow}>
+                  <View style={[styles.outcomeIconWrap, { backgroundColor: colors.orange }]}>
+                    <Zap color="#FFF" size={24} strokeWidth={2.5} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.outcomeZartalaTitle}>ZARTALADIN!</Text>
+                    <Text style={styles.outcomeDesc}>
+                      {victimsCount} rakip senin sahte cevabına aldandı!
+                    </Text>
+                  </View>
+                  <Badge tone="orange" sticker>+{victimsCount * 50}</Badge>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.outcomeZartalaTitle}>ZARTALADIN!</Text>
-                  <Text style={styles.outcomeDesc}>
-                    {victimsCount} rakip senin sahte cevabına aldandı!
-                  </Text>
-                </View>
-                <Badge tone="orange" sticker>+{victimsCount * 50}</Badge>
-              </View>
-            </Card>
+              </Card>
+            </PopView>
           )}
 
           {/* 3. ZARTALANDIN */}
           {zartalandın && (
-            <Card variant="surface" style={styles.outcomeZartalandinCard}>
-              <View style={styles.outcomeRow}>
-                <View style={[styles.outcomeIconWrap, { backgroundColor: colors.danger }]}>
-                  <ShieldAlert color="#FFF" size={24} strokeWidth={2.5} />
+            <ShakeView delay={250} intensity={7}>
+              <Card variant="surface" style={styles.outcomeZartalandinCard}>
+                <View style={styles.outcomeRow}>
+                  <View style={[styles.outcomeIconWrap, { backgroundColor: colors.danger }]}>
+                    <ShieldAlert color="#FFF" size={24} strokeWidth={2.5} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.outcomeZartalandinTitle}>ZARTALANDIN!</Text>
+                    <Text style={styles.outcomeDesc}>
+                      Başka bir oyuncunun sahte cevabına düştün
+                    </Text>
+                  </View>
+                  <Badge tone="danger" sticker>-40</Badge>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.outcomeZartalandinTitle}>ZARTALANDIN!</Text>
-                  <Text style={styles.outcomeDesc}>
-                    Başka bir oyuncunun sahte cevabına düştün
-                  </Text>
-                </View>
-                <Badge tone="danger" sticker>-40</Badge>
-              </View>
-            </Card>
+              </Card>
+            </ShakeView>
           )}
         </View>
 
@@ -217,25 +239,27 @@ export default function ResultScreen() {
         <View style={styles.playersListWrap}>
           {playersList
             .filter((p) => p.id !== me?.id)
-            .map((player) => {
+            .map((player, idx) => {
               const res = roomState?.roundResults?.[player.id];
               return (
-                <Card key={player.id} variant="surface" style={styles.playerRow}>
-                  <Avatar avatarKey={player.avatarKey} size={38} />
-                  <Text style={styles.playerName}>{player.name}</Text>
-                  <View style={styles.badgesWrap}>
-                    {res?.outcome.correct ? (
-                      <Badge tone="lime">+100</Badge>
-                    ) : res?.outcome.zartalandın ? (
-                      <Badge tone="danger">-40</Badge>
-                    ) : (
-                      <Badge tone="neutral">0</Badge>
-                    )}
-                    {res?.victimsCount && res.victimsCount > 0 ? (
-                      <Badge tone="orange">+{res.victimsCount * 50}</Badge>
-                    ) : null}
-                  </View>
-                </Card>
+                <StaggerRow key={player.id} index={idx} delay={70}>
+                  <Card variant="surface" style={styles.playerRow}>
+                    <Avatar avatarKey={player.avatarKey} size={38} />
+                    <Text style={styles.playerName}>{player.name}</Text>
+                    <View style={styles.badgesWrap}>
+                      {res?.outcome.correct ? (
+                        <Badge tone="lime">+100</Badge>
+                      ) : res?.outcome.zartalandın ? (
+                        <Badge tone="danger">-40</Badge>
+                      ) : (
+                        <Badge tone="neutral">0</Badge>
+                      )}
+                      {res?.victimsCount && res.victimsCount > 0 ? (
+                        <Badge tone="orange">+{res.victimsCount * 50}</Badge>
+                      ) : null}
+                    </View>
+                  </Card>
+                </StaggerRow>
               );
             })}
         </View>

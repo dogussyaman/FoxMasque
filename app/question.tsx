@@ -12,7 +12,17 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Clock, Send, Sparkles, AlertCircle, CheckCircle2, Flame, Lock } from 'lucide-react-native';
-import { Screen, Button, Card, Badge, ProgressBar } from '@/components/ui';
+import {
+  Screen,
+  Button,
+  Card,
+  Badge,
+  ProgressBar,
+  StaggerRow,
+  PopView,
+  PulseView,
+  MascotFloat,
+} from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -172,17 +182,21 @@ export default function QuestionScreen() {
               {category.emoji} {category.name}
             </Badge>
 
-            <View style={[styles.timerWrap, secondsLeft <= 4 && styles.timerWrapUrgent]}>
-              <Clock color={secondsLeft <= 4 ? colors.danger : colors.yellow} size={15} />
-              <Text
-                style={[
-                  styles.timerText,
-                  secondsLeft <= 4 && { color: colors.dangerSoft },
-                ]}
-              >
-                {secondsLeft}s
-              </Text>
-            </View>
+            {secondsLeft <= 4 ? (
+              <PulseView minScale={0.92} maxScale={1.08} duration={600}>
+                <View style={[styles.timerWrap, styles.timerWrapUrgent]}>
+                  <Clock color={colors.danger} size={15} />
+                  <Text style={[styles.timerText, { color: colors.dangerSoft }]}>
+                    {secondsLeft}s
+                  </Text>
+                </View>
+              </PulseView>
+            ) : (
+              <View style={styles.timerWrap}>
+                <Clock color={colors.yellow} size={15} />
+                <Text style={styles.timerText}>{secondsLeft}s</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.progressWrap}>
@@ -211,11 +225,13 @@ export default function QuestionScreen() {
             <View style={styles.stageWrap}>
               {/* Cunning Fox Mascot Banner */}
               <View style={styles.cunningBanner}>
-                <Image
-                  source={mascotImages.cunning}
-                  style={styles.cunningMascot}
-                  resizeMode="contain"
-                />
+                <MascotFloat floatDistance={5} duration={2200}>
+                  <Image
+                    source={mascotImages.cunning}
+                    style={styles.cunningMascot}
+                    resizeMode="contain"
+                  />
+                </MascotFloat>
                 <View style={{ flex: 1, paddingLeft: 8 }}>
                   <View style={styles.stageKicker}>
                     <Flame color={colors.orange} size={13} />
@@ -259,13 +275,15 @@ export default function QuestionScreen() {
                   />
                 </View>
               ) : (
-                <Card variant="accent" style={styles.submittedCard}>
-                  <CheckCircle2 color={colors.lime} size={32} />
-                  <Text style={styles.submittedTitle}>Cevabın Havuzda Kilitlendi!</Text>
-                  <Text style={styles.submittedText}>
-                    "{fakeAnswerText}" cevabın gerçek cevapla karıştırılıyor. Diğer oyuncular bekleniyor...
-                  </Text>
-                </Card>
+                <PopView delay={80} duration={350}>
+                  <Card variant="accent" style={styles.submittedCard}>
+                    <CheckCircle2 color={colors.lime} size={32} />
+                    <Text style={styles.submittedTitle}>Cevabın Havuzda Kilitlendi!</Text>
+                    <Text style={styles.submittedText}>
+                      "{fakeAnswerText}" cevabın gerçek cevapla karıştırılıyor. Diğer oyuncular bekleniyor...
+                    </Text>
+                  </Card>
+                </PopView>
               )}
             </View>
           ) : (
@@ -288,57 +306,63 @@ export default function QuestionScreen() {
                   const isOwn = !!choice.isOwnFake;
 
                   return (
-                    <Pressable
-                      key={choice.choiceIndex}
-                      onPress={() => {
-                        if (!isOwn) {
-                          trigger('light');
-                          setSelectedChoiceIndex(choice.choiceIndex);
-                        }
-                      }}
-                      disabled={isOwn || submitting}
-                      style={[
-                        styles.choiceCard,
-                        isSelected && styles.choiceCardSelected,
-                        isOwn && styles.choiceCardOwn,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.letterCircle,
-                          isSelected && styles.letterCircleSelected,
-                          isOwn && styles.letterCircleOwn,
+                    <StaggerRow key={choice.choiceIndex} index={idx} delay={90}>
+                      <Pressable
+                        onPress={() => {
+                          if (!isOwn) {
+                            trigger('light');
+                            setSelectedChoiceIndex(choice.choiceIndex);
+                          }
+                        }}
+                        disabled={isOwn || submitting}
+                        style={({ pressed }) => [
+                          styles.choiceCard,
+                          isSelected && styles.choiceCardSelected,
+                          isOwn && styles.choiceCardOwn,
+                          {
+                            transform: [
+                              { scale: pressed ? 0.98 : isSelected ? 1.015 : 1 },
+                            ],
+                          },
                         ]}
                       >
-                        <Text
+                        <View
                           style={[
-                            styles.letterText,
-                            isSelected && styles.letterTextSelected,
-                            isOwn && styles.letterTextOwn,
+                            styles.letterCircle,
+                            isSelected && styles.letterCircleSelected,
+                            isOwn && styles.letterCircleOwn,
                           ]}
                         >
-                          {letter}
-                        </Text>
-                      </View>
-
-                      <Text
-                        style={[
-                          styles.choiceText,
-                          isSelected && styles.choiceTextSelected,
-                          isOwn && styles.choiceTextOwn,
-                        ]}
-                      >
-                        {choice.text}
-                      </Text>
-
-                      {isOwn ? (
-                        <Badge tone="yellow" sticker>SENİN BLÖFÜN</Badge>
-                      ) : isSelected ? (
-                        <View style={styles.selectedTick}>
-                          <Lock color="#171026" size={14} strokeWidth={2.5} />
+                          <Text
+                            style={[
+                              styles.letterText,
+                              isSelected && styles.letterTextSelected,
+                              isOwn && styles.letterTextOwn,
+                            ]}
+                          >
+                            {letter}
+                          </Text>
                         </View>
-                      ) : null}
-                    </Pressable>
+
+                        <Text
+                          style={[
+                            styles.choiceText,
+                            isSelected && styles.choiceTextSelected,
+                            isOwn && styles.choiceTextOwn,
+                          ]}
+                        >
+                          {choice.text}
+                        </Text>
+
+                        {isOwn ? (
+                          <Badge tone="yellow" sticker>SENİN BLÖFÜN</Badge>
+                        ) : isSelected ? (
+                          <View style={styles.selectedTick}>
+                            <Lock color="#171026" size={14} strokeWidth={2.5} />
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    </StaggerRow>
                   );
                 })}
               </View>

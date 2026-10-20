@@ -9,3 +9,4 @@ export * from './FeedbackBanner';
 export * from './States';
 export * from './Screen';
 export * from './CategoryChip';
+export * from './AnimatedViews';

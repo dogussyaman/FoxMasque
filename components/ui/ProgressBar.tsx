@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { colors, radii, spacing } from '@/theme';
 
 interface ProgressProps {
@@ -21,12 +23,27 @@ export function ProgressBar({ value, progress, tone = 'purple', color, height = 
   const raw = value !== undefined ? value : progress !== undefined ? progress : 0;
   const v = Math.max(0, Math.min(1, raw));
   const bg = color || TONES[tone];
+
+  const animatedWidth = useSharedValue(v);
+
+  useEffect(() => {
+    animatedWidth.value = withTiming(v, {
+      duration: 250,
+      easing: Easing.out(Easing.quad),
+    });
+  }, [v, animatedWidth]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${animatedWidth.value * 100}%`,
+  }));
+
   return (
     <View style={[styles.track, { height }]}>
-      <View
+      <Animated.View
         style={[
           styles.fill,
-          { width: `${v * 100}%`, backgroundColor: bg, height },
+          fillStyle,
+          { backgroundColor: bg, height },
         ]}
       />
     </View>

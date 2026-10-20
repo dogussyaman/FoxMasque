@@ -20,7 +20,7 @@ import {
   Smile,
   Flame,
 } from 'lucide-react-native';
-import { Screen, Button, Card, Badge, Avatar } from '@/components/ui';
+import { Screen, Button, Card, Badge, Avatar, MascotFloat, PulseView } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -71,13 +71,15 @@ export default function HomeScreen() {
             <View style={styles.logoPill}>
               <Text style={styles.logoText}>FoxMasque</Text>
             </View>
-            <Badge
-              tone={isLive ? 'lime' : 'yellow'}
-              sticker
-              style={{ marginLeft: 6 }}
-            >
-              {isLive ? 'CANLI' : 'DEMO'}
-            </Badge>
+            <PulseView minScale={0.96} maxScale={1.04} duration={1800}>
+              <Badge
+                tone={isLive ? 'lime' : 'yellow'}
+                sticker
+                style={{ marginLeft: 6 }}
+              >
+                {isLive ? 'CANLI' : 'DEMO'}
+              </Badge>
+            </PulseView>
           </View>
 
           <Pressable
@@ -121,11 +123,13 @@ export default function HomeScreen() {
 
               {/* Right Column: 3D Mascot Illustration */}
               <View style={styles.mascotWrap}>
-                <Image
-                  source={mascotImages.hero}
-                  style={styles.mascotImage}
-                  resizeMode="contain"
-                />
+                <MascotFloat floatDistance={6} duration={2600}>
+                  <Image
+                    source={mascotImages.hero}
+                    style={styles.mascotImage}
+                    resizeMode="contain"
+                  />
+                </MascotFloat>
               </View>
             </View>
 

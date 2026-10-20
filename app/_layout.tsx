@@ -44,19 +44,37 @@ export default function RootLayout() {
 
   return (
     <GameStoreProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="create-room" />
-        <Stack.Screen name="join-room" />
-        <Stack.Screen name="category-select" />
-        <Stack.Screen name="lobby" />
-        <Stack.Screen name="ability-select" />
-        <Stack.Screen name="question" />
-        <Stack.Screen name="waiting" />
-        <Stack.Screen name="result" />
-        <Stack.Screen name="scoreboard" />
-        <Stack.Screen name="game-over" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          animationDuration: 280,
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+        <Stack.Screen name="create-room" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="join-room" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen
+          name="category-select"
+          options={{
+            animation: 'slide_from_bottom',
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen name="lobby" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen
+          name="ability-select"
+          options={{
+            animation: 'slide_from_bottom',
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen name="question" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="waiting" options={{ animation: 'fade' }} />
+        <Stack.Screen name="result" options={{ animation: 'fade_from_bottom' }} />
+        <Stack.Screen name="scoreboard" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="game-over" options={{ animation: 'fade' }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="light" />

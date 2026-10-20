@@ -20,7 +20,18 @@ import {
   UserPlus,
   Flame,
 } from 'lucide-react-native';
-import { Screen, Button, Card, Avatar, Badge, FeedbackBanner } from '@/components/ui';
+import {
+  Screen,
+  Button,
+  Card,
+  Avatar,
+  Badge,
+  FeedbackBanner,
+  StaggerRow,
+  PopView,
+  PulseView,
+  MascotFloat,
+} from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -174,65 +185,72 @@ export default function LobbyScreen() {
 
         {/* Players Cards */}
         <View style={styles.playersListWrap}>
-          {playersList.map((player) => {
+          {playersList.map((player, idx) => {
             const isSelf = player.id === me?.id;
             return (
-              <Card
-                key={player.id}
-                variant={isSelf ? 'accent' : 'surface'}
-                style={[styles.playerCard, isSelf && styles.playerCardSelf]}
-              >
-                <Avatar avatarKey={player.avatarKey} size={46} online={player.isOnline} ring={isSelf} />
+              <StaggerRow key={player.id} index={idx} delay={70}>
+                <Card
+                  variant={isSelf ? 'accent' : 'surface'}
+                  style={[styles.playerCard, isSelf && styles.playerCardSelf]}
+                >
+                  <Avatar avatarKey={player.avatarKey} size={46} online={player.isOnline} ring={isSelf} />
 
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <View style={styles.nameWrap}>
-                    <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
-                      {player.name}
-                    </Text>
-                    {player.isHost && (
-                      <View style={styles.hostCrownBadge}>
-                        <Crown color={colors.yellow} size={12} />
-                        <Text style={styles.hostCrownText}>HOST</Text>
-                      </View>
-                    )}
-                    {isSelf && <Badge tone="neutral">SEN</Badge>}
-                  </View>
-                  <Text style={styles.playerScore}>{player.score} Puan</Text>
-                </View>
-
-                {player.isReady ? (
-                  <View style={styles.readyBadge}>
-                    <CheckCircle2 color="#171026" size={16} strokeWidth={2.5} />
-                    <Text style={styles.readyText}>HAZIR</Text>
-                  </View>
-                ) : (
-                  <View style={styles.unreadyRow}>
-                    <View style={styles.notReadyBadge}>
-                      <Circle color={colors.textMuted} size={14} />
-                      <Text style={styles.notReadyText}>Bekliyor</Text>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <View style={styles.nameWrap}>
+                      <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
+                        {player.name}
+                      </Text>
+                      {player.isHost && (
+                        <View style={styles.hostCrownBadge}>
+                          <Crown color={colors.yellow} size={12} />
+                          <Text style={styles.hostCrownText}>HOST</Text>
+                        </View>
+                      )}
+                      {isSelf && <Badge tone="neutral">SEN</Badge>}
                     </View>
-                    {!isSelf && (
-                      <Pressable
-                        onPress={() => nudgePlayer(player.id, player.name)}
-                        style={styles.nudgeBtn}
-                      >
-                        <Bell color={colors.orange} size={18} strokeWidth={2.2} />
-                      </Pressable>
-                    )}
+                    <Text style={styles.playerScore}>{player.score} Puan</Text>
                   </View>
-                )}
-              </Card>
+
+                  {player.isReady ? (
+                    <PopView duration={300}>
+                      <View style={styles.readyBadge}>
+                        <CheckCircle2 color="#171026" size={16} strokeWidth={2.5} />
+                        <Text style={styles.readyText}>HAZIR</Text>
+                      </View>
+                    </PopView>
+                  ) : (
+                    <View style={styles.unreadyRow}>
+                      <PulseView minScale={0.96} maxScale={1.03} duration={1400}>
+                        <View style={styles.notReadyBadge}>
+                          <Circle color={colors.textMuted} size={14} />
+                          <Text style={styles.notReadyText}>Bekliyor</Text>
+                        </View>
+                      </PulseView>
+                      {!isSelf && (
+                        <Pressable
+                          onPress={() => nudgePlayer(player.id, player.name)}
+                          style={styles.nudgeBtn}
+                        >
+                          <Bell color={colors.orange} size={18} strokeWidth={2.2} />
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
+                </Card>
+              </StaggerRow>
             );
           })}
 
           {/* Empty Placeholder Slots */}
           {Array.from({ length: emptySlotsCount }).map((_, idx) => (
-            <View key={`empty-${idx}`} style={styles.emptySlotCard}>
-              <View style={styles.emptySlotIcon}>
-                <UserPlus color={colors.textMuted} size={18} />
+            <PulseView key={`empty-${idx}`} minScale={0.98} maxScale={1.01} duration={2400}>
+              <View style={styles.emptySlotCard}>
+                <View style={styles.emptySlotIcon}>
+                  <UserPlus color={colors.textMuted} size={18} />
+                </View>
+                <Text style={styles.emptySlotText}>Arkadaşını Bekliyor…</Text>
               </View>
-              <Text style={styles.emptySlotText}>Arkadaşını Bekliyor…</Text>
-            </View>
+            </PulseView>
           ))}
         </View>
 
@@ -260,7 +278,9 @@ export default function LobbyScreen() {
             />
           ) : (
             <View style={styles.waitingNotice}>
-              <Image source={mascotImages.lobby} style={styles.miniMascotWait} resizeMode="contain" />
+              <MascotFloat floatDistance={4} duration={2400}>
+                <Image source={mascotImages.lobby} style={styles.miniMascotWait} resizeMode="contain" />
+              </MascotFloat>
               <Text style={styles.waitingText}>
                 Oda sahibinin oyunu başlatması bekleniyor…
               </Text>
