@@ -26,6 +26,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { CATEGORIES } from '@/features/game/categories';
 import { mascotImages } from '@/assets/illustrations';
+import { categoryImages } from '@/assets/categories';
 
 export default function HomeScreen() {
   const { init, isLive, service, connection, currentPlayer } = useGameStore();
@@ -184,27 +185,47 @@ export default function HomeScreen() {
             style={styles.categoriesScrollView}
             contentContainerStyle={styles.categoriesScroll}
           >
-            {CATEGORIES.map((c) => (
-              <Pressable
-                key={c.id}
-                onPress={() => router.push('/category-select')}
-                style={styles.catCardPressable}
-              >
-                <LinearGradient
-                  colors={[c.gradient[0], c.gradient[1]]}
-                  style={styles.catCard}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+            {CATEGORIES.map((c) => {
+              const bgImage = categoryImages[c.id];
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => router.push('/category-select')}
+                  style={({ pressed }) => [
+                    styles.catCardPressable,
+                    { transform: [{ scale: pressed ? 0.96 : 1 }] },
+                  ]}
                 >
-                  <View style={styles.catEmojiCircle}>
-                    <Text style={styles.catEmoji}>{c.emoji}</Text>
+                  <View style={styles.catCard}>
+                    {bgImage ? (
+                      <Image
+                        source={bgImage}
+                        style={styles.catCardBgImage}
+                        resizeMode="cover"
+                      />
+                    ) : null}
+
+                    <LinearGradient
+                      colors={[
+                        'rgba(15, 10, 26, 0.25)',
+                        'rgba(23, 16, 38, 0.65)',
+                        'rgba(32, 16, 59, 0.94)',
+                      ]}
+                      style={styles.catCardGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                    >
+                      <View style={styles.catEmojiCircle}>
+                        <Text style={styles.catEmoji}>{c.emoji}</Text>
+                      </View>
+                      <Text style={styles.catName} numberOfLines={2}>
+                        {c.name}
+                      </Text>
+                    </LinearGradient>
                   </View>
-                  <Text style={styles.catName} numberOfLines={2}>
-                    {c.name}
-                  </Text>
-                </LinearGradient>
-              </Pressable>
-            ))}
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
 
@@ -489,20 +510,38 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   catCard: {
-    width: 124,
-    height: 98,
+    width: 136,
+    height: 104,
     borderRadius: radii.xl,
-    padding: spacing.md,
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: colors.bgCard,
     ...shadows.card,
+  },
+  catCardBgImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.68,
+  },
+  catCardGradient: {
+    padding: spacing.md,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   catEmojiCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -514,6 +553,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     color: '#FFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   howToRow: {
     flexDirection: 'row',

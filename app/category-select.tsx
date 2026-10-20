@@ -71,8 +71,8 @@ export default function CategorySelectScreen() {
                 <LinearGradient
                   colors={
                     isSelected
-                      ? ['rgba(23, 16, 38, 0.40)', 'rgba(32, 16, 59, 0.85)', cat.gradient[0] + 'F5']
-                      : ['rgba(15, 10, 26, 0.55)', 'rgba(23, 16, 38, 0.85)', 'rgba(32, 16, 59, 0.96)']
+                      ? ['rgba(23, 16, 38, 0.15)', 'rgba(32, 16, 59, 0.65)', cat.gradient[0] + 'EC']
+                      : ['rgba(15, 10, 26, 0.18)', 'rgba(23, 16, 38, 0.58)', 'rgba(32, 16, 59, 0.92)']
                   }
                   style={styles.cardGradient}
                   start={{ x: 0, y: 0 }}
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
-    opacity: 0.42,
+    opacity: 0.72,
   },
   cardGradient: {
     padding: spacing.md,
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -258,21 +258,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lime,
   },
   checkWrapInactive: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   catName: {
     fontFamily: 'Poppins-Bold',
     fontSize: 14,
     color: '#FFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   catDesc: {
     fontFamily: 'Poppins-Regular',
     fontSize: 11,
     lineHeight: 15,
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: 'rgba(255, 255, 255, 0.95)',
     marginTop: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   previewSection: {
     backgroundColor: colors.bgCard,

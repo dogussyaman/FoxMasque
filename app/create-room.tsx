@@ -284,8 +284,8 @@ export default function CreateRoomScreen() {
                   <LinearGradient
                     colors={
                       isSelected
-                        ? ['rgba(23, 16, 38, 0.45)', 'rgba(32, 16, 59, 0.85)', c.gradient[0] + 'F2']
-                        : ['rgba(15, 10, 26, 0.60)', 'rgba(23, 16, 38, 0.88)', 'rgba(32, 16, 59, 0.96)']
+                        ? ['rgba(23, 16, 38, 0.20)', 'rgba(32, 16, 59, 0.68)', c.gradient[0] + 'EC']
+                        : ['rgba(15, 10, 26, 0.28)', 'rgba(23, 16, 38, 0.65)', 'rgba(32, 16, 59, 0.92)']
                     }
                     style={styles.catCardGradient}
                   >
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
-    opacity: 0.38,
+    opacity: 0.68,
   },
   catCardGradient: {
     padding: spacing.md,
@@ -579,14 +579,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lime,
   },
   checkCircleInactive: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   catName: {
     fontFamily: 'Poppins-Bold',
     fontSize: 13,
     color: '#FFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   actionBtnWrap: {
     marginTop: spacing.xs,
