@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Users, Trophy, User as UserIcon } from 'lucide-react-native';
+import { Home, Users, Trophy, User as UserIcon, Gamepad2 } from 'lucide-react-native';
 import { colors } from '@/theme';
 import { StyleSheet } from 'react-native';
 
@@ -12,6 +12,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.purpleSoft,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.label,
+        tabBarItemStyle: styles.item,
       }}
     >
       <Tabs.Screen
@@ -19,6 +20,14 @@ export default function TabLayout() {
         options={{
           title: 'Ana Sayfa',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} strokeWidth={2} />,
+        }}
+      />
+      <Tabs.Screen
+        name="oyna"
+        options={{
+          title: 'Oyna',
+          tabBarIcon: ({ color }) => <Gamepad2 color={color} size={25} strokeWidth={2.4} />,
+          tabBarLabelStyle: styles.playLabel,
         }}
       />
       <Tabs.Screen
@@ -51,12 +60,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgDark,
     borderTopColor: colors.border,
     borderTopWidth: 1,
-    height: 64,
-    paddingBottom: 8,
+    height: 68,
+    paddingBottom: 9,
     paddingTop: 8,
+    elevation: 12,
   },
+  item: { paddingVertical: 1 },
   label: {
     fontFamily: 'Poppins-Medium',
-    fontSize: 11,
+    fontSize: 10,
+  },
+  playLabel: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 10,
   },
 });
