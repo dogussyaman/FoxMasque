@@ -11,20 +11,15 @@ import { questionsForCategory } from '@/features/game/questions';
 
 export default function CategorySelectScreen() {
   const { trigger } = useHaptics();
-  const [selectedCats, setSelectedCats] = useState<CategoryId[]>(CATEGORIES.map((c) => c.id));
-  const [activePreviewCat, setActivePreviewCat] = useState<CategoryId>('genel-kultur');
+  const [selectedCat, setSelectedCat] = useState<CategoryId>('genel-kultur');
 
-  const toggleCat = (id: CategoryId) => {
+  const selectCat = (id: CategoryId) => {
     trigger('light');
-    if (selectedCats.includes(id)) {
-      if (selectedCats.length <= 1) return;
-      setSelectedCats(selectedCats.filter((c) => c !== id));
-    } else {
-      setSelectedCats([...selectedCats, id]);
-    }
+    setSelectedCat(id);
   };
 
-  const previewQuestions = questionsForCategory(activePreviewCat);
+  const currentCategory = CATEGORIES.find((c) => c.id === selectedCat);
+  const previewQuestions = questionsForCategory(selectedCat);
 
   return (
     <Screen gradient diagonalSlice>
@@ -33,30 +28,27 @@ export default function CategorySelectScreen() {
           <ChevronLeft color={colors.textPrimary} size={22} />
         </Pressable>
         <Text style={styles.screenTitle}>Kategori Seçimi</Text>
-        <Badge tone="orange" sticker>{selectedCats.length} / {CATEGORIES.length}</Badge>
+        <Badge tone="orange" sticker>
+          {currentCategory?.emoji} {currentCategory?.name}
+        </Badge>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.subtitle}>
-          Oyun odasında hangi alanlardan soruların döneceğini belirle. Dokunarak açıp kapatabilirsin.
+          Oyun odasında hangi alandan soruların geleceğini belirle. Oynamak istediğin tek kategoriyi seç.
         </Text>
 
-        {/* Categories 2-Column Grid */}
+        {/* Categories 2-Column Grid (Single Select) */}
         <View style={styles.grid}>
           {CATEGORIES.map((cat) => {
-            const isSelected = selectedCats.includes(cat.id);
-            const isPreviewing = activePreviewCat === cat.id;
+            const isSelected = selectedCat === cat.id;
             return (
               <Pressable
                 key={cat.id}
-                onPress={() => {
-                  toggleCat(cat.id);
-                  setActivePreviewCat(cat.id);
-                }}
+                onPress={() => selectCat(cat.id)}
                 style={[
                   styles.card,
                   isSelected && styles.cardSelected,
-                  isPreviewing && styles.cardPreviewing,
                 ]}
               >
                 <LinearGradient
@@ -94,7 +86,7 @@ export default function CategorySelectScreen() {
           <View style={styles.previewHeader}>
             <BookOpen color={colors.orange} size={18} />
             <Text style={styles.previewTitle}>
-              Örnek Soru: {CATEGORIES.find((c) => c.id === activePreviewCat)?.name}
+              Örnek Soru: {currentCategory?.name}
             </Text>
           </View>
 
@@ -110,9 +102,12 @@ export default function CategorySelectScreen() {
             </View>
           ))}
         </View>
+      </ScrollView>
 
+      {/* Fixed Bottom Action Bar */}
+      <View style={styles.bottomBar}>
         <Button
-          label="Seçimleri Kaydet"
+          label="Seçimi Kaydet"
           onPress={() => {
             trigger('medium');
             router.back();
@@ -120,9 +115,8 @@ export default function CategorySelectScreen() {
           variant="orange"
           fullWidth
           icon={<Sparkles color="#FFF" size={20} />}
-          style={{ marginTop: spacing.md }}
         />
-      </ScrollView>
+      </View>
     </Screen>
   );
 }
@@ -281,5 +275,11 @@ const styles = StyleSheet.create({
     color: colors.lime,
     fontFamily: 'Poppins-Bold',
     fontSize: 11,
+  },
+  bottomBar: {
+    paddingTop: 10,
+    paddingBottom: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 247, 240, 0.08)',
   },
 });
