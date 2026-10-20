@@ -92,7 +92,7 @@ export default function LobbyScreen() {
     if (!roomCode) return;
     try {
       await Share.share({
-        message: `ZARTO parti oyununa davetlisin! Oda kodumuz: ${roomCode}. Hemen katıl ve blöfünü konuştur!`,
+        message: `FoxMasque parti oyununa davetlisin! Oda kodumuz: ${roomCode}. Hemen katıl ve blöfünü konuştur!`,
       });
     } catch {}
   };

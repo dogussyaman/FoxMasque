@@ -201,7 +201,7 @@ export default function QuestionScreen() {
           {/* Question Prompt Card */}
           <Card variant="surface" glow="purple" style={styles.promptCard}>
             <View style={styles.questionIconRow}>
-              <Text style={styles.questionKicker}>ZARTO SORUSU</Text>
+              <Text style={styles.questionKicker}>FoxMasque SORUSU</Text>
             </View>
             <Text style={styles.promptText}>{question.prompt}</Text>
           </Card>

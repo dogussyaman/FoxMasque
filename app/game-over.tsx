@@ -67,7 +67,7 @@ export default function GameOverScreen() {
 
           <View style={styles.trophyPill}>
             <Crown color={colors.yellow} size={15} fill={colors.yellow} />
-            <Text style={styles.trophyPillText}>ZARTO ŞAMPİYONU</Text>
+            <Text style={styles.trophyPillText}>FoxMasque ŞAMPİYONU</Text>
           </View>
 
           <Text style={styles.winnerName}>{winner?.name ?? 'Şampiyon'}</Text>

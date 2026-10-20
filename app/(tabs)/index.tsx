@@ -65,11 +65,11 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Top Bar with ZARTO Brand & Player Avatar */}
+        {/* Top Bar with FoxMasque Brand & Player Avatar */}
         <View style={styles.topBar}>
           <View style={styles.brandRow}>
             <View style={styles.logoPill}>
-              <Text style={styles.logoText}>ZARTO</Text>
+              <Text style={styles.logoText}>FoxMasque</Text>
             </View>
             <Badge
               tone={isLive ? 'lime' : 'yellow'}
@@ -203,7 +203,7 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
 
-        {/* How to Play - ZARTO Comic Cards */}
+        {/* How to Play - FoxMasque Comic Cards */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nasıl Oynanır?</Text>
           <Card variant="surface">

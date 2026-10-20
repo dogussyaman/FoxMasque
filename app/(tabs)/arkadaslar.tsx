@@ -35,8 +35,8 @@ export default function ArkadaslarScreen() {
     try {
       await Share.share({
         message: roomCode
-          ? `ZARTO parti oyununda odadayım! Kod: ${roomCode}. Hemen katıl!`
-          : `ZARTO blöf oyununu oynamak için arkadaş ekle!`,
+          ? `FoxMasque parti oyununda odadayım! Kod: ${roomCode}. Hemen katıl!`
+          : `FoxMasque blöf oyununu oynamak için arkadaş ekle!`,
       });
     } catch {}
   };
