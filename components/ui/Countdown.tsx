@@ -1,0 +1,75 @@
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
+import { colors, typography, radii } from '@/theme';
+
+interface CountdownProps {
+  seconds: number;
+  onExpire?: () => void;
+  size?: number;
+}
+
+export function Countdown({ seconds, onExpire, size = 64 }: CountdownProps) {
+  const [remaining, setRemaining] = useState(seconds);
+  const progress = useSharedValue(1);
+
+  useEffect(() => {
+    setRemaining(seconds);
+    progress.value = 1;
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - start) / 1000;
+      const left = Math.max(0, seconds - elapsed);
+      setRemaining(Math.ceil(left));
+      progress.value = withTiming(left / seconds, {
+        duration: 1000,
+        easing: Easing.linear,
+      });
+      if (left <= 0) {
+        clearInterval(interval);
+        onExpire?.();
+      }
+    }, 100);
+    return () => clearInterval(interval);
+  }, [seconds, onExpire, progress]);
+
+  const ringStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${progress.value * 360}deg` }],
+  }));
+
+  const tone =
+    remaining <= 5 ? colors.danger : remaining <= 10 ? colors.warning : colors.purpleSoft;
+
+  return (
+    <View style={[styles.wrap, { width: size, height: size }]}>
+      <Animated.View style={[styles.ring, { borderColor: tone }, ringStyle]} />
+      <View style={[styles.inner, { width: size - 8, height: size - 8, borderRadius: (size - 8) / 2 }]}>
+        <Text style={[styles.text, { color: tone }]}>{remaining}</Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  wrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ring: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    borderRadius: 999,
+    borderWidth: 3,
+    borderTopColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  inner: {
+    backgroundColor: colors.bgSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  text: { ...typography.h3, fontFamily: 'Poppins-Bold' },
+});
