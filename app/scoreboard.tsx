@@ -2,7 +2,17 @@ import { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Trophy, ArrowRight, Sparkles, Crown, Medal } from 'lucide-react-native';
-import { Screen, Button, Card, Badge, Avatar } from '@/components/ui';
+import {
+  Screen,
+  Button,
+  Card,
+  Badge,
+  Avatar,
+  PopView,
+  MascotFloat,
+  StaggerRow,
+  PulseView,
+} from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -52,9 +62,11 @@ export default function ScoreboardScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Top Header */}
         <View style={styles.topHeader}>
-          <View style={styles.iconCircle}>
-            <Trophy color={colors.yellow} size={30} />
-          </View>
+          <MascotFloat floatDistance={4} duration={2200}>
+            <View style={styles.iconCircle}>
+              <Trophy color={colors.yellow} size={30} />
+            </View>
+          </MascotFloat>
           <Text style={styles.title}>Skor Tablosu</Text>
           <Badge tone="purple" sticker>
             Tur {currentRound} / {totalRounds} {isFinalRound ? '• FİNAL' : 'TAMAMLANDI'}
@@ -66,60 +78,68 @@ export default function ScoreboardScreen() {
           <View style={styles.podiumContainer}>
             {/* 2nd Place (Silver) */}
             {top2 && (
-              <View style={[styles.podiumCol, styles.podiumColSecond]}>
-                <View style={styles.avatarWrapSecond}>
-                  <Avatar avatarKey={top2.avatarKey} size={48} />
-                  <View style={styles.silverBadge}>
-                    <Text style={styles.podiumRankText}>2</Text>
+              <PopView delay={220} duration={360}>
+                <View style={[styles.podiumCol, styles.podiumColSecond]}>
+                  <View style={styles.avatarWrapSecond}>
+                    <Avatar avatarKey={top2.avatarKey} size={48} />
+                    <View style={styles.silverBadge}>
+                      <Text style={styles.podiumRankText}>2</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.podiumName} numberOfLines={1}>{top2.name}</Text>
+                  <Text style={styles.podiumScore}>{top2.score} P</Text>
+                  <View style={styles.pillarSecond}>
+                    <Medal color="#C0C0C0" size={20} />
                   </View>
                 </View>
-                <Text style={styles.podiumName} numberOfLines={1}>{top2.name}</Text>
-                <Text style={styles.podiumScore}>{top2.score} P</Text>
-                <View style={styles.pillarSecond}>
-                  <Medal color="#C0C0C0" size={20} />
-                </View>
-              </View>
+              </PopView>
             )}
 
             {/* 1st Place (Gold Champion) */}
             {top1 && (
-              <View style={[styles.podiumCol, styles.podiumColFirst]}>
-                <View style={styles.crownWrap}>
-                  <Crown color={colors.yellow} size={24} fill={colors.yellow} />
-                </View>
-                <View style={styles.avatarWrapFirst}>
-                  <Avatar avatarKey={top1.avatarKey} size={58} ring />
-                  <View style={styles.goldBadge}>
-                    <Text style={styles.podiumRankText}>1</Text>
+              <PopView delay={100} duration={360}>
+                <View style={[styles.podiumCol, styles.podiumColFirst]}>
+                  <View style={styles.crownWrap}>
+                    <MascotFloat floatDistance={3} duration={1600}>
+                      <Crown color={colors.yellow} size={24} fill={colors.yellow} />
+                    </MascotFloat>
+                  </View>
+                  <View style={styles.avatarWrapFirst}>
+                    <Avatar avatarKey={top1.avatarKey} size={58} ring />
+                    <View style={styles.goldBadge}>
+                      <Text style={styles.podiumRankText}>1</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.podiumName, styles.podiumNameFirst]} numberOfLines={1}>
+                    {top1.name}
+                  </Text>
+                  <Text style={[styles.podiumScore, styles.podiumScoreFirst]}>
+                    {top1.score} P
+                  </Text>
+                  <View style={styles.pillarFirst}>
+                    <Trophy color={colors.yellow} size={24} />
                   </View>
                 </View>
-                <Text style={[styles.podiumName, styles.podiumNameFirst]} numberOfLines={1}>
-                  {top1.name}
-                </Text>
-                <Text style={[styles.podiumScore, styles.podiumScoreFirst]}>
-                  {top1.score} P
-                </Text>
-                <View style={styles.pillarFirst}>
-                  <Trophy color={colors.yellow} size={24} />
-                </View>
-              </View>
+              </PopView>
             )}
 
             {/* 3rd Place (Bronze) */}
             {top3 && (
-              <View style={[styles.podiumCol, styles.podiumColThird]}>
-                <View style={styles.avatarWrapThird}>
-                  <Avatar avatarKey={top3.avatarKey} size={44} />
-                  <View style={styles.bronzeBadge}>
-                    <Text style={styles.podiumRankText}>3</Text>
+              <PopView delay={340} duration={360}>
+                <View style={[styles.podiumCol, styles.podiumColThird]}>
+                  <View style={styles.avatarWrapThird}>
+                    <Avatar avatarKey={top3.avatarKey} size={44} />
+                    <View style={styles.bronzeBadge}>
+                      <Text style={styles.podiumRankText}>3</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.podiumName} numberOfLines={1}>{top3.name}</Text>
+                  <Text style={styles.podiumScore}>{top3.score} P</Text>
+                  <View style={styles.pillarThird}>
+                    <Medal color="#CD7F32" size={18} />
                   </View>
                 </View>
-                <Text style={styles.podiumName} numberOfLines={1}>{top3.name}</Text>
-                <Text style={styles.podiumScore}>{top3.score} P</Text>
-                <View style={styles.pillarThird}>
-                  <Medal color="#CD7F32" size={18} />
-                </View>
-              </View>
+              </PopView>
             )}
           </View>
         )}
@@ -132,32 +152,33 @@ export default function ScoreboardScreen() {
             const isLeader = index === 0;
 
             return (
-              <Card
-                key={player.id}
-                variant={isMe ? 'accent' : 'surface'}
-                style={[styles.playerRow, isMe && styles.playerRowSelf]}
-              >
-                <View style={styles.rankNumCircle}>
-                  <Text style={[styles.rankNum, isLeader && { color: colors.yellow }]}>
-                    #{index + 1}
-                  </Text>
-                </View>
+              <StaggerRow key={player.id} index={index} delay={60}>
+                <Card
+                  variant={isMe ? 'accent' : 'surface'}
+                  style={[styles.playerRow, isMe && styles.playerRowSelf]}
+                >
+                  <View style={styles.rankNumCircle}>
+                    <Text style={[styles.rankNum, isLeader && { color: colors.yellow }]}>
+                      #{index + 1}
+                    </Text>
+                  </View>
 
-                <Avatar avatarKey={player.avatarKey} size={40} ring={isMe} />
+                  <Avatar avatarKey={player.avatarKey} size={40} ring={isMe} />
 
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={[styles.playerName, isMe && { color: colors.orange }]}>
-                    {player.name} {isMe ? '(Sen)' : ''}
-                  </Text>
-                  <Text style={styles.playerMeta}>
-                    {player.isHost ? 'Oda Kurucusu' : `Sıralama: ${index + 1}.`}
-                  </Text>
-                </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.playerName, isMe && { color: colors.orange }]}>
+                      {player.name} {isMe ? '(Sen)' : ''}
+                    </Text>
+                    <Text style={styles.playerMeta}>
+                      {player.isHost ? 'Oda Kurucusu' : `Sıralama: ${index + 1}.`}
+                    </Text>
+                  </View>
 
-                <Badge tone={isLeader ? 'yellow' : isMe ? 'orange' : 'neutral'} sticker>
-                  {player.score} PUAN
-                </Badge>
-              </Card>
+                  <Badge tone={isLeader ? 'yellow' : isMe ? 'orange' : 'neutral'} sticker>
+                    {player.score} PUAN
+                  </Badge>
+                </Card>
+              </StaggerRow>
             );
           })}
         </View>

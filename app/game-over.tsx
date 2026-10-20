@@ -2,7 +2,17 @@ import { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Crown, Sparkles, Home, RotateCcw, Trophy, Award } from 'lucide-react-native';
-import { Screen, Button, Card, Badge, Avatar } from '@/components/ui';
+import {
+  Screen,
+  Button,
+  Card,
+  Badge,
+  Avatar,
+  PopView,
+  MascotFloat,
+  StaggerRow,
+  PulseView,
+} from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -58,85 +68,99 @@ export default function GameOverScreen() {
         {/* Grand Champion Mascot Banner */}
         <View style={styles.topHeader}>
           <View style={styles.winnerMascotCircle}>
-            <Image
-              source={mascotImages.winner}
-              style={styles.winnerMascot}
-              resizeMode="contain"
-            />
+            <MascotFloat floatDistance={6} duration={2600}>
+              <Image
+                source={mascotImages.winner}
+                style={styles.winnerMascot}
+                resizeMode="contain"
+              />
+            </MascotFloat>
           </View>
 
-          <View style={styles.trophyPill}>
-            <Crown color={colors.yellow} size={15} fill={colors.yellow} />
-            <Text style={styles.trophyPillText}>FoxMasque ŞAMPİYONU</Text>
-          </View>
+          <PopView delay={120} duration={380}>
+            <View style={{ alignItems: 'center' }}>
+              <View style={styles.trophyPill}>
+                <Crown color={colors.yellow} size={15} fill={colors.yellow} />
+                <Text style={styles.trophyPillText}>FoxMasque ŞAMPİYONU</Text>
+              </View>
 
-          <Text style={styles.winnerName}>{winner?.name ?? 'Şampiyon'}</Text>
-          <Text style={styles.winnerScore}>{winner?.score ?? 0} Toplam Puan</Text>
+              <Text style={styles.winnerName}>{winner?.name ?? 'Şampiyon'}</Text>
+              <Text style={styles.winnerScore}>{winner?.score ?? 0} Toplam Puan</Text>
 
-          {isMeWinner ? (
-            <Badge tone="yellow" sticker style={{ marginTop: 6 }}>
-              🏆 TEBRİKLER, ŞAMPİYON SENSİN!
-            </Badge>
-          ) : myRank ? (
-            <Badge tone="purple" sticker style={{ marginTop: 6 }}>
-              Sıralaman: #{myRank} • {currentPlayer?.score ?? 0} Puan
-            </Badge>
-          ) : null}
+              {isMeWinner ? (
+                <Badge tone="yellow" sticker style={{ marginTop: 6 }}>
+                  🏆 TEBRİKLER, ŞAMPİYON SENSİN!
+                </Badge>
+              ) : myRank ? (
+                <Badge tone="purple" sticker style={{ marginTop: 6 }}>
+                  Sıralaman: #{myRank} • {currentPlayer?.score ?? 0} Puan
+                </Badge>
+              ) : null}
+            </View>
+          </PopView>
         </View>
 
         {/* Top 3 Final Podium */}
         {topThree.length >= 2 && (
           <View style={styles.podiumContainer}>
             {/* 2nd place */}
-            <View style={[styles.podiumCol, styles.secondPlace]}>
-              <Avatar avatarKey={topThree[1].avatarKey} size={48} />
-              <View style={styles.silverBadge}>
-                <Text style={styles.podiumRankNum}>2</Text>
+            <PopView delay={260} duration={380}>
+              <View style={[styles.podiumCol, styles.secondPlace]}>
+                <Avatar avatarKey={topThree[1].avatarKey} size={48} />
+                <View style={styles.silverBadge}>
+                  <Text style={styles.podiumRankNum}>2</Text>
+                </View>
+                <Text style={styles.podiumName} numberOfLines={1}>
+                  {topThree[1].name}
+                </Text>
+                <Text style={styles.podiumScore}>{topThree[1].score} P</Text>
+                <View style={styles.pillarSecond}>
+                  <Text style={styles.pillarLabel}>2.</Text>
+                </View>
               </View>
-              <Text style={styles.podiumName} numberOfLines={1}>
-                {topThree[1].name}
-              </Text>
-              <Text style={styles.podiumScore}>{topThree[1].score} P</Text>
-              <View style={styles.pillarSecond}>
-                <Text style={styles.pillarLabel}>2.</Text>
-              </View>
-            </View>
+            </PopView>
 
             {/* 1st place */}
-            <View style={[styles.podiumCol, styles.firstPlace]}>
-              <View style={styles.miniCrown}>
-                <Crown color={colors.yellow} size={22} fill={colors.yellow} />
+            <PopView delay={140} duration={380}>
+              <View style={[styles.podiumCol, styles.firstPlace]}>
+                <View style={styles.miniCrown}>
+                  <MascotFloat floatDistance={3} duration={1600}>
+                    <Crown color={colors.yellow} size={22} fill={colors.yellow} />
+                  </MascotFloat>
+                </View>
+                <Avatar avatarKey={topThree[0].avatarKey} size={60} ring />
+                <View style={styles.goldBadge}>
+                  <Text style={styles.podiumRankNum}>1</Text>
+                </View>
+                <Text style={[styles.podiumName, styles.podiumNameFirst]} numberOfLines={1}>
+                  {topThree[0].name}
+                </Text>
+                <Text style={[styles.podiumScore, styles.podiumScoreFirst]}>
+                  {topThree[0].score} P
+                </Text>
+                <View style={styles.pillarFirst}>
+                  <Trophy color={colors.yellow} size={26} />
+                </View>
               </View>
-              <Avatar avatarKey={topThree[0].avatarKey} size={60} ring />
-              <View style={styles.goldBadge}>
-                <Text style={styles.podiumRankNum}>1</Text>
-              </View>
-              <Text style={[styles.podiumName, styles.podiumNameFirst]} numberOfLines={1}>
-                {topThree[0].name}
-              </Text>
-              <Text style={[styles.podiumScore, styles.podiumScoreFirst]}>
-                {topThree[0].score} P
-              </Text>
-              <View style={styles.pillarFirst}>
-                <Trophy color={colors.yellow} size={26} />
-              </View>
-            </View>
+            </PopView>
 
             {/* 3rd place */}
             {topThree[2] && (
-              <View style={[styles.podiumCol, styles.thirdPlace]}>
-                <Avatar avatarKey={topThree[2].avatarKey} size={44} />
-                <View style={styles.bronzeBadge}>
-                  <Text style={styles.podiumRankNum}>3</Text>
+              <PopView delay={380} duration={380}>
+                <View style={[styles.podiumCol, styles.thirdPlace]}>
+                  <Avatar avatarKey={topThree[2].avatarKey} size={44} />
+                  <View style={styles.bronzeBadge}>
+                    <Text style={styles.podiumRankNum}>3</Text>
+                  </View>
+                  <Text style={styles.podiumName} numberOfLines={1}>
+                    {topThree[2].name}
+                  </Text>
+                  <Text style={styles.podiumScore}>{topThree[2].score} P</Text>
+                  <View style={styles.pillarThird}>
+                    <Text style={styles.pillarLabel}>3.</Text>
+                  </View>
                 </View>
-                <Text style={styles.podiumName} numberOfLines={1}>
-                  {topThree[2].name}
-                </Text>
-                <Text style={styles.podiumScore}>{topThree[2].score} P</Text>
-                <View style={styles.pillarThird}>
-                  <Text style={styles.pillarLabel}>3.</Text>
-                </View>
-              </View>
+              </PopView>
             )}
           </View>
         )}
@@ -150,20 +174,21 @@ export default function GameOverScreen() {
                 const rank = idx + 4;
                 const isMe = player.id === currentPlayer?.id;
                 return (
-                  <Card
-                    key={player.id}
-                    variant={isMe ? 'accent' : 'surface'}
-                    style={[styles.restRow, isMe && styles.meRow]}
-                  >
-                    <Text style={styles.restRank}>#{rank}</Text>
-                    <Avatar avatarKey={player.avatarKey} size={36} ring={isMe} />
-                    <Text style={[styles.restName, isMe && { color: colors.orange }]}>
-                      {player.name} {isMe ? '(Sen)' : ''}
-                    </Text>
-                    <Badge tone={isMe ? 'orange' : 'neutral'} sticker>
-                      {player.score} P
-                    </Badge>
-                  </Card>
+                  <StaggerRow key={player.id} index={idx} delay={50}>
+                    <Card
+                      variant={isMe ? 'accent' : 'surface'}
+                      style={[styles.restRow, isMe && styles.meRow]}
+                    >
+                      <Text style={styles.restRank}>#{rank}</Text>
+                      <Avatar avatarKey={player.avatarKey} size={36} ring={isMe} />
+                      <Text style={[styles.restName, isMe && { color: colors.orange }]}>
+                        {player.name} {isMe ? '(Sen)' : ''}
+                      </Text>
+                      <Badge tone={isMe ? 'orange' : 'neutral'} sticker>
+                        {player.score} P
+                      </Badge>
+                    </Card>
+                  </StaggerRow>
                 );
               })}
             </View>

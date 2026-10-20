@@ -97,7 +97,7 @@ export function Button({
           borderColor: v.border,
           borderBottomColor: v.bottomBorder,
           borderBottomWidth: disabled ? 1 : 3.5,
-          transform: [{ translateY: pressed ? 2 : 0 }],
+          transform: [{ translateY: pressed ? 2.5 : 0 }, { scale: pressed ? 0.97 : 1 }],
           opacity: disabled ? 0.45 : pressed ? 0.92 : 1,
         },
         fullWidth && { width: '100%' },

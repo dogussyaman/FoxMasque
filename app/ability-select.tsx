@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Shield, Sparkles, ChevronRight, Check, Zap } from 'lucide-react-native';
-import { Screen, Button, Card, Badge, Avatar } from '@/components/ui';
+import { Screen, Button, Card, Badge, Avatar, StaggerRow } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -108,34 +108,40 @@ export default function AbilitySelectScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.abilitiesList}>
-          {ABILITIES.map((ab) => {
+          {ABILITIES.map((ab, idx) => {
             const check = canUseAbility(abilityState, ab.id, targetId || undefined);
             const left = remainingUses(abilityState, ab.id);
             const isSelected = selectedAbility === ab.id;
 
             return (
-              <Pressable
-                key={ab.id}
-                onPress={() => handleSelectAbility(ab.id)}
-                disabled={!check.allowed || confirmed}
-                style={[
-                  styles.abilityCard,
-                  isSelected && styles.abilityCardSelected,
-                  !check.allowed && styles.abilityCardDisabled,
-                ]}
-              >
-                <View style={styles.abilityTopRow}>
-                  <View style={styles.nameRow}>
-                    <Text style={styles.emoji}>{ab.emoji}</Text>
-                    <Text style={styles.name}>{ab.name}</Text>
+              <StaggerRow key={ab.id} index={idx} delay={70}>
+                <Pressable
+                  onPress={() => handleSelectAbility(ab.id)}
+                  disabled={!check.allowed || confirmed}
+                  style={({ pressed }) => [
+                    styles.abilityCard,
+                    isSelected && styles.abilityCardSelected,
+                    !check.allowed && styles.abilityCardDisabled,
+                    {
+                      transform: [
+                        { scale: pressed ? 0.98 : isSelected ? 1.015 : 1 },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={styles.abilityTopRow}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.emoji}>{ab.emoji}</Text>
+                      <Text style={styles.name}>{ab.name}</Text>
+                    </View>
+                    <Badge tone={check.allowed ? (isSelected ? 'orange' : 'lime') : 'neutral'} sticker>
+                      {check.allowed ? `${left} HAK` : 'KİLİTLİ'}
+                    </Badge>
                   </View>
-                  <Badge tone={check.allowed ? (isSelected ? 'orange' : 'lime') : 'neutral'} sticker>
-                    {check.allowed ? `${left} HAK` : 'KİLİTLİ'}
-                  </Badge>
-                </View>
-                <Text style={styles.desc}>{ab.description}</Text>
-                <Text style={styles.unlockDesc}>🔒 Kural: {ab.unlockRule}</Text>
-              </Pressable>
+                  <Text style={styles.desc}>{ab.description}</Text>
+                  <Text style={styles.unlockDesc}>🔒 Kural: {ab.unlockRule}</Text>
+                </Pressable>
+              </StaggerRow>
             );
           })}
         </View>
