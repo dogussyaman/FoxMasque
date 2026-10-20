@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { AppState } from 'react-native';
 import { createGameService, supabaseConfigured } from '@/services';
 import type { GameService, ServiceEvent } from '@/services/types';
 import type { ConnectionState } from '@/services/types';
@@ -49,6 +50,13 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
           if (snap) setRoomState(snap);
           break;
         }
+        case 'phase_changed': {
+          const p = (event.payload as { phase: GameState['phase'] })?.phase;
+          if (p) {
+            setRoomState((prev) => (prev ? { ...prev, phase: p } : null));
+          }
+          break;
+        }
         case 'nudge': {
           const p = event.payload as { nudge: GameStoreValue['lastNudge'] };
           if (p?.nudge) setLastNudge(p.nudge);
@@ -63,6 +71,18 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     });
     return unsub;
   }, [service]);
+
+  // Handle app coming to foreground: refresh room state immediately to prevent stale state
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && roomCode) {
+        service.getRoomState(roomCode).then((snap) => {
+          if (snap) setRoomState(snap);
+        }).catch(() => {});
+      }
+    });
+    return () => subscription.remove();
+  }, [roomCode, service]);
 
   const value = useMemo<GameStoreValue>(
     () => ({

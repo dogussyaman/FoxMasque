@@ -1,21 +1,18 @@
 import type { CategoryId } from '../features/game/categories';
 import { pickQuestions, QUESTIONS } from '../features/game/questions';
-import {
-  freshAbilityState,
-} from '../features/game/abilities';
-import {
-  applyAbilityActionsToPlayers,
-  applyRoundToPlayers,
-  resolveRound,
-} from '../features/game/engine';
+import { freshAbilityState } from '../features/game/abilities';
+import { blendChoices, resolveZartoRound } from '../features/game/engine';
 import type {
   AbilityAction,
   AnswerSubmission,
   GameState,
   Nudge,
   Player,
+  PlayerId,
   RoomConfig,
   RoomPhase,
+  RoundChoice,
+  RoundResultRow,
 } from '../types/game';
 import { makeSamplePlayers, pickAvatarKey } from '../features/game/players';
 import type {
@@ -40,17 +37,17 @@ interface DemoRoom {
   phase: RoomPhase;
   currentRound: number;
   currentQuestionId: string | null;
+  fakeAnswers: Record<string, string>;
+  choices: RoundChoice[];
+  picks: Record<string, number>;
   answers: Record<string, AnswerSubmission>;
   abilityActions: AbilityAction[];
+  roundResults: Record<string, RoundResultRow>;
   nudges: Nudge[];
   createdAt: number;
   questionQueue: string[];
 }
 
-/**
- * Local demo adapter — single-device, seeded with sample players.
- * Clearly labeled: NOT live multiplayer. Use the Supabase adapter for online play.
- */
 export class DemoGameService implements GameService {
   readonly kind = 'demo' as const;
 
@@ -58,7 +55,6 @@ export class DemoGameService implements GameService {
   private handlers = new Set<ServiceEventHandler>();
   private rooms = new Map<string, DemoRoom>();
   private currentPlayer: Player | null = null;
-  private timer: ReturnType<typeof setTimeout> | null = null;
   private leaderboard: Player[] = [];
 
   async connect(): Promise<void> {
@@ -68,7 +64,6 @@ export class DemoGameService implements GameService {
 
   disconnect(): void {
     this.connection = 'offline';
-    if (this.timer) clearTimeout(this.timer);
   }
 
   subscribe(handler: ServiceEventHandler): () => void {
@@ -94,6 +89,12 @@ export class DemoGameService implements GameService {
       isOnline: true,
       score: 0,
       abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
+      consecutiveCorrect: 0,
+      shieldsAvailable: 0,
+      blocksAvailable: 0,
+      isBlockedCurrentRound: false,
+      isBlockedNextRound: false,
+      lastBlockedPlayerId: null,
     };
     this.currentPlayer = player;
     return player;
@@ -129,6 +130,7 @@ export class DemoGameService implements GameService {
       ...p,
       id: `${code}-${p.id}`,
       isHost: false,
+      isReady: true,
     }));
     const players: Record<string, Player> = { [hostId]: hostPlayer };
     for (const s of samples) players[s.id] = s;
@@ -149,8 +151,12 @@ export class DemoGameService implements GameService {
       phase: 'lobby',
       currentRound: 1,
       currentQuestionId: null,
+      fakeAnswers: {},
+      choices: [],
+      picks: {},
       answers: {},
       abilityActions: [],
+      roundResults: {},
       nudges: [],
       createdAt: Date.now(),
       questionQueue: [],
@@ -181,6 +187,7 @@ export class DemoGameService implements GameService {
     if (!room) return;
     if (this.currentPlayer) delete room.players[this.currentPlayer.id];
     this.emit({ type: 'player_left', payload: { code } });
+    this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
   getRoomState(code: string): Promise<GameState | null> {
@@ -232,12 +239,12 @@ export class DemoGameService implements GameService {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
     const readyCount = Object.values(room.players).filter((p) => p.isReady).length;
-    const total = Object.keys(room.players).length;
     if (readyCount < 2) throw new ServiceError('NOT_ENOUGH_READY', 'En az 2 oyuncu hazır olmalı.');
-    void total;
+
+    this.prepareRoundQuestions(room);
     room.phase = 'ability_select';
     room.currentRound = 1;
-    this.prepareRoundQuestions(room);
+    room.currentQuestionId = room.questionQueue[0] ?? QUESTIONS[0].id;
     this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
@@ -245,22 +252,6 @@ export class DemoGameService implements GameService {
   private prepareRoundQuestions(room: DemoRoom) {
     const qs = pickQuestions(room.config.selectedCategoryIds, room.config.totalRounds, room.currentRound);
     room.questionQueue = qs.map((q) => q.id);
-  }
-
-  async submitAnswer(code: string, submission: AnswerSubmission): Promise<void> {
-    const room = this.rooms.get(code);
-    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
-    room.answers[submission.playerId] = submission;
-    this.emit({ type: 'answer_submitted', payload: { code } });
-    // Demo: auto-advance once everyone (or a majority) submitted
-    const total = Object.keys(room.players).length;
-    const submitted = Object.keys(room.answers).length;
-    if (submitted >= total) {
-      room.phase = 'reveal';
-      this.resolveAndBroadcast(code);
-    } else {
-      this.emit({ type: 'state', payload: this.snapshot(code) });
-    }
   }
 
   async useAbility(code: string, action: AbilityAction): Promise<void> {
@@ -271,70 +262,157 @@ export class DemoGameService implements GameService {
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
+  // Step 1 of round: Submit fake answer
+  async submitFakeAnswer(code: string, fakeAnswer: string): Promise<void> {
+    const room = this.rooms.get(code);
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    const meId = this.currentPlayer?.id ?? 'me';
+    room.fakeAnswers[meId] = fakeAnswer.trim();
+
+    // Auto-populate clever bot fake answers
+    const question = QUESTIONS.find((q) => q.id === room.currentQuestionId) || QUESTIONS[0];
+    const decoys = question.defaultDecoys || question.options || ['Tahmin A', 'Tahmin B', 'Tahmin C'];
+
+    let decoyIdx = 0;
+    for (const p of Object.values(room.players)) {
+      if (p.id !== meId && !room.fakeAnswers[p.id]) {
+        room.fakeAnswers[p.id] = decoys[decoyIdx % decoys.length] || `İnandırıcı Yanıt ${decoyIdx + 1}`;
+        decoyIdx++;
+      }
+    }
+
+    // Blend all fake answers + true answer
+    room.choices = blendChoices(question, room.fakeAnswers, room.currentRound * 17);
+    room.phase = 'guess';
+
+    this.emit({ type: 'fake_submitted', payload: { code } });
+    this.emit({ type: 'phase_changed', payload: { code, phase: 'guess' } });
+    this.emit({ type: 'state', payload: this.snapshot(code) });
+  }
+
+  async getRoundChoices(code: string): Promise<RoundChoice[]> {
+    const room = this.rooms.get(code);
+    if (!room) return [];
+    const meId = this.currentPlayer?.id;
+    return room.choices.map((c) => ({
+      choiceIndex: c.choiceIndex,
+      text: c.text,
+      isOwnFake: c.authorId === meId,
+    }));
+  }
+
+  // Step 2 of round: Submit choice / guess
+  async submitPick(code: string, choiceIndex: number): Promise<void> {
+    const room = this.rooms.get(code);
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    const meId = this.currentPlayer?.id ?? 'me';
+    room.picks[meId] = choiceIndex;
+
+    // Bots make random picks (never picking their own fake answer)
+    for (const p of Object.values(room.players)) {
+      if (p.id !== meId && room.picks[p.id] === undefined) {
+        const validChoices = room.choices.filter((c) => c.authorId !== p.id);
+        const randomPick = validChoices[Math.floor(Math.random() * validChoices.length)];
+        room.picks[p.id] = randomPick ? randomPick.choiceIndex : 0;
+      }
+    }
+
+    // Resolve round authoritatively
+    this.resolveRoundAuthoritatively(code);
+  }
+
+  // Backward-compatible submitAnswer
+  async submitAnswer(code: string, submission: AnswerSubmission): Promise<void> {
+    if (submission.fakeAnswer) {
+      await this.submitFakeAnswer(code, submission.fakeAnswer);
+    } else if (submission.choiceIndex !== undefined) {
+      await this.submitPick(code, submission.choiceIndex);
+    } else if (submission.selectedIndex !== undefined) {
+      await this.submitPick(code, submission.selectedIndex);
+    }
+  }
+
+  private resolveRoundAuthoritatively(code: string) {
+    const room = this.rooms.get(code);
+    if (!room || !room.currentQuestionId) return;
+    const question = QUESTIONS.find((q) => q.id === room.currentQuestionId) || QUESTIONS[0];
+
+    const playersList = Object.values(room.players);
+    const { rows, updatedPlayers } = resolveZartoRound({
+      question,
+      players: playersList,
+      choices: room.choices,
+      picks: room.picks,
+      fakeAnswers: room.fakeAnswers,
+      abilityActions: room.abilityActions,
+    });
+
+    room.roundResults = rows;
+    room.players = updatedPlayers;
+    room.phase = 'reveal';
+
+    this.emit({ type: 'round_resolved', payload: { code, rows } });
+    this.emit({ type: 'phase_changed', payload: { code, phase: 'reveal' } });
+    this.emit({ type: 'state', payload: this.snapshot(code) });
+  }
+
   advancePhase(code: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
-    this.advance(code);
-    return Promise.resolve();
-  }
 
-  private advance(code: string) {
-    const room = this.rooms.get(code);
-    if (!room) return;
-    const order: RoomPhase[] = [
-      'ability_select',
-      'question',
-      'reveal',
-      'scoreboard',
-    ];
-    const idx = order.indexOf(room.phase);
-    if (room.phase === 'reveal') {
+    if (room.phase === 'ability_select') {
+      room.phase = 'fake_answer';
+    } else if (room.phase === 'fake_answer') {
+      room.phase = 'guess';
+    } else if (room.phase === 'reveal') {
       room.phase = 'scoreboard';
-      this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
-      this.emit({ type: 'state', payload: this.snapshot(code) });
-      return;
-    }
-    if (room.phase === 'scoreboard') {
+    } else if (room.phase === 'scoreboard') {
       if (room.currentRound >= room.config.totalRounds) {
         room.phase = 'game_over';
         this.emit({ type: 'game_over', payload: { code } });
       } else {
         room.currentRound += 1;
         room.phase = 'ability_select';
+        room.fakeAnswers = {};
+        room.choices = [];
+        room.picks = {};
         room.answers = {};
         room.abilityActions = [];
-        this.prepareRoundQuestions(room);
+        room.currentQuestionId = room.questionQueue[room.currentRound - 1] ?? QUESTIONS[0].id;
       }
-      this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
-      this.emit({ type: 'state', payload: this.snapshot(code) });
-      return;
     }
-    if (idx >= 0 && idx < order.length - 1) {
-      room.phase = order[idx + 1];
-      if (room.phase === 'question') {
-        room.currentQuestionId = room.questionQueue[0] ?? null;
-      }
-      this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
-      this.emit({ type: 'state', payload: this.snapshot(code) });
-    }
+
+    this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
+    this.emit({ type: 'state', payload: this.snapshot(code) });
+    return Promise.resolve();
   }
 
-  private resolveAndBroadcast(code: string) {
+  async rematch(code: string): Promise<void> {
     const room = this.rooms.get(code);
-    if (!room || !room.currentQuestionId) return;
-    const question = QUESTIONS.find((q) => q.id === room.currentQuestionId);
-    if (!question) return;
-
-    const playersList = Object.values(room.players);
-    const { rows } = resolveRound({
-      question,
-      players: playersList,
-      answers: room.answers,
-      abilityActions: room.abilityActions,
-    });
-    room.players = applyRoundToPlayers(room.players, rows);
-    room.players = applyAbilityActionsToPlayers(room.players, room.abilityActions);
-    this.emit({ type: 'round_resolved', payload: { code, rows } });
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    room.phase = 'lobby';
+    room.currentRound = 1;
+    room.fakeAnswers = {};
+    room.choices = [];
+    room.picks = {};
+    room.answers = {};
+    room.abilityActions = [];
+    room.roundResults = {};
+    for (const id of Object.keys(room.players)) {
+      room.players[id] = {
+        ...room.players[id],
+        score: 0,
+        isReady: room.players[id].isHost,
+        consecutiveCorrect: 0,
+        shieldsAvailable: 0,
+        blocksAvailable: 0,
+        isBlockedCurrentRound: false,
+        isBlockedNextRound: false,
+        lastBlockedPlayerId: null,
+      };
+    }
+    this.prepareRoundQuestions(room);
+    this.emit({ type: 'phase_changed', payload: { code, phase: 'lobby' } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
@@ -364,9 +442,12 @@ export class DemoGameService implements GameService {
       phase: room.phase,
       currentRound: room.currentRound,
       currentQuestionId: room.currentQuestionId,
+      fakeAnswers: room.fakeAnswers,
+      choices: room.choices,
+      picks: room.picks,
       answers: room.answers,
       abilityActions: room.abilityActions,
-      roundResults: {},
+      roundResults: room.roundResults,
       history: [],
     };
   }
