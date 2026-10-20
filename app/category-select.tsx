@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronLeft, Check, Sparkles, BookOpen } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,7 @@ import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { CATEGORIES, type CategoryId } from '@/features/game/categories';
 import { questionsForCategory } from '@/features/game/questions';
+import { categoryImages } from '@/assets/categories';
 
 export default function CategorySelectScreen() {
   const { trigger } = useHaptics();
@@ -42,23 +43,52 @@ export default function CategorySelectScreen() {
         <View style={styles.grid}>
           {CATEGORIES.map((cat) => {
             const isSelected = selectedCat === cat.id;
+            const bgImage = categoryImages[cat.id];
             return (
               <Pressable
                 key={cat.id}
                 onPress={() => selectCat(cat.id)}
-                style={[
+                style={({ pressed }) => [
                   styles.card,
                   isSelected && styles.cardSelected,
+                  {
+                    transform: [
+                      { scale: pressed ? 0.97 : isSelected ? 1.015 : 1 },
+                    ],
+                  },
                 ]}
               >
+                {/* Category Background Artwork */}
+                {bgImage ? (
+                  <Image
+                    source={bgImage}
+                    style={styles.cardBgImage}
+                    resizeMode="cover"
+                  />
+                ) : null}
+
+                {/* Dark Vignette & Dynamic Gradient Overlay */}
                 <LinearGradient
-                  colors={isSelected ? [cat.gradient[0], cat.gradient[1]] : [colors.bgCard, colors.bgCardAlt]}
+                  colors={
+                    isSelected
+                      ? ['rgba(23, 16, 38, 0.40)', 'rgba(32, 16, 59, 0.85)', cat.gradient[0] + 'F5']
+                      : ['rgba(15, 10, 26, 0.55)', 'rgba(23, 16, 38, 0.85)', 'rgba(32, 16, 59, 0.96)']
+                  }
                   style={styles.cardGradient}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                  end={{ x: 0, y: 1 }}
                 >
                   <View style={styles.cardHeader}>
-                    <View style={styles.emojiCircle}>
+                    <View
+                      style={[
+                        styles.emojiCircle,
+                        isSelected && {
+                          backgroundColor: cat.accent + '33',
+                          borderColor: cat.accent,
+                          borderWidth: 1.5,
+                        },
+                      ]}
+                    >
                       <Text style={styles.emoji}>{cat.emoji}</Text>
                     </View>
                     <View
@@ -71,10 +101,12 @@ export default function CategorySelectScreen() {
                     </View>
                   </View>
 
-                  <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
-                  <Text style={styles.catDesc} numberOfLines={2}>
-                    {cat.description}
-                  </Text>
+                  <View style={styles.cardTextWrap}>
+                    <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
+                    <Text style={styles.catDesc} numberOfLines={2}>
+                      {cat.description}
+                    </Text>
+                  </View>
                 </LinearGradient>
               </Pressable>
             );
@@ -167,20 +199,36 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: colors.border,
+    position: 'relative',
+    backgroundColor: colors.bgCard,
     ...shadows.card,
   },
   cardSelected: {
     borderColor: colors.orange,
+    borderWidth: 2,
     ...shadows.glowOrange,
   },
   cardPreviewing: {
     borderWidth: 2,
     borderColor: colors.yellow,
   },
+  cardBgImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.42,
+  },
   cardGradient: {
     padding: spacing.md,
-    minHeight: 120,
+    minHeight: 135,
     justifyContent: 'space-between',
+  },
+  cardTextWrap: {
+    marginTop: 6,
   },
   cardHeader: {
     flexDirection: 'row',

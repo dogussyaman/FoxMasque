@@ -20,6 +20,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { CATEGORIES, type CategoryId } from '@/features/game/categories';
 import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
 import { mascotImages } from '@/assets/illustrations';
+import { categoryImages } from '@/assets/categories';
 
 const ROUND_OPTIONS = [3, 5, 7, 10];
 const TIME_OPTIONS = [10, 15, 20, 30];
@@ -261,14 +262,31 @@ export default function CreateRoomScreen() {
           <View style={styles.catGrid}>
             {CATEGORIES.map((c) => {
               const isSelected = selectedCats.includes(c.id);
+              const bgImage = categoryImages[c.id];
               return (
                 <Pressable
                   key={c.id}
                   onPress={() => toggleCategory(c.id)}
-                  style={[styles.catCard, isSelected && styles.catCardSelected]}
+                  style={({ pressed }) => [
+                    styles.catCard,
+                    isSelected && styles.catCardSelected,
+                    { transform: [{ scale: pressed ? 0.97 : 1 }] },
+                  ]}
                 >
+                  {bgImage ? (
+                    <Image
+                      source={bgImage}
+                      style={styles.catCardBgImage}
+                      resizeMode="cover"
+                    />
+                  ) : null}
+
                   <LinearGradient
-                    colors={isSelected ? [c.gradient[0], c.gradient[1]] : [colors.bgCard, colors.bgCardAlt]}
+                    colors={
+                      isSelected
+                        ? ['rgba(23, 16, 38, 0.45)', 'rgba(32, 16, 59, 0.85)', c.gradient[0] + 'F2']
+                        : ['rgba(15, 10, 26, 0.60)', 'rgba(23, 16, 38, 0.88)', 'rgba(32, 16, 59, 0.96)']
+                    }
                     style={styles.catCardGradient}
                   >
                     <View style={styles.catTopRow}>
@@ -517,11 +535,24 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: colors.border,
+    position: 'relative',
+    backgroundColor: colors.bgCard,
     ...shadows.card,
   },
   catCardSelected: {
     borderColor: colors.orange,
+    borderWidth: 2,
     ...shadows.glowOrange,
+  },
+  catCardBgImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    opacity: 0.38,
   },
   catCardGradient: {
     padding: spacing.md,

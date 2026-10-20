@@ -1,10 +1,10 @@
 export type CategoryId =
+  | 'osmanli-donemi'
+  | 'dunya-tarihi'
+  | 'cografya'
   | 'genel-kultur'
   | 'hayvanlar-alem'
-  | 'moda-ve-stil'
-  | 'film-ve-dizi'
-  | 'muzik'
-  | 'yemek-ve-lezzet';
+  | 'film-ve-dizi';
 
 export interface Category {
   id: CategoryId;
@@ -17,10 +17,34 @@ export interface Category {
 
 export const CATEGORIES: readonly Category[] = [
   {
+    id: 'osmanli-donemi',
+    name: 'Osmanlı Dönemi',
+    emoji: '⚔️',
+    description: 'Padişahlar, fetihler, saray sırları ve imparatorluk tarihi.',
+    gradient: ['#4C1D95', '#7C3AED'],
+    accent: '#A78BFA',
+  },
+  {
+    id: 'dunya-tarihi',
+    name: 'Dünya Tarihi',
+    emoji: '🏛️',
+    description: 'Antik medeniyetler, büyük savaşlar ve dönüm noktaları.',
+    gradient: ['#9A3412', '#EA580C'],
+    accent: '#FB923C',
+  },
+  {
+    id: 'cografya',
+    name: 'Coğrafya',
+    emoji: '🌍',
+    description: 'Ülkeler, başkentler, dağlar, okyanuslar ve keşifler.',
+    gradient: ['#047857', '#10B981'],
+    accent: '#34D399',
+  },
+  {
     id: 'genel-kultur',
     name: 'Genel Kültür',
     emoji: '🧠',
-    description: 'Tarih, coğrafya ve karışık bilgilere dair her şey.',
+    description: 'Tarih, sanat, şaşırtıcı bilgiler ve zeka soruları.',
     gradient: ['#6D28D9', '#8B5CF6'],
     accent: '#8B5CF6',
   },
@@ -28,41 +52,17 @@ export const CATEGORIES: readonly Category[] = [
     id: 'hayvanlar-alem',
     name: 'Hayvanlar Alemi',
     emoji: '🦁',
-    description: 'Vahşi doğa, evcil dostlar ve ilginç canlılar.',
+    description: 'Vahşi doğa, gizemli canlılar ve hayvanlar dünyası.',
     gradient: ['#15803D', '#22C55E'],
     accent: '#22C55E',
-  },
-  {
-    id: 'moda-ve-stil',
-    name: 'Moda ve Stil',
-    emoji: '👗',
-    description: 'Trendler, markalar ve tarz dünyasından sorular.',
-    gradient: ['#DB2777', '#F472B6'],
-    accent: '#F472B6',
   },
   {
     id: 'film-ve-dizi',
     name: 'Film ve Dizi',
     emoji: '🎬',
-    description: 'Sinema, platformlar ve unutulmaz sahneler.',
+    description: 'Kült filmler, popüler diziler ve unutulmaz sahneler.',
     gradient: ['#B45309', '#F59E0B'],
     accent: '#F59E0B',
-  },
-  {
-    id: 'muzik',
-    name: 'Müzik',
-    emoji: '🎤',
-    description: 'Sanatçılar, albümler ve ikonik şarkılar.',
-    gradient: ['#1D4ED8', '#3B82F6'],
-    accent: '#3B82F6',
-  },
-  {
-    id: 'yemek-ve-lezzet',
-    name: 'Yemek ve Lezzet',
-    emoji: '🍕',
-    description: 'Mutfaklar, tarifler ve damak tadı kültürü.',
-    gradient: ['#C2410C', '#FB923C'],
-    accent: '#FB923C',
   },
 ] as const;
 
