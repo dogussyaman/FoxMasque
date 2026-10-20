@@ -42,7 +42,7 @@ export default function ArkadaslarScreen() {
   };
 
   return (
-    <Screen gradient diagonalSlice>
+    <Screen gradient diagonalSlice padded={false} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <ScreenHeader
           title="Arkadaşlar"
@@ -165,7 +165,9 @@ function FriendRow({
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingBottom: 120,
+    paddingHorizontal: 18,
+    paddingTop: 4,
+    paddingBottom: 28,
   },
   inviteRow: {
     flexDirection: 'row',

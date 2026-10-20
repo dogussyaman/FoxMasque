@@ -43,7 +43,7 @@ export default function ProfilScreen() {
   };
 
   return (
-    <Screen gradient diagonalSlice>
+    <Screen gradient diagonalSlice padded={false} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <ScreenHeader
           title="Profil"
@@ -215,7 +215,9 @@ export default function ProfilScreen() {
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingBottom: 120,
+    paddingHorizontal: 18,
+    paddingTop: 4,
+    paddingBottom: 28,
   },
   profileCard: {
     marginTop: spacing.xs,

@@ -6,14 +6,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const bottomInset = Math.max(insets.bottom, 10);
-  const barHeight = 60 + bottomInset;
+  const bottomInset = insets.bottom > 0 ? insets.bottom : 8;
+  const barHeight = 54 + bottomInset;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: [styles.bar, { height: barHeight, paddingBottom: bottomInset }],
+        tabBarStyle: {
+          backgroundColor: '#171026',
+          borderTopColor: 'rgba(255, 247, 240, 0.08)',
+          borderTopWidth: 1,
+          height: barHeight,
+          paddingBottom: bottomInset > 0 ? bottomInset - 4 : 4,
+          paddingTop: 6,
+          elevation: 16,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.3,
+          shadowRadius: 10,
+        },
         tabBarActiveTintColor: colors.orange,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.label,
@@ -46,7 +58,7 @@ export default function TabLayout() {
             >
               <Gamepad2
                 color={focused ? '#FFFFFF' : '#FFF7F0'}
-                size={24}
+                size={23}
                 strokeWidth={2.4}
               />
             </View>
@@ -95,17 +107,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  bar: {
-    backgroundColor: '#171026',
-    borderTopColor: 'rgba(255, 247, 240, 0.08)',
-    borderTopWidth: 1.5,
-    paddingTop: 8,
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-  },
   item: {
     paddingVertical: 2,
     alignItems: 'center',
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
   },
   playButtonWrap: {
     width: 44,
-    height: 38,
+    height: 36,
     borderRadius: radii.md,
     backgroundColor: colors.orange,
     alignItems: 'center',

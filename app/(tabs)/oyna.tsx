@@ -9,7 +9,7 @@ import { mascotImages } from '@/assets/illustrations';
 
 export default function OynaScreen() {
   return (
-    <Screen gradient diagonalSlice>
+    <Screen gradient diagonalSlice padded={false} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <ScreenHeader
           title="Oyna"
@@ -141,7 +141,11 @@ export default function OynaScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 120 },
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 4,
+    paddingBottom: 28,
+  },
   hero: {
     marginTop: spacing.xs,
     borderRadius: radii['2xl'],

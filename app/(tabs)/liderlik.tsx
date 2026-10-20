@@ -38,7 +38,7 @@ export default function LiderlikScreen() {
   };
 
   return (
-    <Screen gradient diagonalSlice>
+    <Screen gradient diagonalSlice padded={false} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <ScreenHeader
           title="Liderlik"
@@ -168,7 +168,9 @@ export default function LiderlikScreen() {
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingBottom: 120,
+    paddingHorizontal: 18,
+    paddingTop: 4,
+    paddingBottom: 28,
   },
   badgeWrap: {
     flexDirection: 'row',

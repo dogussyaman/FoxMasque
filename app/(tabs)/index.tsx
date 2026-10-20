@@ -60,7 +60,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen gradient diagonalSlice>
+    <Screen gradient diagonalSlice padded={false} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -309,8 +309,9 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingBottom: 120,
+    paddingHorizontal: 18,
     paddingTop: 4,
+    paddingBottom: 28,
   },
   topBar: {
     flexDirection: 'row',

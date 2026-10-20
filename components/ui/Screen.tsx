@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radii, spacing, typography } from '@/theme';
@@ -9,6 +9,8 @@ interface ScreenProps {
   gradient?: boolean;
   padded?: boolean;
   diagonalSlice?: boolean;
+  edges?: ('top' | 'bottom' | 'left' | 'right')[];
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Screen({
@@ -16,27 +18,38 @@ export function Screen({
   gradient = true,
   padded = true,
   diagonalSlice = false,
+  edges = ['top', 'bottom'],
+  style,
 }: ScreenProps) {
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <View style={styles.root}>
+      {/* Full-bleed edge-to-edge background */}
       {gradient ? (
         <LinearGradient
-          colors={[colors.zartoNight, '#1D1233', colors.zartoSurface, colors.zartoNight]}
+          colors={[colors.zartoNight, '#1E1236', colors.zartoSurface, colors.zartoNight]}
           locations={[0, 0.35, 0.75, 1]}
-          style={styles.fill}
-        >
-          {diagonalSlice && (
-            <View pointerEvents="none" style={styles.diagonalWrapper}>
-              <View style={styles.diagonalSliceTop} />
-              <View style={styles.diagonalSliceBottom} />
-            </View>
-          )}
-          <View style={[styles.fill, padded && styles.padded]}>{children}</View>
-        </LinearGradient>
+          style={StyleSheet.absoluteFill}
+        />
       ) : (
-        <View style={[styles.fill, styles.bg, padded && styles.padded]}>{children}</View>
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.zartoNight }]} />
       )}
-    </SafeAreaView>
+
+      {/* Decorative diagonal game slices */}
+      {diagonalSlice && (
+        <View pointerEvents="none" style={styles.diagonalWrapper}>
+          <View style={styles.diagonalSliceTop} />
+          <View style={styles.diagonalSliceBottom} />
+        </View>
+      )}
+
+      {/* Content wrapper with selective safe area edges (default top only to avoid tab bar gaps) */}
+      <SafeAreaView
+        style={[styles.safeContent, padded && styles.padded, style]}
+        edges={edges}
+      >
+        {children}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -61,16 +74,22 @@ export function ScreenHeader({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.zartoNight },
-  fill: { flex: 1 },
-  bg: { backgroundColor: colors.zartoNight },
-  padded: { paddingHorizontal: 20 },
+  root: {
+    flex: 1,
+    backgroundColor: colors.zartoNight,
+  },
+  safeContent: {
+    flex: 1,
+  },
+  padded: {
+    paddingHorizontal: 18,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 10,
-    paddingBottom: 16,
+    paddingTop: 8,
+    paddingBottom: 14,
   },
   title: {
     color: colors.textPrimary,
