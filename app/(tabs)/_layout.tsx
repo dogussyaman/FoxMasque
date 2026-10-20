@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderBottomWidth: 3,
-    borderBottomColor: '#C2410C',
+    borderBottomColor: '#D9480F',
     borderWidth: 1,
     borderColor: '#FFA07A',
     ...shadows.glowOrange,

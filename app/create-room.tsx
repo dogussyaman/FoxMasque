@@ -460,15 +460,15 @@ const styles = StyleSheet.create({
   segmentBtnActive: {
     backgroundColor: colors.purple,
     borderColor: '#A78BFA',
-    borderBottomWidth: 4,
-    borderBottomColor: '#5B21B6',
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#7C3AED',
     ...shadows.glow,
   },
   segmentBtnActiveTime: {
     backgroundColor: colors.orange,
     borderColor: '#FFA07A',
-    borderBottomWidth: 4,
-    borderBottomColor: '#C2410C',
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#D9480F',
     ...shadows.glowOrange,
   },
   segmentText: {
