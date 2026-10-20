@@ -1,116 +1,111 @@
 export type OutcomeKind =
-  | 'correct' // DOĞRU BİLDİN
-  | 'zartaladın' // you successfully zartaled someone else (and your answer correct)
-  | 'zartalandın'; // you were zartaled by someone
+  | 'correct' // DOĞRU BİLDİN (+100)
+  | 'zartaladın' // ZARTALADIN (+50 per victim tricked by your fake answer)
+  | 'zartalandın' // ZARTALANDIN (-40 when you chose another player's fake answer)
+  | 'blocked'; // Turu atladın / bloklandın
 
 export interface RoundOutcome {
   correct: boolean;
-  zartaladın: boolean; // you zartaled another player
-  zartalandın: boolean; // you were zartaled by another
+  zartaladın: boolean;
+  zartalandın: boolean;
+  victimsCount: number;
   pointsEarned: number;
-  // labels for UI
   labels: OutcomeLabel[];
 }
 
 export type OutcomeLabel =
   | { kind: 'correct'; text: 'DOĞRU BİLDİN'; detail: string; tone: 'success' }
   | { kind: 'zartaladın'; text: 'ZARTALADIN'; detail: string; tone: 'purple' }
-  | { kind: 'zartalandın'; text: 'ZARTALANDIN'; detail: string; tone: 'danger' };
+  | { kind: 'zartalandın'; text: 'ZARTALANDIN'; detail: string; tone: 'danger' }
+  | { kind: 'blocked'; text: 'BLOKLANDIN'; detail: string; tone: 'neutral' };
 
 export const POINTS = {
   correct: 100,
-  zartaladınBonus: 50, // bonus for successful zartal
-  zartalandınPenalty: -40, // penalty when you are zartaled
+  fakeChosenBonus: 50, // bonus per victim choosing your fake answer
+  zartaladınBonus: 50, // alias for backward-compatibility
+  victimPenalty: -40, // penalty when you choose someone else's fake answer
+  zartalandınPenalty: -40, // alias for backward-compatibility
   wrong: 0,
 } as const;
 
 /**
- * Compute the outcome for a single player in a round.
+ * Compute the outcome for a single player in a ZARTO round.
  *
  * Rules:
- * - If you answered correctly: you get DOĞRU BİLDİN (+100).
- * - If you successfully zartaled another player (your answer correct AND
- *   target's answer wrong): you get ZARTALADIN (+50 bonus).
- * - If another player successfully zartaled you (their answer correct AND
- *   your answer wrong): you get ZARTALANDIN (-40 penalty).
- * - A player can both ZARTALADIN and be ZARTALANDIN in the same round only
- *   across different opponents; against the same opponent, a successful
- *   zartal blocks the incoming zartal.
+ * - If you chose the real answer: DOĞRU BİLDİN (+100)
+ * - For each rival that chose your fake answer: ZARTALADIN (+50 per victim)
+ * - If you chose another player's fake answer: ZARTALANDIN (-40 penalty, never show DOĞRU BİLDİN)
+ * - Both can occur in the same round: correct (+100) + tricks (e.g. 2 x +50 = +100) => +200!
  */
 export function computeOutcome(input: {
   answeredCorrectly: boolean;
-  zartaledByMe: boolean; // I successfully zartaled my target
-  zartaledMeBy: boolean; // someone successfully zartaled me
+  victimsCount: number;
+  choseRivalFake: boolean;
+  isBlocked?: boolean;
 }): RoundOutcome {
-  const { answeredCorrectly, zartaledByMe, zartaledMeBy } = input;
+  const { answeredCorrectly, victimsCount, choseRivalFake, isBlocked } = input;
+
+  if (isBlocked) {
+    return {
+      correct: false,
+      zartaladın: false,
+      zartalandın: false,
+      victimsCount: 0,
+      pointsEarned: 0,
+      labels: [
+        {
+          kind: 'blocked',
+          text: 'BLOKLANDIN',
+          detail: 'Bu tur bloklandığın için puan kazanamadın.',
+          tone: 'neutral',
+        },
+      ],
+    };
+  }
 
   let points = 0;
   const labels: OutcomeLabel[] = [];
 
+  // 1. Correct answer
   if (answeredCorrectly) {
     points += POINTS.correct;
     labels.push({
       kind: 'correct',
       text: 'DOĞRU BİLDİN',
-      detail: 'Soruyu doğru bildin, +100 puan!',
+      detail: 'Gerçek cevabı buldun, +100 puan!',
       tone: 'success',
     });
   }
 
-  if (zartaledByMe) {
-    points += POINTS.zartaladınBonus;
+  // 2. Tricked rivals with your fake answer
+  if (victimsCount > 0) {
+    const bonus = victimsCount * POINTS.fakeChosenBonus;
+    points += bonus;
     labels.push({
       kind: 'zartaladın',
       text: 'ZARTALADIN',
-      detail: 'Rakibini zartaladın, +50 bonus!',
+      detail: `${victimsCount} rakip senin sahte cevabına düştü (+${bonus} puan)!`,
       tone: 'purple',
     });
   }
 
-  if (zartaledMeBy) {
-    points += POINTS.zartalandınPenalty;
+  // 3. You fell for another player's fake answer
+  if (choseRivalFake) {
+    points += POINTS.victimPenalty;
     labels.push({
       kind: 'zartalandın',
       text: 'ZARTALANDIN',
-      detail: 'Bir rakip seni zartaladı, -40 puan.',
+      detail: 'Bir rakibin sahte cevabına aldandın, -40 puan.',
       tone: 'danger',
     });
   }
 
   return {
     correct: answeredCorrectly,
-    zartaladın: zartaledByMe,
-    zartalandın: zartaledMeBy,
+    zartaladın: victimsCount > 0,
+    zartalandın: choseRivalFake,
+    victimsCount,
     pointsEarned: points,
     labels,
   };
-}
-
-/**
- * Resolve a zartal attempt between two players.
- * A zartal is "successful" only when:
- *  - the attacker answered correctly, AND
- *  - the defender answered incorrectly, AND
- *  - the defender did not have an active Shield, AND
- *  - the attacker was not Blocked from that defender this round.
- */
-export function resolveZartal(input: {
-  attackerCorrect: boolean;
-  defenderCorrect: boolean;
-  defenderShielded: boolean;
-  attackerBlocked: boolean;
-}): { success: boolean; reason: string } {
-  if (!input.attackerCorrect) {
-    return { success: false, reason: 'Soruyu yanlış cevapladın, zartal geçersiz.' };
-  }
-  if (input.attackerBlocked) {
-    return { success: false, reason: 'Rakibin seni engelledi, zartal bloklandı.' };
-  }
-  if (input.defenderCorrect) {
-    return { success: false, reason: 'Rakip de doğru bildi, zartal tutmadı.' };
-  }
-  if (input.defenderShielded) {
-    return { success: false, reason: 'Rakibin kalkanı vardı, zartal tutmadı.' };
-  }
-  return { success: true, reason: 'Zartal başarılı!' };
 }

@@ -50,6 +50,12 @@ export function makeSamplePlayers(
       isOnline: true,
       score: 0,
       abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
+      consecutiveCorrect: 0,
+      shieldsAvailable: 0,
+      blocksAvailable: 0,
+      isBlockedCurrentRound: false,
+      isBlockedNextRound: false,
+      lastBlockedPlayerId: null,
     });
   }
   return players;
