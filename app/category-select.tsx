@@ -1,28 +1,34 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, ImageBackground } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronLeft, Check, Sparkles, BookOpen } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Screen, Button, Badge } from '@/components/ui';
+import { Screen, Button, Badge, StickyActionBar } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useHaptics } from '@/hooks/useHaptics';
-import { CATEGORIES, type CategoryId } from '@/features/game/categories';
+import {
+  CATEGORY_GROUPS,
+  CATEGORY_OPTIONS,
+  type CategoryOptionId,
+} from '@/features/game/categories';
 import { questionsForCategory } from '@/features/game/questions';
-import { categoryImages } from '@/assets/categories';
 import { soundService } from '@/services/soundService';
+import { categoryOptionImages } from '@/assets/categories/options';
 
 export default function CategorySelectScreen() {
   const { trigger } = useHaptics();
-  const [selectedCat, setSelectedCat] = useState<CategoryId>('genel-kultur');
+  const [selectedCat, setSelectedCat] = useState<CategoryOptionId>('genel-kultur');
 
-  const selectCat = (id: CategoryId) => {
+  const selectCat = (id: CategoryOptionId) => {
     soundService.play('click');
     trigger('light');
     setSelectedCat(id);
   };
 
-  const currentCategory = CATEGORIES.find((c) => c.id === selectedCat);
-  const previewQuestions = questionsForCategory(selectedCat);
+  const currentCategory = CATEGORY_OPTIONS.find((category) => category.id === selectedCat);
+  const previewQuestions = questionsForCategory(
+    currentCategory?.questionCategoryId ?? 'genel-kultur'
+  );
 
   return (
     <Screen gradient diagonalSlice>
@@ -42,84 +48,75 @@ export default function CategorySelectScreen() {
         </Badge>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.subtitle}>
           Oyun odasında hangi alandan soruların geleceğini belirle. Oynamak istediğin tek kategoriyi seç.
+          {'\n'}Alt kategoriler, en yakın mevcut soru havuzunu kullanır.
         </Text>
 
-        {/* Categories 2-Column Grid (Single Select) */}
-        <View style={styles.grid}>
-          {CATEGORIES.map((cat) => {
-            const isSelected = selectedCat === cat.id;
-            const bgImage = categoryImages[cat.id];
-            return (
-              <Pressable
-                key={cat.id}
-                onPress={() => selectCat(cat.id)}
-                style={({ pressed }) => [
-                  styles.card,
-                  isSelected && styles.cardSelected,
-                  {
-                    transform: [
-                      { scale: pressed ? 0.97 : isSelected ? 1.015 : 1 },
-                    ],
-                  },
-                ]}
-              >
-                {/* Category Background Artwork */}
-                {bgImage ? (
-                  <Image
-                    source={bgImage}
-                    style={styles.cardBgImage}
-                    resizeMode="cover"
-                  />
-                ) : null}
-
-                {/* Dark Vignette & Dynamic Gradient Overlay */}
-                <LinearGradient
-                  colors={
-                    isSelected
-                      ? ['rgba(23, 16, 38, 0.15)', 'rgba(32, 16, 59, 0.65)', cat.gradient[0] + 'EC']
-                      : ['rgba(15, 10, 26, 0.18)', 'rgba(23, 16, 38, 0.58)', 'rgba(32, 16, 59, 0.92)']
-                  }
-                  style={styles.cardGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                >
-                  <View style={styles.cardHeader}>
-                    <View
-                      style={[
-                        styles.emojiCircle,
-                        isSelected && {
-                          backgroundColor: cat.accent + '33',
-                          borderColor: cat.accent,
-                          borderWidth: 1.5,
-                        },
-                      ]}
+        {CATEGORY_GROUPS.map((group) => (
+          <View key={group.id} style={styles.categoryGroup}>
+            <View style={styles.categoryGroupHeading}>
+              <Text style={styles.categoryGroupEmoji}>{group.emoji}</Text>
+              <Text style={styles.categoryGroupTitle}>{group.name}</Text>
+            </View>
+            <View style={styles.grid}>
+              {group.categories.map((category) => {
+                const isSelected = selectedCat === category.id;
+                return (
+                  <Pressable
+                    key={category.id}
+                    onPress={() => selectCat(category.id)}
+                    style={({ pressed }) => [
+                      styles.card,
+                      isSelected && styles.cardSelected,
+                      {
+                        transform: [
+                          { scale: pressed ? 0.98 : 1 },
+                        ],
+                      },
+                    ]}
+                  >
+                    <ImageBackground
+                      source={categoryOptionImages[category.id]}
+                      style={styles.cardGradient}
+                      imageStyle={styles.categoryImage}
                     >
-                      <Text style={styles.emoji}>{cat.emoji}</Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.checkWrap,
-                        isSelected ? styles.checkWrapActive : styles.checkWrapInactive,
-                      ]}
-                    >
-                      {isSelected ? <Check color="#171026" size={14} strokeWidth={3} /> : null}
-                    </View>
-                  </View>
-
-                  <View style={styles.cardTextWrap}>
-                    <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
-                    <Text style={styles.catDesc} numberOfLines={2}>
-                      {cat.description}
-                    </Text>
-                  </View>
-                </LinearGradient>
-              </Pressable>
-            );
-          })}
-        </View>
+                      <LinearGradient
+                        colors={['rgba(15, 9, 27, 0.2)', 'rgba(15, 9, 27, 0.82)']}
+                        style={StyleSheet.absoluteFill}
+                        pointerEvents="none"
+                      />
+                      <View style={styles.cardContent}>
+                        <View style={styles.cardHeader}>
+                          <View style={styles.emojiCircle}>
+                            <Text style={styles.emoji}>{category.emoji}</Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.checkWrap,
+                              isSelected ? styles.checkWrapActive : styles.checkWrapInactive,
+                            ]}
+                          >
+                            {isSelected ? <Check color="#171026" size={14} strokeWidth={3} /> : null}
+                          </View>
+                        </View>
+                        <Text style={styles.catName} numberOfLines={3}>
+                          {category.name}
+                        </Text>
+                      </View>
+                    </ImageBackground>
+                    {isSelected && <View pointerEvents="none" style={styles.selectedOutline} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        ))}
 
         {/* Sample Question Preview Section */}
         <View style={styles.previewSection}>
@@ -145,7 +142,7 @@ export default function CategorySelectScreen() {
       </ScrollView>
 
       {/* Fixed Bottom Action Bar */}
-      <View style={styles.bottomBar}>
+      <StickyActionBar>
         <Button
           label="Seçimi Kaydet"
           onPress={() => {
@@ -156,7 +153,7 @@ export default function CategorySelectScreen() {
           fullWidth
           icon={<Sparkles color="#FFF" size={20} />}
         />
-      </View>
+      </StickyActionBar>
     </Screen>
   );
 }
@@ -196,44 +193,67 @@ const styles = StyleSheet.create({
   scroll: {
     paddingBottom: 48,
   },
+  categoryGroup: {
+    marginBottom: spacing.md,
+  },
+  categoryGroupHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: spacing.sm,
+  },
+  categoryGroupEmoji: {
+    fontSize: 18,
+  },
+  categoryGroupTitle: {
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
   card: {
-    width: '48%',
+    width: '47%',
+    minWidth: 0,
     borderRadius: radii.xl,
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: colors.border,
-    position: 'relative',
     backgroundColor: colors.bgCard,
     ...shadows.card,
   },
   cardSelected: {
     borderColor: colors.orange,
-    borderWidth: 2,
     ...shadows.glowOrange,
   },
   cardPreviewing: {
     borderWidth: 2,
     borderColor: colors.yellow,
   },
-  cardBgImage: {
+  cardGradient: {
+    flex: 1,
+    minHeight: 104,
+  },
+  categoryImage: {
+    resizeMode: 'cover',
+  },
+  cardContent: {
+    flex: 1,
+    padding: spacing.md,
+    justifyContent: 'space-between',
+  },
+  selectedOutline: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    width: '100%',
-    height: '100%',
-    opacity: 0.72,
-  },
-  cardGradient: {
-    padding: spacing.md,
-    minHeight: 135,
-    justifyContent: 'space-between',
+    borderRadius: radii.xl,
+    borderWidth: 2.5,
+    borderColor: colors.orange,
   },
   cardTextWrap: {
     marginTop: 6,
@@ -339,11 +359,5 @@ const styles = StyleSheet.create({
     color: colors.lime,
     fontFamily: 'Poppins-Bold',
     fontSize: 11,
-  },
-  bottomBar: {
-    paddingTop: 10,
-    paddingBottom: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 247, 240, 0.08)',
   },
 });

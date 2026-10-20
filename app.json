@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "FoxMasque",
-    "slug": "bolt-expo-nativewind",
+    "name": "TUZAK",
+    "slug": "tuzak-game",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -22,7 +22,13 @@
       "expo-splash-screen",
       "expo-status-bar",
       "expo-audio",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Profil fotoğrafı seçmek için fotoğraf arşivi erişimi gerekir."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

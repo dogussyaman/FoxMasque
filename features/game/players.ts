@@ -1,4 +1,8 @@
 import type { Player, PlayerId } from '../../types/game';
+import { createAvatar } from '@dicebear/core';
+import * as adventurer from '@dicebear/adventurer';
+import * as bottts from '@dicebear/bottts';
+import * as funEmoji from '@dicebear/fun-emoji';
 
 export const AVATARS = {
   fox: { key: 'fox', emoji: '🦊', gradient: ['#F97316', '#FB923C'] as const },
@@ -16,6 +20,28 @@ export const AVATARS = {
 export type AvatarKey = keyof typeof AVATARS;
 
 export const AVATAR_KEYS = Object.keys(AVATARS) as AvatarKey[];
+
+export const DICEBEAR_AVATAR_KEYS = Array.from(
+  { length: 36 },
+  (_, index) => `db-${index.toString().padStart(2, '0')}`
+);
+
+export function diceBearAvatarSvg(key: string): string | null {
+  const index = Number(key.slice(3));
+  if (
+    !key.startsWith('db-') ||
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= DICEBEAR_AVATAR_KEYS.length
+  ) {
+    return null;
+  }
+
+  const options = { seed: `foxmasque-${index + 1}` };
+  if (index < 12) return createAvatar(adventurer, options).toString();
+  if (index < 24) return createAvatar(bottts, options).toString();
+  return createAvatar(funEmoji, options).toString();
+}
 
 export function avatarOf(key: string) {
   return (AVATARS as Record<string, (typeof AVATARS)[AvatarKey]>)[key] ?? AVATARS.fox;

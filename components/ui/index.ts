@@ -10,3 +10,4 @@ export * from './States';
 export * from './Screen';
 export * from './CategoryChip';
 export * from './AnimatedViews';
+export * from './StickyActionBar';

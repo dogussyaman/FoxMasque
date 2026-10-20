@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, Image, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Crown, Sparkles, Home, RotateCcw, Trophy, Award } from 'lucide-react-native';
 import {
@@ -12,16 +12,20 @@ import {
   MascotFloat,
   StaggerRow,
   PulseView,
+  StickyActionBar,
 } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
+import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
+import type { Player } from '@/types/game';
 
 export default function GameOverScreen() {
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
   const { trigger } = useHaptics();
+  const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
 
   useEffect(() => {
     soundService.play('true');
@@ -66,7 +70,11 @@ export default function GameOverScreen() {
 
   return (
     <Screen gradient diagonalSlice>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Grand Champion Mascot Banner */}
         <View style={styles.topHeader}>
           <View style={styles.winnerMascotCircle}>
@@ -79,11 +87,16 @@ export default function GameOverScreen() {
             </MascotFloat>
           </View>
 
+          <Pressable
+            onPress={() => winner && setProfilePlayer(winner)}
+            accessibilityRole="button"
+            accessibilityLabel={winner ? `${winner.name} oyuncu profilini aç` : undefined}
+          >
           <PopView delay={120} duration={380}>
             <View style={{ alignItems: 'center' }}>
               <View style={styles.trophyPill}>
                 <Crown color={colors.yellow} size={15} fill={colors.yellow} />
-                <Text style={styles.trophyPillText}>FoxMasque ŞAMPİYONU</Text>
+                <Text style={styles.trophyPillText}>TUZAK ŞAMPİYONU</Text>
               </View>
 
               <Text style={styles.winnerName}>{winner?.name ?? 'Şampiyon'}</Text>
@@ -100,6 +113,7 @@ export default function GameOverScreen() {
               ) : null}
             </View>
           </PopView>
+          </Pressable>
         </View>
 
         {/* Top 3 Final Podium */}
@@ -107,7 +121,7 @@ export default function GameOverScreen() {
           <View style={styles.podiumContainer}>
             {/* 2nd place */}
             <PopView delay={260} duration={380}>
-              <View style={[styles.podiumCol, styles.secondPlace]}>
+              <Pressable onPress={() => setProfilePlayer(topThree[1])} style={[styles.podiumCol, styles.secondPlace]}>
                 <Avatar avatarKey={topThree[1].avatarKey} size={48} />
                 <View style={styles.silverBadge}>
                   <Text style={styles.podiumRankNum}>2</Text>
@@ -119,12 +133,12 @@ export default function GameOverScreen() {
                 <View style={styles.pillarSecond}>
                   <Text style={styles.pillarLabel}>2.</Text>
                 </View>
-              </View>
+              </Pressable>
             </PopView>
 
             {/* 1st place */}
             <PopView delay={140} duration={380}>
-              <View style={[styles.podiumCol, styles.firstPlace]}>
+              <Pressable onPress={() => setProfilePlayer(topThree[0])} style={[styles.podiumCol, styles.firstPlace]}>
                 <View style={styles.miniCrown}>
                   <MascotFloat floatDistance={3} duration={1600}>
                     <Crown color={colors.yellow} size={22} fill={colors.yellow} />
@@ -143,13 +157,13 @@ export default function GameOverScreen() {
                 <View style={styles.pillarFirst}>
                   <Trophy color={colors.yellow} size={26} />
                 </View>
-              </View>
+              </Pressable>
             </PopView>
 
             {/* 3rd place */}
             {topThree[2] && (
               <PopView delay={380} duration={380}>
-                <View style={[styles.podiumCol, styles.thirdPlace]}>
+                <Pressable onPress={() => setProfilePlayer(topThree[2])} style={[styles.podiumCol, styles.thirdPlace]}>
                   <Avatar avatarKey={topThree[2].avatarKey} size={44} />
                   <View style={styles.bronzeBadge}>
                     <Text style={styles.podiumRankNum}>3</Text>
@@ -161,7 +175,7 @@ export default function GameOverScreen() {
                   <View style={styles.pillarThird}>
                     <Text style={styles.pillarLabel}>3.</Text>
                   </View>
-                </View>
+                </Pressable>
               </PopView>
             )}
           </View>
@@ -177,19 +191,21 @@ export default function GameOverScreen() {
                 const isMe = player.id === currentPlayer?.id;
                 return (
                   <StaggerRow key={player.id} index={idx} delay={50}>
-                    <Card
-                      variant={isMe ? 'accent' : 'surface'}
-                      style={[styles.restRow, isMe && styles.meRow]}
-                    >
-                      <Text style={styles.restRank}>#{rank}</Text>
-                      <Avatar avatarKey={player.avatarKey} size={36} ring={isMe} />
-                      <Text style={[styles.restName, isMe && { color: colors.orange }]}>
-                        {player.name} {isMe ? '(Sen)' : ''}
-                      </Text>
-                      <Badge tone={isMe ? 'orange' : 'neutral'} sticker>
-                        {player.score} P
-                      </Badge>
-                    </Card>
+                    <Pressable onPress={() => setProfilePlayer(player)}>
+                      <Card
+                        variant={isMe ? 'accent' : 'surface'}
+                        style={[styles.restRow, isMe && styles.meRow]}
+                      >
+                        <Text style={styles.restRank}>#{rank}</Text>
+                        <Avatar avatarKey={player.avatarKey} size={36} ring={isMe} />
+                        <Text style={[styles.restName, isMe && { color: colors.orange }]}>
+                          {player.name} {isMe ? '(Sen)' : ''}
+                        </Text>
+                        <Badge tone={isMe ? 'orange' : 'neutral'} sticker>
+                          {player.score} P
+                        </Badge>
+                      </Card>
+                    </Pressable>
                   </StaggerRow>
                 );
               })}
@@ -197,32 +213,37 @@ export default function GameOverScreen() {
           </View>
         )}
 
-        {/* Action Buttons */}
-        <View style={styles.actionsWrap}>
-          <Button
-            label="Yeniden Oyna (Rematch)"
-            onPress={handlePlayAgain}
-            variant="orange"
-            fullWidth
-            icon={<RotateCcw color="#FFF" size={20} />}
-            style={{ marginBottom: 12 }}
-          />
-          <Button
-            label="Ana Sayfaya Dön"
-            onPress={handleGoHome}
-            variant="secondary"
-            fullWidth
-            icon={<Home color={colors.textPrimary} size={18} />}
-          />
-        </View>
       </ScrollView>
+      <StickyActionBar>
+        <Button
+          label="Yeniden Oyna (Rematch)"
+          onPress={handlePlayAgain}
+          variant="orange"
+          fullWidth
+          icon={<RotateCcw color="#FFF" size={20} />}
+          style={{ marginBottom: 12 }}
+        />
+        <Button
+          label="Ana Sayfaya Dön"
+          onPress={handleGoHome}
+          variant="secondary"
+          fullWidth
+          icon={<Home color={colors.textPrimary} size={18} />}
+        />
+      </StickyActionBar>
+      <PlayerProfileSheet
+        player={profilePlayer}
+        isSelf={profilePlayer?.id === currentPlayer?.id}
+        visible={profilePlayer !== null}
+        onClose={() => setProfilePlayer(null)}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingBottom: 48,
+    paddingBottom: spacing.md,
     paddingTop: 4,
   },
   topHeader: {
@@ -435,9 +456,5 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flex: 1,
     marginLeft: 8,
-  },
-  actionsWrap: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
   },
 });

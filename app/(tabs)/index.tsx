@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import {
   Image,
+  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,10 +25,10 @@ import { Screen, Button, Card, Badge, Avatar, MascotFloat, PulseView } from '@/c
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
-import { CATEGORIES } from '@/features/game/categories';
+import { CATEGORY_OPTIONS } from '@/features/game/categories';
 import { mascotImages } from '@/assets/illustrations';
-import { categoryImages } from '@/assets/categories';
 import { soundService } from '@/services/soundService';
+import { categoryOptionImages } from '@/assets/categories/options';
 
 export default function HomeScreen() {
   const { init, isLive, service, connection, currentPlayer } = useGameStore();
@@ -67,11 +68,11 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Top Bar with FoxMasque Brand & Player Avatar */}
+        {/* Top Bar with TUZAK Brand & Player Avatar */}
         <View style={styles.topBar}>
           <View style={styles.brandRow}>
             <View style={styles.logoPill}>
-              <Text style={styles.logoText}>FoxMasque</Text>
+              <Text style={styles.logoText}>TUZAK</Text>
             </View>
             <PulseView minScale={0.96} maxScale={1.04} duration={1800}>
               <Badge
@@ -116,7 +117,7 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.heroTitle}>
                   Blöfünü Yap,{'\n'}
-                  <Text style={{ color: colors.orange }}>Zartala!</Text>
+                  <Text style={{ color: colors.orange }}>Tuzak Kur!</Text>
                 </Text>
                 <Text style={styles.heroSubtitle}>
                   Sahte cevaplar yaz, rakiplerini kandır ve gerçek cevabı bul!
@@ -163,11 +164,11 @@ export default function HomeScreen() {
           </View>
           <View style={[styles.miniRuleChip, { borderColor: colors.orange }]}>
             <Text style={[styles.miniRuleEmoji, { color: colors.orange }]}>+50</Text>
-            <Text style={styles.miniRuleText}>Zartala</Text>
+            <Text style={styles.miniRuleText}>Tuzak Kur</Text>
           </View>
           <View style={[styles.miniRuleChip, { borderColor: colors.danger }]}>
             <Text style={[styles.miniRuleEmoji, { color: colors.dangerSoft }]}>-40</Text>
-            <Text style={styles.miniRuleText}>Zartalanma</Text>
+            <Text style={styles.miniRuleText}>Tuzağa Düşme</Text>
           </View>
         </View>
 
@@ -186,54 +187,43 @@ export default function HomeScreen() {
             style={styles.categoriesScrollView}
             contentContainerStyle={styles.categoriesScroll}
           >
-            {CATEGORIES.map((c) => {
-              const bgImage = categoryImages[c.id];
-              return (
-                <Pressable
-                  key={c.id}
-                  onPress={() => {
-                    soundService.play('click');
-                    router.push('/category-select');
-                  }}
-                  style={({ pressed }) => [
-                    styles.catCardPressable,
-                    { transform: [{ scale: pressed ? 0.96 : 1 }] },
-                  ]}
+            {CATEGORY_OPTIONS.map((category) => (
+              <Pressable
+                key={category.id}
+                onPress={() => {
+                  soundService.play('click');
+                  router.push('/category-select');
+                }}
+                style={({ pressed }) => [
+                  styles.catCardPressable,
+                  { transform: [{ scale: pressed ? 0.96 : 1 }] },
+                ]}
+              >
+                <ImageBackground
+                  source={categoryOptionImages[category.id]}
+                  style={styles.catCard}
+                  imageStyle={styles.catCardImage}
                 >
-                  <View style={styles.catCard}>
-                    {bgImage ? (
-                      <Image
-                        source={bgImage}
-                        style={styles.catCardBgImage}
-                        resizeMode="cover"
-                      />
-                    ) : null}
-
-                    <LinearGradient
-                      colors={[
-                        'rgba(15, 10, 26, 0.25)',
-                        'rgba(23, 16, 38, 0.65)',
-                        'rgba(32, 16, 59, 0.94)',
-                      ]}
-                      style={styles.catCardGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 0, y: 1 }}
-                    >
-                      <View style={styles.catEmojiCircle}>
-                        <Text style={styles.catEmoji}>{c.emoji}</Text>
-                      </View>
-                      <Text style={styles.catName} numberOfLines={2}>
-                        {c.name}
-                      </Text>
-                    </LinearGradient>
+                  <LinearGradient
+                    colors={['rgba(15, 9, 27, 0.15)', 'rgba(15, 9, 27, 0.82)']}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                  />
+                  <View style={styles.catCardContent}>
+                    <View style={styles.catEmojiCircle}>
+                      <Text style={styles.catEmoji}>{category.emoji}</Text>
+                    </View>
+                    <Text style={styles.catName} numberOfLines={2}>
+                      {category.name}
+                    </Text>
                   </View>
-                </Pressable>
-              );
-            })}
+                </ImageBackground>
+              </Pressable>
+            ))}
           </ScrollView>
         </View>
 
-        {/* How to Play - FoxMasque Comic Cards */}
+        {/* How to Play - TUZAK Guide Cards */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nasıl Oynanır?</Text>
           <Card variant="surface">
@@ -270,7 +260,7 @@ export default function HomeScreen() {
                 <Sparkles color={colors.lime} size={22} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.howToTitle}>3. Zartala & Zartalanma!</Text>
+                <Text style={styles.howToTitle}>3. Tuzak Kur & Tuzağa Düşme!</Text>
                 <Text style={styles.howToDesc}>
                   Doğru cevaba +100 puan; sahtene kanan her rakip için +50 puan kap!
                 </Text>
@@ -518,25 +508,17 @@ const styles = StyleSheet.create({
     height: 104,
     borderRadius: radii.xl,
     overflow: 'hidden',
-    position: 'relative',
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.18)',
     backgroundColor: colors.bgCard,
     ...shadows.card,
   },
-  catCardBgImage: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-    opacity: 0.68,
+  catCardImage: {
+    resizeMode: 'cover',
   },
-  catCardGradient: {
-    padding: spacing.md,
+  catCardContent: {
     flex: 1,
+    padding: spacing.md,
     justifyContent: 'space-between',
   },
   catEmojiCircle: {

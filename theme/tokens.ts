@@ -48,7 +48,7 @@ export const layout = {
   screenPadding: 20,
   cardPadding: 18,
   maxContentWidth: 520,
-  tabBarHeight: 64,
+  tabBarHeight: 70,
 } as const;
 
 export const shadows = {

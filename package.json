@@ -11,6 +11,10 @@
     "test": "npx tsx --test tests/engine.test.ts"
   },
   "dependencies": {
+    "@dicebear/adventurer": "^9.4.2",
+    "@dicebear/bottts": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
+    "@dicebear/fun-emoji": "^9.4.2",
     "@expo-google-fonts/poppins": "^0.2.3",
     "@expo/vector-icons": "^15.0.2",
     "@lucide/lab": "^0.1.2",
@@ -25,6 +29,7 @@
     "expo-constants": "~57.0.22",
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
+    "expo-image-picker": "~57.0.20",
     "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.13",
     "expo-router": "~57.0.28",

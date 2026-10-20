@@ -79,6 +79,8 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
   },
 };
 
+const CAPSULE_PADDING_H = 6;
+
 export function LiquidGlassTabBar({
   state,
   navigation,
@@ -88,21 +90,22 @@ export function LiquidGlassTabBar({
   const shouldReduceMotion = useReducedMotion();
 
   const [containerWidth, setContainerWidth] = useState(0);
-  const tabWidth = containerWidth > 0 ? containerWidth / state.routes.length : 0;
+  const tabWidth =
+    containerWidth > 0 ? (containerWidth - CAPSULE_PADDING_H * 2) / state.routes.length : 0;
 
   // Reanimated shared value for indicator sliding
   const indicatorTranslateX = useSharedValue(0);
 
   useEffect(() => {
     if (tabWidth > 0) {
-      const targetX = state.index * tabWidth;
+      const targetX = CAPSULE_PADDING_H + state.index * tabWidth;
       if (shouldReduceMotion) {
         indicatorTranslateX.value = targetX;
       } else {
         indicatorTranslateX.value = withSpring(targetX, {
-          damping: 24,
-          stiffness: 220,
-          mass: 0.8,
+          damping: 18,
+          stiffness: 170,
+          mass: 0.6,
         });
       }
     }
@@ -112,7 +115,8 @@ export function LiquidGlassTabBar({
     const width = e.nativeEvent.layout.width;
     if (width > 0 && width !== containerWidth) {
       setContainerWidth(width);
-      indicatorTranslateX.value = state.index * (width / state.routes.length);
+      const tWidth = (width - CAPSULE_PADDING_H * 2) / state.routes.length;
+      indicatorTranslateX.value = CAPSULE_PADDING_H + state.index * tWidth;
     }
   };
 
@@ -172,16 +176,18 @@ export function LiquidGlassTabBar({
             style={[styles.indicatorTrack, animatedIndicatorStyle]}
             pointerEvents="none"
           >
-            <LinearGradient
-              colors={[
-                'rgba(255, 255, 255, 0.14)',
-                'rgba(255, 255, 255, 0.06)',
-                'rgba(255, 255, 255, 0.02)',
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.indicatorPill}
-            />
+            <View style={styles.indicatorPill}>
+              <LinearGradient
+                colors={[
+                  'rgba(255, 255, 255, 0.28)',
+                  'rgba(255, 255, 255, 0.12)',
+                  'rgba(255, 255, 255, 0.04)',
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </View>
           </Animated.View>
         )}
 
@@ -237,7 +243,7 @@ export function LiquidGlassTabBar({
                 ]}
               >
                 {config.isSpecial ? (
-                  // Center "Oyna" Button with FoxMasque Signature Accent
+                  // Center "Oyna" Button with TUZAK Signature Accent
                   <View
                     style={[
                       styles.specialBtnOuter,
@@ -314,16 +320,16 @@ const styles = StyleSheet.create({
   floatingCapsule: {
     width: '100%',
     maxWidth: 500,
-    height: 64,
-    borderRadius: 32,
+    height: 70,
+    borderRadius: 35,
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.16)',
+    borderColor: 'rgba(255, 255, 255, 0.20)',
     backgroundColor: Platform.select({
-      ios: 'rgba(18, 12, 32, 0.25)',
-      android: 'rgba(18, 12, 32, 0.88)',
-      default: 'rgba(18, 12, 32, 0.65)',
+      ios: 'rgba(18, 12, 32, 0.28)',
+      android: 'rgba(18, 12, 32, 0.90)',
+      default: 'rgba(18, 12, 32, 0.70)',
     }),
     ...Platform.select({
       ios: {
@@ -353,25 +359,44 @@ const styles = StyleSheet.create({
   },
   indicatorTrack: {
     position: 'absolute',
-    top: 5,
-    bottom: 5,
+    top: 6,
+    bottom: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
   indicatorPill: {
-    width: '78%',
+    width: '90%',
     height: '100%',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.16)',
-    ...shadows.card,
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    borderTopColor: 'rgba(255, 255, 255, 0.55)',
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#FFF',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.22,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 6,
+      },
+      default: {
+        shadowColor: '#FFF',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+      },
+    }),
   },
   tabsRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingHorizontal: 2,
+    paddingHorizontal: 6,
   },
   tabButton: {
     flex: 1,
@@ -382,13 +407,14 @@ const styles = StyleSheet.create({
   },
   standardIconWrap: {
     width: 28,
-    height: 24,
+    height: 25,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 2,
   },
   specialBtnOuter: {
-    width: 42,
-    height: 32,
+    width: 44,
+    height: 34,
     borderRadius: radii.md,
     overflow: 'hidden',
     borderWidth: 1,
@@ -407,8 +433,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabLabel: {
-    fontSize: 9.5,
-    marginTop: 2,
-    letterSpacing: 0.2,
+    fontSize: 10,
+    marginTop: 1,
+    letterSpacing: 0.1,
   },
 });

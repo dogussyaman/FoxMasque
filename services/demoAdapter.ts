@@ -104,6 +104,25 @@ export class DemoGameService implements GameService {
     return this.currentPlayer;
   }
 
+  async updatePlayerProfile(name: string, avatarKey: string): Promise<Player> {
+    if (!this.currentPlayer) {
+      throw new ServiceError('PROFILE_NOT_FOUND', 'Profil bilgisi bulunamadı.');
+    }
+    this.currentPlayer = { ...this.currentPlayer, name, avatarKey };
+    for (const [code, room] of this.rooms) {
+      const player = room.players[this.currentPlayer.id];
+      if (player) {
+        room.players[this.currentPlayer.id] = { ...player, name, avatarKey };
+        this.emit({ type: 'state', payload: this.snapshot(code) });
+      }
+    }
+    return this.currentPlayer;
+  }
+
+  async uploadAvatar(): Promise<string> {
+    throw new ServiceError('AVATAR_UPLOAD_UNAVAILABLE', 'Fotoğraf yüklemek için canlı oyun modu gerekir.');
+  }
+
   async signOut(): Promise<void> {
     this.currentPlayer = null;
   }
@@ -267,7 +286,12 @@ export class DemoGameService implements GameService {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
     const meId = this.currentPlayer?.id ?? 'me';
-    room.fakeAnswers[meId] = fakeAnswer.trim();
+    const clean = fakeAnswer.trim();
+    if (clean) {
+      room.fakeAnswers[meId] = clean;
+    } else {
+      delete room.fakeAnswers[meId];
+    }
 
     // Auto-populate clever bot fake answers
     const question = QUESTIONS.find((q) => q.id === room.currentQuestionId) || QUESTIONS[0];

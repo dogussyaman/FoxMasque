@@ -15,26 +15,28 @@ export interface RoundOutcome {
 
 export type OutcomeLabel =
   | { kind: 'correct'; text: 'DOĞRU BİLDİN'; detail: string; tone: 'success' }
-  | { kind: 'zartaladın'; text: 'ZARTALADIN'; detail: string; tone: 'purple' }
-  | { kind: 'zartalandın'; text: 'ZARTALANDIN'; detail: string; tone: 'danger' }
+  | { kind: 'zartaladın'; text: 'TUZAK KURDUN'; detail: string; tone: 'purple' }
+  | { kind: 'zartalandın'; text: 'TUZAĞA DÜŞTÜN'; detail: string; tone: 'danger' }
   | { kind: 'blocked'; text: 'BLOKLANDIN'; detail: string; tone: 'neutral' };
 
 export const POINTS = {
   correct: 100,
   fakeChosenBonus: 50, // bonus per victim choosing your fake answer
   zartaladınBonus: 50, // alias for backward-compatibility
+  tuzakKurdunBonus: 50, // alias
   victimPenalty: -40, // penalty when you choose someone else's fake answer
   zartalandınPenalty: -40, // alias for backward-compatibility
+  tuzağaDüştünPenalty: -40, // alias
   wrong: 0,
 } as const;
 
 /**
- * Compute the outcome for a single player in a ZARTO round.
+ * Compute the outcome for a single player in a TUZAK round.
  *
  * Rules:
  * - If you chose the real answer: DOĞRU BİLDİN (+100)
- * - For each rival that chose your fake answer: ZARTALADIN (+50 per victim)
- * - If you chose another player's fake answer: ZARTALANDIN (-40 penalty, never show DOĞRU BİLDİN)
+ * - For each rival that chose your fake answer: TUZAK KURDUN (+50 per victim)
+ * - If you chose another player's fake answer: TUZAĞA DÜŞTÜN (-40 penalty, never show DOĞRU BİLDİN)
  * - Both can occur in the same round: correct (+100) + tricks (e.g. 2 x +50 = +100) => +200!
  */
 export function computeOutcome(input: {
@@ -83,8 +85,8 @@ export function computeOutcome(input: {
     points += bonus;
     labels.push({
       kind: 'zartaladın',
-      text: 'ZARTALADIN',
-      detail: `${victimsCount} rakip senin sahte cevabına düştü (+${bonus} puan)!`,
+      text: 'TUZAK KURDUN',
+      detail: `${victimsCount} rakip senin tuzağına düştü (+${bonus} puan)!`,
       tone: 'purple',
     });
   }
@@ -94,8 +96,8 @@ export function computeOutcome(input: {
     points += POINTS.victimPenalty;
     labels.push({
       kind: 'zartalandın',
-      text: 'ZARTALANDIN',
-      detail: 'Bir rakibin sahte cevabına aldandın, -40 puan.',
+      text: 'TUZAĞA DÜŞTÜN',
+      detail: 'Bir rakibin tuzağına düştün, -40 puan.',
       tone: 'danger',
     });
   }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,9 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Modal,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Clock, Send, Sparkles, AlertCircle, CheckCircle2, Flame, Lock } from 'lucide-react-native';
+import { Clock, Send, Sparkles, AlertCircle, CheckCircle2, Flame, Lock, Pause, Play, LogOut, Info } from 'lucide-react-native';
 import {
   Screen,
   Button,
@@ -22,6 +23,7 @@ import {
   PopView,
   PulseView,
   MascotFloat,
+  StickyActionBar,
 } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -31,9 +33,11 @@ import { getCategory } from '@/features/game/categories';
 import type { RoundChoice } from '@/types/game';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
+import { usePrototype } from '@/features/prototype/PrototypeProvider';
 
 export default function QuestionScreen() {
   const { roomCode, roomState, currentPlayer, service } = useGameStore();
+  const prototype = usePrototype();
   const { trigger } = useHaptics();
 
   const totalTime = roomState?.config.roundSeconds ?? 20;
@@ -44,6 +48,12 @@ export default function QuestionScreen() {
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const clockPlayedFake = useRef(false);
+  const clockPlayedGuess = useRef(false);
+  const prevIsGuessPhase = useRef(false);
+  const isFirstMount = useRef(true);
 
   // Active question
   const currentQId = roomState?.currentQuestionId || QUESTIONS[0].id;
@@ -57,11 +67,68 @@ export default function QuestionScreen() {
   // Determine sub-phase: 'fake_answer' or 'guess'
   const isGuessPhase = roomState?.phase === 'guess' || choices.length > 0;
 
+  // Reset timer & clock state when new question begins
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      prevIsGuessPhase.current = isGuessPhase;
+      return;
+    }
+    clockPlayedFake.current = false;
+    clockPlayedGuess.current = false;
+    setFakeSubmitted(false);
+    setFakeAnswerText('');
+    setChoices([]);
+    setSelectedChoiceIndex(null);
+    setSecondsLeft(totalTime);
+    soundService.stop('clock');
+  }, [currentQId, totalTime]);
+
+  // Transition from fake_answer to guess phase: stop previous clock & reset timer
+  useEffect(() => {
+    if (!prevIsGuessPhase.current && isGuessPhase) {
+      soundService.stop('clock');
+      clockPlayedGuess.current = false;
+      setSecondsLeft(totalTime);
+    }
+    prevIsGuessPhase.current = isGuessPhase;
+  }, [isGuessPhase, totalTime]);
+
+  // Stop clock sound when unmounting
+  useEffect(() => {
+    return () => {
+      soundService.stop('clock');
+    };
+  }, []);
+
+  // Clock sound playback: 9-second countdown audio starts once when secondsLeft < 10
+  useEffect(() => {
+    if (isPaused) {
+      soundService.stop('clock');
+      return;
+    }
+    if (secondsLeft < 10 && secondsLeft > 0) {
+      if (!isGuessPhase) {
+        if (!fakeSubmitted && !submitting && !clockPlayedFake.current) {
+          clockPlayedFake.current = true;
+          void soundService.play('clock');
+        }
+      } else {
+        if (!submitting && !clockPlayedGuess.current) {
+          clockPlayedGuess.current = true;
+          void soundService.play('clock');
+        }
+      }
+    }
+  }, [secondsLeft, isGuessPhase, fakeSubmitted, submitting, isPaused]);
+
   // Listen for phase transitions to result / scoreboard
   useEffect(() => {
     if (roomState?.phase === 'reveal') {
+      soundService.stop('clock');
       router.replace('/result');
     } else if (roomState?.phase === 'scoreboard') {
+      soundService.stop('clock');
       router.replace('/scoreboard');
     } else if (roomState?.phase === 'guess' && roomCode) {
       service.getRoundChoices(roomCode).then((list) => {
@@ -70,9 +137,14 @@ export default function QuestionScreen() {
     }
   }, [roomState?.phase, roomCode, service]);
 
-  // Countdown timer
+  // Countdown timer (pauses when isPaused is true)
   useEffect(() => {
+    if (isPaused) {
+      soundService.stop('clock');
+      return;
+    }
     if (secondsLeft <= 0) {
+      soundService.stop('clock');
       handleTimeExpire();
       return;
     }
@@ -84,16 +156,46 @@ export default function QuestionScreen() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [secondsLeft]);
+  }, [secondsLeft, isGuessPhase, isPaused]);
+
+  const handleTogglePause = () => {
+    soundService.play('click');
+    trigger('medium');
+    setIsPaused((prev) => {
+      const next = !prev;
+      if (next) {
+        soundService.stop('clock');
+      } else {
+        if (secondsLeft < 10 && secondsLeft > 0) {
+          clockPlayedFake.current = false;
+          clockPlayedGuess.current = false;
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleLeaveGame = async () => {
+    soundService.stop('clock');
+    setIsPaused(false);
+    if (roomCode) {
+      try {
+        await service.leaveRoom(roomCode);
+      } catch {}
+    }
+    router.replace('/create-room');
+  };
 
   const handleTimeExpire = () => {
+    soundService.stop('clock');
     if (submitting) return;
     if (!isGuessPhase) {
-      // Auto-submit fake answer
-      submitFake(fakeAnswerText.trim() || 'Bilmiyorum');
+      if (fakeSubmitted) return;
+      // Auto-submit empty fake answer if user didn't write anything
+      submitFake(fakeAnswerText.trim());
     } else {
       // Auto-submit first non-own choice
-      const validChoice = choices.find((c) => !c.isOwnFake);
+      const validChoice = choices.find((c) => !c.isOwnFake) || choices[0];
       if (validChoice) {
         submitPick(validChoice.choiceIndex);
       }
@@ -106,21 +208,22 @@ export default function QuestionScreen() {
       setError('Lütfen inandırıcı bir sahte cevap yaz.');
       return;
     }
+    soundService.stop('clock');
     trigger('medium');
     submitFake(clean);
   };
 
   const submitFake = async (text: string) => {
     if (!roomCode || submitting) return;
+    soundService.stop('clock');
     setSubmitting(true);
     setError(null);
     try {
       await service.submitFakeAnswer(roomCode, text);
       setFakeSubmitted(true);
-      const list = await service.getRoundChoices(roomCode);
-      if (list.length > 0) {
-        setChoices(list);
-      }
+      const stageId = `${roomCode}:${roomState?.currentRound ?? 1}:fake_answer`;
+      if (currentPlayer) prototype.beginWaiting(stageId, 'fake_answer', currentPlayer.id);
+      router.replace('/waiting');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -130,16 +233,20 @@ export default function QuestionScreen() {
 
   const handlePickSubmit = () => {
     if (selectedChoiceIndex === null) return;
+    soundService.stop('clock');
     trigger('medium');
     submitPick(selectedChoiceIndex);
   };
 
   const submitPick = async (choiceIndex: number) => {
     if (!roomCode || submitting) return;
+    soundService.stop('clock');
     setSubmitting(true);
     setError(null);
     try {
       await service.submitPick(roomCode, choiceIndex);
+      const stageId = `${roomCode}:${roomState?.currentRound ?? 1}:guess`;
+      if (currentPlayer) prototype.beginWaiting(stageId, 'guess', currentPlayer.id);
       router.replace('/waiting');
     } catch (e) {
       setError((e as Error).message);
@@ -183,21 +290,34 @@ export default function QuestionScreen() {
               {category.emoji} {category.name}
             </Badge>
 
-            {secondsLeft <= 4 ? (
-              <PulseView minScale={0.92} maxScale={1.08} duration={600}>
-                <View style={[styles.timerWrap, styles.timerWrapUrgent]}>
-                  <Clock color={colors.danger} size={15} />
-                  <Text style={[styles.timerText, { color: colors.dangerSoft }]}>
-                    {secondsLeft}s
-                  </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {secondsLeft <= 4 ? (
+                <PulseView minScale={0.92} maxScale={1.08} duration={600}>
+                  <View style={[styles.timerWrap, styles.timerWrapUrgent]}>
+                    <Clock color={colors.danger} size={15} />
+                    <Text style={[styles.timerText, { color: colors.dangerSoft }]}>
+                      {secondsLeft}s
+                    </Text>
+                  </View>
+                </PulseView>
+              ) : (
+                <View style={styles.timerWrap}>
+                  <Clock color={colors.yellow} size={15} />
+                  <Text style={styles.timerText}>{secondsLeft}s</Text>
                 </View>
-              </PulseView>
-            ) : (
-              <View style={styles.timerWrap}>
-                <Clock color={colors.yellow} size={15} />
-                <Text style={styles.timerText}>{secondsLeft}s</Text>
-              </View>
-            )}
+              )}
+
+              <Pressable
+                onPress={handleTogglePause}
+                style={({ pressed }) => [
+                  styles.pauseBtn,
+                  { transform: [{ scale: pressed ? 0.94 : 1 }] },
+                ]}
+                hitSlop={8}
+              >
+                <Pause color={colors.textPrimary} size={15} />
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.progressWrap}>
@@ -209,6 +329,7 @@ export default function QuestionScreen() {
         </View>
 
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -216,7 +337,7 @@ export default function QuestionScreen() {
           {/* Question Prompt Card */}
           <Card variant="surface" glow="purple" style={styles.promptCard}>
             <View style={styles.questionIconRow}>
-              <Text style={styles.questionKicker}>FoxMasque SORUSU</Text>
+              <Text style={styles.questionKicker}>TUZAK SORUSU</Text>
             </View>
             <Text style={styles.promptText}>{question.prompt}</Text>
           </Card>
@@ -263,17 +384,6 @@ export default function QuestionScreen() {
                     onSubmitEditing={handleFakeSubmit}
                   />
 
-                  {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-                  <Button
-                    label="Sahte Cevabını Kilitle!"
-                    onPress={handleFakeSubmit}
-                    variant="orange"
-                    loading={submitting}
-                    fullWidth
-                    icon={<Send color="#FFF" size={18} />}
-                    style={{ marginTop: spacing.md }}
-                  />
                 </View>
               ) : (
                 <PopView delay={80} duration={350}>
@@ -300,6 +410,15 @@ export default function QuestionScreen() {
                 </View>
               </View>
 
+              {!fakeAnswerText.trim() && (
+                <View style={styles.noFakeNotice}>
+                  <Info color={colors.orange} size={16} />
+                  <Text style={styles.noFakeNoticeText}>
+                    Cevap yazamadığın için bu tur blöf puanı alamazsın, ama doğru cevabı bularak +100 puan kazanabilirsin!
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.choicesList}>
                 {choices.map((choice, idx) => {
                   const letter = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'][idx] || `${idx + 1}`;
@@ -323,7 +442,7 @@ export default function QuestionScreen() {
                           isOwn && styles.choiceCardOwn,
                           {
                             transform: [
-                              { scale: pressed ? 0.98 : isSelected ? 1.015 : 1 },
+                              { scale: pressed ? 0.99 : 1 },
                             ],
                           },
                         ]}
@@ -369,26 +488,94 @@ export default function QuestionScreen() {
                 })}
               </View>
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-              <Button
-                label={
-                  selectedChoiceIndex !== null
-                    ? 'Seçimini Onayla & Gönder'
-                    : 'Bir Seçenek Seç'
-                }
-                onPress={handlePickSubmit}
-                variant="orange"
-                disabled={selectedChoiceIndex === null || submitting}
-                loading={submitting}
-                fullWidth
-                icon={<CheckCircle2 color="#FFF" size={20} />}
-                style={{ marginTop: spacing.md }}
-              />
             </View>
           )}
         </ScrollView>
+        {isGuessPhase ? (
+          <StickyActionBar>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <Button
+              label={
+                selectedChoiceIndex !== null
+                  ? 'Seçimini Onayla & Gönder'
+                  : 'Bir Seçenek Seç'
+              }
+              onPress={handlePickSubmit}
+              variant="orange"
+              disabled={selectedChoiceIndex === null || submitting}
+              loading={submitting}
+              fullWidth
+              icon={<CheckCircle2 color="#FFF" size={20} />}
+            />
+          </StickyActionBar>
+        ) : !fakeSubmitted ? (
+          <StickyActionBar>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <Button
+              label="Sahte Cevabını Kilitle!"
+              onPress={handleFakeSubmit}
+              variant="orange"
+              loading={submitting}
+              fullWidth
+              icon={<Send color="#FFF" size={18} />}
+            />
+          </StickyActionBar>
+        ) : null}
       </KeyboardAvoidingView>
+
+      {/* Pause Modal */}
+      <Modal
+        visible={isPaused}
+        transparent
+        animationType="fade"
+        onRequestClose={handleTogglePause}
+      >
+        <View style={styles.pauseBackdrop}>
+          <Card variant="surface" glow="orange" style={styles.pauseModalCard}>
+            <View style={styles.pauseHeaderRow}>
+              <View style={styles.pauseIconCircle}>
+                <Pause color={colors.orange} size={28} />
+              </View>
+              <Text style={styles.pauseModalTitle}>Oyun Duraklatıldı</Text>
+              <Text style={styles.pauseModalSubtitle}>
+                Süre durduruldu. Hazır olduğunuzda devam edebilirsiniz.
+              </Text>
+            </View>
+
+            <View style={styles.pauseInfoBox}>
+              <View style={styles.pauseInfoItem}>
+                <Text style={styles.pauseInfoLabel}>Mevcut Tur</Text>
+                <Text style={styles.pauseInfoValue}>
+                  {roomState?.currentRound ?? 1} / {roomState?.config.totalRounds ?? 5}
+                </Text>
+              </View>
+              <View style={styles.pauseInfoDivider} />
+              <View style={styles.pauseInfoItem}>
+                <Text style={styles.pauseInfoLabel}>Kalan Süre</Text>
+                <Text style={styles.pauseInfoValue}>{secondsLeft} sn</Text>
+              </View>
+            </View>
+
+            <View style={styles.pauseActions}>
+              <Button
+                label="Oyuna Devam Et"
+                onPress={handleTogglePause}
+                variant="lime"
+                fullWidth
+                icon={<Play color="#171026" size={18} fill="#171026" />}
+                style={{ marginBottom: 10 }}
+              />
+              <Button
+                label="Lobiden Ayrıl / Çıkış"
+                onPress={handleLeaveGame}
+                variant="secondary"
+                fullWidth
+                icon={<LogOut color={colors.textSecondary} size={18} />}
+              />
+            </View>
+          </Card>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -440,7 +627,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   scroll: {
-    paddingBottom: 48,
+    paddingBottom: spacing.md,
   },
   promptCard: {
     marginVertical: spacing.md,
@@ -578,6 +765,7 @@ const styles = StyleSheet.create({
   },
   choiceCardSelected: {
     borderColor: colors.orange,
+    borderWidth: 2.5,
     backgroundColor: 'rgba(255, 113, 59, 0.15)',
     ...shadows.glowOrange,
   },
@@ -616,6 +804,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.textPrimary,
     flex: 1,
+    minWidth: 0,
   },
   choiceTextSelected: {
     color: colors.orange,
@@ -659,5 +848,112 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     textAlign: 'center',
     fontFamily: 'Poppins-SemiBold',
+  },
+  pauseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pauseBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10, 6, 20, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  pauseModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    padding: spacing.xl,
+    borderRadius: radii.xl,
+    alignItems: 'center',
+  },
+  pauseHeaderRow: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  pauseIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 113, 59, 0.15)',
+    borderWidth: 1.5,
+    borderColor: colors.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  pauseModalTitle: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 22,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  pauseModalSubtitle: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  pauseInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: radii.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pauseInfoItem: {
+    alignItems: 'center',
+  },
+  pauseInfoLabel: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  pauseInfoValue: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 16,
+    color: colors.orange,
+    marginTop: 2,
+  },
+  pauseInfoDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.border,
+  },
+  pauseActions: {
+    width: '100%',
+  },
+  noFakeNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 113, 59, 0.12)',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 113, 59, 0.3)',
+    padding: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  noFakeNoticeText: {
+    fontFamily: 'Poppins-Medium',
+    fontSize: 11,
+    color: colors.textSecondary,
+    flex: 1,
+    lineHeight: 16,
   },
 });

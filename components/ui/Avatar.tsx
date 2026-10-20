@@ -1,7 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { SvgXml } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radii, typography } from '@/theme';
-import { avatarOf } from '@/features/game/players';
+import { avatarOf, diceBearAvatarSvg } from '@/features/game/players';
 
 interface AvatarProps {
   avatarKey: string;
@@ -12,6 +13,8 @@ interface AvatarProps {
 
 export function Avatar({ avatarKey, size = 44, online, ring }: AvatarProps) {
   const av = avatarOf(avatarKey);
+  const imageUri = /^(https?:|file:|content:)/.test(avatarKey) ? avatarKey : null;
+  const diceBearSvg = imageUri ? null : diceBearAvatarSvg(avatarKey);
   return (
     <View style={{ position: 'relative' }}>
       <LinearGradient
@@ -22,12 +25,19 @@ export function Avatar({ avatarKey, size = 44, online, ring }: AvatarProps) {
             width: size,
             height: size,
             borderRadius: size / 2,
+            overflow: 'hidden',
             borderWidth: ring ? 2 : 0,
             borderColor: ring ? colors.purpleSoft : 'transparent',
           },
         ]}
       >
-        <Text style={{ fontSize: size * 0.5 }}>{av.emoji}</Text>
+        {imageUri ? (
+          <Image source={{ uri: imageUri }} style={StyleSheet.absoluteFill} />
+        ) : diceBearSvg ? (
+          <SvgXml xml={diceBearSvg} width={size} height={size} />
+        ) : (
+          <Text style={{ fontSize: size * 0.5 }}>{av.emoji}</Text>
+        )}
       </LinearGradient>
       {online !== undefined ? (
         <View

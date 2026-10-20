@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Plus, LogIn, Zap, Shield, Swords, Sparkles } from 'lucide-react-native';
 import { Screen, ScreenHeader, Button, Card, Badge } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
-import { CATEGORIES } from '@/features/game/categories';
+import { CATEGORY_GROUPS, CATEGORY_OPTIONS } from '@/features/game/categories';
 import { mascotImages } from '@/assets/illustrations';
+import { categoryOptionImages } from '@/assets/categories/options';
 
 export default function OynaScreen() {
   return (
@@ -13,7 +14,7 @@ export default function OynaScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <ScreenHeader
           title="Oyna"
-          subtitle="Arkadaşlarını topla, blöfünle zartala!"
+          subtitle="Arkadaşlarını topla, blöfünle tuzağa düşür!"
           right={<Badge tone="orange" sticker>2–10 OYUNCU</Badge>}
         />
 
@@ -95,33 +96,45 @@ export default function OynaScreen() {
         <View style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>Oyun Kategorileri</Text>
           <Pressable onPress={() => router.push('/category-select')}>
-            <Text style={styles.sectionMeta}>Tümü (6)</Text>
+            <Text style={styles.sectionMeta}>Tümü ({CATEGORY_OPTIONS.length})</Text>
           </Pressable>
         </View>
 
-        <View style={styles.categoryGrid}>
-          {CATEGORIES.map((category) => (
-            <Pressable
-              key={category.id}
-              style={styles.categoryTileWrap}
-              onPress={() => router.push('/category-select')}
-            >
-              <LinearGradient
-                colors={[category.gradient[0], category.gradient[1]]}
-                style={styles.categoryTile}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                <View style={styles.categoryEmojiBadge}>
-                  <Text style={styles.categoryEmoji}>{category.emoji}</Text>
-                </View>
-                <Text style={styles.categoryName} numberOfLines={2}>
-                  {category.name}
-                </Text>
-              </LinearGradient>
-            </Pressable>
-          ))}
-        </View>
+        {CATEGORY_GROUPS.map((group) => (
+          <View key={group.id} style={styles.categoryGroup}>
+            <View style={styles.categoryGroupHeading}>
+              <Text style={styles.categoryGroupEmoji}>{group.emoji}</Text>
+              <Text style={styles.categoryGroupTitle}>{group.name}</Text>
+            </View>
+            <View style={styles.categoryGrid}>
+              {group.categories.map((category) => (
+                <Pressable
+                  key={category.id}
+                  style={styles.categoryTileWrap}
+                  onPress={() => router.push('/category-select')}
+                >
+                  <ImageBackground
+                    source={categoryOptionImages[category.id]}
+                    style={styles.categoryTile}
+                    imageStyle={styles.categoryImage}
+                  >
+                    <LinearGradient
+                      colors={['rgba(15, 9, 27, 0.2)', 'rgba(15, 9, 27, 0.82)']}
+                      style={StyleSheet.absoluteFill}
+                      pointerEvents="none"
+                    />
+                    <View style={styles.categoryTileContent}>
+                      <Text style={styles.categoryEmoji}>{category.emoji}</Text>
+                      <Text style={styles.categoryName} numberOfLines={3}>
+                        {category.name}
+                      </Text>
+                    </View>
+                  </ImageBackground>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ))}
 
         {/* Tactical Pro-Tip Card */}
         <Card variant="comic" style={styles.tipCard}>
@@ -129,9 +142,9 @@ export default function OynaScreen() {
             <Swords color={colors.orange} size={22} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tipTitle}>FoxMasque Blöf Taktikleri</Text>
+            <Text style={styles.tipTitle}>TUZAK Blöf Taktikleri</Text>
             <Text style={styles.tipCopy}>
-              Gerçek cevabı bulmak +100 puan; ancak kendi uydurduğun cevaba arkadaşlarını düşürmek rakip başına +50 puan! 3 kişiyi kandırırsan Blok yeteneği kazanırsın!
+              Gerçek cevabı bulmak +100 puan; ancak kendi uydurduğun cevaba arkadaşlarını tuzağa düşürmek rakip başına +50 puan! 3 kişiyi kandırırsan Blok yeteneği kazanırsın!
             </Text>
           </View>
         </Card>
@@ -264,16 +277,36 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-SemiBold',
     fontSize: 13,
   },
+  categoryGroup: { marginBottom: spacing.md },
+  categoryGroupHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: spacing.sm,
+  },
+  categoryGroupEmoji: { fontSize: 18 },
+  categoryGroupTitle: {
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
+  },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  categoryTileWrap: { width: '31%' },
+  categoryTileWrap: { width: '47%', minWidth: 0 },
   categoryTile: {
-    minHeight: 100,
-    borderRadius: radii.xl,
-    padding: 10,
-    justifyContent: 'space-between',
+    minHeight: 84,
+    borderRadius: radii.lg,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     ...shadows.card,
+  },
+  categoryImage: {
+    resizeMode: 'cover',
+  },
+  categoryTileContent: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
   },
   categoryEmojiBadge: {
     width: 32,

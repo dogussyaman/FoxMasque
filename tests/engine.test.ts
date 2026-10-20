@@ -46,7 +46,7 @@ function createPlayer(id: string, name: string, score = 0): Player {
   };
 }
 
-describe('ZARTO Game Engine — Bluff & Scoring Tests', () => {
+describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
   describe('1. Blend Choices (True Answer + Fake Answers)', () => {
     test('Blends true answer and player fake answers, deduplicates and keeps author tags', () => {
       const fakeAnswers = {
@@ -77,7 +77,7 @@ describe('ZARTO Game Engine — Bluff & Scoring Tests', () => {
     });
   });
 
-  describe('2. ZARTO Core Scoring Rules (+100, +50, -40)', () => {
+  describe('2. TUZAK Core Scoring Rules (+100, +50, -40)', () => {
     test('Correct answer chosen earns +100 points and DOĞRU BİLDİN label', () => {
       const outcome = computeOutcome({
         answeredCorrectly: true,
@@ -93,7 +93,7 @@ describe('ZARTO Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(outcome.labels[0].kind, 'correct');
     });
 
-    test('Having rivals pick your fake answer gives +50 per victim and ZARTALADIN label', () => {
+    test('Having rivals pick your fake answer gives +50 per victim and TUZAK KURDUN label', () => {
       const outcome = computeOutcome({
         answeredCorrectly: false,
         victimsCount: 2, // 2 rivals tricked
@@ -106,9 +106,10 @@ describe('ZARTO Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(outcome.victimsCount, 2);
       assert.equal(outcome.labels.length, 1);
       assert.equal(outcome.labels[0].kind, 'zartaladın');
+      assert.equal(outcome.labels[0].text, 'TUZAK KURDUN');
     });
 
-    test('Choosing another player fake answer results in -40 and ZARTALANDIN label', () => {
+    test('Choosing another player fake answer results in -40 and TUZAĞA DÜŞTÜN label', () => {
       const outcome = computeOutcome({
         answeredCorrectly: false,
         victimsCount: 0,
@@ -120,6 +121,7 @@ describe('ZARTO Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(outcome.zartalandın, true);
       assert.equal(outcome.labels.length, 1);
       assert.equal(outcome.labels[0].kind, 'zartalandın');
+      assert.equal(outcome.labels[0].text, 'TUZAĞA DÜŞTÜN');
     });
 
     test('Double success: Both correct answer (+100) AND deceived rivals (2 x +50 = +100) gives +200', () => {
@@ -135,6 +137,7 @@ describe('ZARTO Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(outcome.labels.length, 2);
       assert.equal(outcome.labels[0].kind, 'correct');
       assert.equal(outcome.labels[1].kind, 'zartaladın');
+      assert.equal(outcome.labels[1].text, 'TUZAK KURDUN');
     });
   });
 
@@ -180,12 +183,12 @@ describe('ZARTO Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(res.rows['p1'].victimsCount, 2);
       assert.equal(res.updatedPlayers['p1'].score, 250); // 50 + 200
 
-      // p2: -40 (zartalandı by p1)
+      // p2: -40 (tuzağa düştü by p1)
       assert.equal(res.rows['p2'].pointsDelta, -40);
       assert.equal(res.rows['p2'].outcome.zartalandın, true);
       assert.equal(res.updatedPlayers['p2'].score, 60); // 100 - 40
 
-      // p3: -40 (zartalandı by p1)
+      // p3: -40 (tuzağa düştü by p1)
       assert.equal(res.rows['p3'].pointsDelta, -40);
       assert.equal(res.updatedPlayers['p3'].score, 40); // 80 - 40
     });

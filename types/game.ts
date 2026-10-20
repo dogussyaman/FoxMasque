@@ -7,7 +7,7 @@ export type PlayerId = string;
 export interface Player {
   id: PlayerId;
   name: string;
-  avatarKey: string; // key into AVATARS map
+  avatarKey: string; // built-in/generated avatar key or public image URL
   isHost: boolean;
   isReady: boolean;
   isOnline: boolean;

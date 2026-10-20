@@ -20,6 +20,28 @@ import type {
 import type { CategoryId } from '../features/game/categories';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
+function decodeBase64(value: string): Uint8Array {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const output = new Uint8Array(Math.ceil((value.length * 3) / 4));
+  let outputIndex = 0;
+  let buffer = 0;
+  let bits = 0;
+
+  for (const character of value) {
+    if (character === '=') break;
+    const digit = alphabet.indexOf(character);
+    if (digit < 0) continue;
+    buffer = (buffer << 6) | digit;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      output[outputIndex++] = (buffer >> bits) & 0xff;
+    }
+  }
+
+  return output.subarray(0, outputIndex);
+}
+
 export class SupabaseGameService implements GameService {
   readonly kind = 'supabase' as const;
 
@@ -34,6 +56,7 @@ export class SupabaseGameService implements GameService {
       this.connection = 'offline';
       throw new ServiceError('SUPABASE_NOT_CONFIGURED', 'Supabase yapılandırılmamış.');
     }
+
     const sb = ensureSupabase();
     const { data } = await sb.auth.getSession();
     if (data.session?.user) {
@@ -114,6 +137,71 @@ export class SupabaseGameService implements GameService {
 
   getCurrentPlayer(): Player | null {
     return this.cachedPlayer;
+  }
+
+  async updatePlayerProfile(name: string, avatarKey: string): Promise<Player> {
+    if (!this.cachedPlayer) {
+      throw new ServiceError('PROFILE_NOT_FOUND', 'Profil bilgisi bulunamadı.');
+    }
+
+    const sb = ensureSupabase();
+    const { error: profileError } = await sb.rpc('update_player_profile_secure', {
+      p_name: name.trim().slice(0, 32) || 'Oyuncu',
+      p_avatar_key: avatarKey,
+    });
+    if (profileError) {
+      throw new ServiceError('PROFILE_UPDATE_FAILED', profileError.message);
+    }
+
+    const nextPlayer = {
+      ...this.cachedPlayer,
+      name: name.trim().slice(0, 32) || 'Oyuncu',
+      avatarKey,
+    };
+    const { error: authError } = await sb.auth.updateUser({
+      data: { name: nextPlayer.name, avatarKey },
+    });
+    if (authError) {
+      throw new ServiceError('PROFILE_UPDATE_FAILED', authError.message);
+    }
+
+    this.cachedPlayer = nextPlayer;
+    if (this.currentRoomCode) {
+      const roomState = await this.getRoomState(this.currentRoomCode);
+      if (roomState) this.emit({ type: 'state', payload: roomState });
+    }
+    return nextPlayer;
+  }
+
+  async uploadAvatar(base64: string, mimeType: string): Promise<string> {
+    if (!this.cachedPlayer) {
+      throw new ServiceError('PROFILE_NOT_FOUND', 'Fotoğraf yüklemek için oturum açmalısın.');
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+      throw new ServiceError('AVATAR_INVALID_TYPE', 'JPG, PNG veya WebP formatında bir fotoğraf seç.');
+    }
+    const bytes = decodeBase64(base64);
+    if (bytes.byteLength > 5 * 1024 * 1024) {
+      throw new ServiceError('AVATAR_TOO_LARGE', 'Fotoğraf boyutu 5 MB sınırını aşamaz.');
+    }
+
+    const extension = mimeType === 'image/jpeg' ? 'jpg' : mimeType.slice('image/'.length);
+    const sb = ensureSupabase();
+    const { error } = await sb.storage
+      .from('avatars')
+      .upload(`${this.cachedPlayer.id}/avatar.${extension}`, bytes, {
+        contentType: mimeType,
+        cacheControl: '3600',
+        upsert: true,
+      });
+    if (error) {
+      throw new ServiceError('AVATAR_UPLOAD_FAILED', error.message);
+    }
+
+    const { data } = sb.storage
+      .from('avatars')
+      .getPublicUrl(`${this.cachedPlayer.id}/avatar.${extension}`);
+    return `${data.publicUrl}?v=${Date.now()}`;
   }
 
   async signOut(): Promise<void> {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Shield, Sparkles, ChevronRight, Check, Zap } from 'lucide-react-native';
-import { Screen, Button, Card, Badge, Avatar, StaggerRow } from '@/components/ui';
+import { Screen, Button, Card, Badge, Avatar, StaggerRow, StickyActionBar } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -106,7 +106,11 @@ export default function AbilitySelectScreen() {
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.abilitiesList}>
           {ABILITIES.map((ab, idx) => {
             const check = canUseAbility(abilityState, ab.id, targetId || undefined);
@@ -124,7 +128,7 @@ export default function AbilitySelectScreen() {
                     !check.allowed && styles.abilityCardDisabled,
                     {
                       transform: [
-                        { scale: pressed ? 0.98 : isSelected ? 1.015 : 1 },
+                        { scale: pressed ? 0.99 : 1 },
                       ],
                     },
                   ]}
@@ -174,21 +178,21 @@ export default function AbilitySelectScreen() {
           </View>
         )}
 
-        <View style={styles.actionWrap}>
-          <Button
-            label={
-              selectedAbility
-                ? `${currentAbilityObj?.name} ile Onayla`
-                : 'Yetenek Kullanmadan Devam Et'
-            }
-            onPress={selectedAbility ? handleConfirm : handleSkip}
-            variant={selectedAbility ? 'orange' : 'secondary'}
-            loading={loading}
-            fullWidth
-            icon={<Sparkles color="#FFF" size={20} />}
-          />
-        </View>
       </ScrollView>
+      <StickyActionBar>
+        <Button
+          label={
+            selectedAbility
+              ? `${currentAbilityObj?.name} ile Onayla`
+              : 'Yetenek Kullanmadan Devam Et'
+          }
+          onPress={selectedAbility ? handleConfirm : handleSkip}
+          variant={selectedAbility ? 'orange' : 'secondary'}
+          loading={loading}
+          fullWidth
+          icon={<Sparkles color="#FFF" size={20} />}
+        />
+      </StickyActionBar>
     </Screen>
   );
 }
@@ -224,7 +228,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   scroll: {
-    paddingBottom: 48,
+    paddingBottom: spacing.md,
   },
   abilitiesList: {
     gap: 12,
@@ -318,9 +322,5 @@ const styles = StyleSheet.create({
   },
   targetNameActive: {
     color: '#FFF',
-  },
-  actionWrap: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.xl,
   },
 });

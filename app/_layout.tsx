@@ -16,6 +16,7 @@ import { colors } from '@/theme';
 import { ActivityIndicator, View } from 'react-native';
 import { GameStoreProvider } from '@/store/gameStore';
 import { soundService } from '@/services/soundService';
+import { PrototypeProvider } from '@/features/prototype/PrototypeProvider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -49,40 +50,42 @@ export default function RootLayout() {
 
   return (
     <GameStoreProvider>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-          animationDuration: 280,
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
-        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
-        <Stack.Screen name="create-room" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="join-room" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen
-          name="category-select"
-          options={{
-            animation: 'slide_from_bottom',
-            presentation: 'modal',
+      <PrototypeProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+            animationDuration: 280,
           }}
-        />
-        <Stack.Screen name="lobby" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen
-          name="ability-select"
-          options={{
-            animation: 'slide_from_bottom',
-            presentation: 'modal',
-          }}
-        />
-        <Stack.Screen name="question" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="waiting" options={{ animation: 'fade' }} />
-        <Stack.Screen name="result" options={{ animation: 'fade_from_bottom' }} />
-        <Stack.Screen name="scoreboard" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="game-over" options={{ animation: 'fade' }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="light" />
+        >
+          <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+          <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+          <Stack.Screen name="create-room" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="join-room" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen
+            name="category-select"
+            options={{
+              animation: 'slide_from_bottom',
+              presentation: 'modal',
+            }}
+          />
+          <Stack.Screen name="lobby" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen
+            name="ability-select"
+            options={{
+              animation: 'slide_from_bottom',
+              presentation: 'modal',
+            }}
+          />
+          <Stack.Screen name="question" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="waiting" options={{ animation: 'fade' }} />
+          <Stack.Screen name="result" options={{ animation: 'fade_from_bottom' }} />
+          <Stack.Screen name="scoreboard" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="game-over" options={{ animation: 'fade' }} />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+        <StatusBar style="light" />
+      </PrototypeProvider>
     </GameStoreProvider>
   );
 }

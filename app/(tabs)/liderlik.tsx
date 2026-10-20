@@ -42,7 +42,7 @@ export default function LiderlikScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <ScreenHeader
           title="Liderlik"
-          subtitle="En çok zartalayan parti şampiyonları"
+          subtitle="En çok tuzağa düşüren parti şampiyonları"
           right={
             <View style={styles.badgeWrap}>
               <Flame color={colors.orange} size={16} />

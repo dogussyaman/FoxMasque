@@ -54,6 +54,8 @@ export interface GameService {
   // Auth
   signInAnonymously(name: string, avatarKey: string): Promise<Player>;
   getCurrentPlayer(): Player | null;
+  updatePlayerProfile(name: string, avatarKey: string): Promise<Player>;
+  uploadAvatar(base64: string, mimeType: string): Promise<string>;
   signOut(): Promise<void>;
 
   // Rooms

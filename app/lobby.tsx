@@ -12,13 +12,14 @@ import { router } from 'expo-router';
 import {
   ChevronLeft,
   Share2,
-  Bell,
   Play,
   CheckCircle2,
   Circle,
   Crown,
   UserPlus,
   Flame,
+  Vibrate,
+  FlaskConical,
 } from 'lucide-react-native';
 import {
   Screen,
@@ -31,19 +32,31 @@ import {
   PopView,
   PulseView,
   MascotFloat,
+  StickyActionBar,
 } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { mascotImages } from '@/assets/illustrations';
+import { usePrototype } from '@/features/prototype/PrototypeProvider';
+import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
+import type { Player } from '@/types/game';
 
 export default function LobbyScreen() {
-  const { roomCode, roomState, currentPlayer, service, lastNudge } = useGameStore();
+  const { roomCode, roomState, currentPlayer, service, lastNudge, isLive } = useGameStore();
+  const prototype = usePrototype();
   const { trigger } = useHaptics();
 
   const [nudgeBanner, setNudgeBanner] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
+  const [testMode, setTestMode] = useState(!isLive);
+  const [lobbySessionId] = useState(() => Date.now());
+
+  useEffect(() => {
+    prototype.clearReadyOverrides();
+  }, [prototype.clearReadyOverrides]);
 
   // Auto navigate when phase changes
   useEffect(() => {
@@ -71,7 +84,9 @@ export default function LobbyScreen() {
   const playersList = roomState ? Object.values(roomState.players) : [];
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
   const isHost = me?.isHost ?? false;
-  const readyCount = playersList.filter((p) => p.isReady).length;
+  const getReady = (player: Player) =>
+    prototype.getReady(player.id, testMode && player.id !== me?.id ? false : player.isReady);
+  const readyCount = playersList.filter(getReady).length;
   const canStart = readyCount >= 2;
   const maxPlayers = roomState?.config.maxPlayers ?? 8;
   const emptySlotsCount = Math.max(0, Math.min(4, maxPlayers - playersList.length));
@@ -79,23 +94,19 @@ export default function LobbyScreen() {
   const toggleReady = async () => {
     if (!roomCode || !me) return;
     trigger('medium');
+    const nextReady = !getReady(me);
     try {
-      await service.setReady(roomCode, !me.isReady);
+      await service.setReady(roomCode, nextReady);
+      prototype.setReady(me.id, nextReady);
     } catch (e) {
       setError((e as Error).message);
     }
   };
 
-  const nudgePlayer = async (targetId: string, targetName: string) => {
-    if (!roomCode) return;
+  const lobbyStageId = `${roomCode ?? 'demo'}:lobby:${lobbySessionId}`;
+  const nudgePlayer = (targetId: string, targetName: string) => {
     trigger('light');
-    try {
-      await service.nudgePlayer(roomCode, targetId);
-      setNudgeBanner(`${targetName} oyuncusuna dürtme gönderildi!`);
-      setTimeout(() => setNudgeBanner(null), 3000);
-    } catch (e) {
-      setError((e as Error).message);
-    }
+    prototype.nudge(lobbyStageId, targetId, me?.name ?? 'Sen', targetName);
   };
 
   const handleShare = async () => {
@@ -103,7 +114,7 @@ export default function LobbyScreen() {
     if (!roomCode) return;
     try {
       await Share.share({
-        message: `FoxMasque parti oyununa davetlisin! Oda kodumuz: ${roomCode}. Hemen katıl ve blöfünü konuştur!`,
+        message: `TUZAK parti oyununa davetlisin! Oda kodumuz: ${roomCode}. Hemen katıl ve blöfünü konuştur!`,
       });
     } catch {}
   };
@@ -127,7 +138,7 @@ export default function LobbyScreen() {
         await service.leaveRoom(roomCode);
       } catch {}
     }
-    router.replace('/(tabs)');
+    router.replace('/create-room');
   };
 
   return (
@@ -142,13 +153,23 @@ export default function LobbyScreen() {
         </Pressable>
       </View>
 
-      {nudgeBanner ? (
+      {prototype.toast ? (
+        <PopView duration={220}>
+          <View style={{ marginBottom: 12 }}>
+            <FeedbackBanner tone="warning" title="Dürtme!" message={prototype.toast.message} />
+          </View>
+        </PopView>
+      ) : nudgeBanner ? (
         <View style={{ marginBottom: 12 }}>
           <FeedbackBanner tone="warning" title="Dürtme Geldi!" message={nudgeBanner} />
         </View>
       ) : null}
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Room Code Showcase Card */}
         <Card variant="surface" glow="orange" style={styles.codeCard}>
           <View style={styles.codeTopRow}>
@@ -187,31 +208,33 @@ export default function LobbyScreen() {
         <View style={styles.playersListWrap}>
           {playersList.map((player, idx) => {
             const isSelf = player.id === me?.id;
+            const isReady = getReady(player);
             return (
               <StaggerRow key={player.id} index={idx} delay={70}>
                 <Card
                   variant={isSelf ? 'accent' : 'surface'}
                   style={[styles.playerCard, isSelf && styles.playerCardSelf]}
                 >
-                  <Avatar avatarKey={player.avatarKey} size={46} online={player.isOnline} ring={isSelf} />
-
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <View style={styles.nameWrap}>
-                      <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
-                        {player.name}
-                      </Text>
-                      {player.isHost && (
-                        <View style={styles.hostCrownBadge}>
-                          <Crown color={colors.yellow} size={12} />
-                          <Text style={styles.hostCrownText}>HOST</Text>
-                        </View>
-                      )}
-                      {isSelf && <Badge tone="neutral">SEN</Badge>}
+                  <Pressable onPress={() => setProfilePlayer(player)} style={styles.playerIdentity}>
+                    <Avatar avatarKey={player.avatarKey} size={46} online={player.isOnline} ring={isSelf} />
+                    <View style={styles.playerIdentityText}>
+                      <View style={styles.nameWrap}>
+                        <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
+                          {player.name}
+                        </Text>
+                        {player.isHost && (
+                          <View style={styles.hostCrownBadge}>
+                            <Crown color={colors.yellow} size={12} />
+                            <Text style={styles.hostCrownText}>HOST</Text>
+                          </View>
+                        )}
+                        {isSelf && <Badge tone="neutral">SEN</Badge>}
+                      </View>
+                      <Text style={styles.playerScore}>{player.score} Puan</Text>
                     </View>
-                    <Text style={styles.playerScore}>{player.score} Puan</Text>
-                  </View>
+                  </Pressable>
 
-                  {player.isReady ? (
+                  {isReady ? (
                     <PopView duration={300}>
                       <View style={styles.readyBadge}>
                         <CheckCircle2 color="#171026" size={16} strokeWidth={2.5} />
@@ -220,18 +243,26 @@ export default function LobbyScreen() {
                     </PopView>
                   ) : (
                     <View style={styles.unreadyRow}>
-                      <PulseView minScale={0.96} maxScale={1.03} duration={1400}>
-                        <View style={styles.notReadyBadge}>
-                          <Circle color={colors.textMuted} size={14} />
-                          <Text style={styles.notReadyText}>Bekliyor</Text>
-                        </View>
-                      </PulseView>
+                      <View style={styles.notReadyBadge}>
+                        <Circle color={colors.textMuted} size={14} />
+                        <Text style={styles.notReadyText}>Hazır Değil</Text>
+                      </View>
                       {!isSelf && (
                         <Pressable
+                          disabled={!prototype.canNudge(lobbyStageId, player.id)}
                           onPress={() => nudgePlayer(player.id, player.name)}
-                          style={styles.nudgeBtn}
+                          style={[
+                            styles.nudgeBtn,
+                            !prototype.canNudge(lobbyStageId, player.id) && styles.nudgeBtnUsed,
+                          ]}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${player.name} oyuncusunu dürt`}
                         >
-                          <Bell color={colors.orange} size={18} strokeWidth={2.2} />
+                          <Vibrate
+                            color={prototype.canNudge(lobbyStageId, player.id) ? colors.orange : colors.textMuted}
+                            size={19}
+                            strokeWidth={2.2}
+                          />
                         </Pressable>
                       )}
                     </View>
@@ -254,40 +285,78 @@ export default function LobbyScreen() {
           ))}
         </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <Pressable
+          onPress={() => {
+            if (testMode) prototype.clearReadyOverrides();
+            setTestMode((value) => !value);
+          }}
+          style={styles.testToggle}
+          accessibilityRole="button"
+        >
+          <FlaskConical color={colors.purpleSoft} size={16} />
+          <Text style={styles.testToggleText}>
+            {testMode ? 'Lobi test simülasyonunu gizle' : 'Geliştirici lobi simülasyonu'}
+          </Text>
+        </Pressable>
+        {testMode ? (
+          <Card variant="surface" style={styles.testPanel}>
+            <Text style={styles.testDescription}>Hazır durumlarını denemek için oyuncu durumuna dokun.</Text>
+            {playersList.filter((player) => player.id !== me?.id).map((player) => {
+              const ready = getReady(player);
+              return (
+                <Pressable
+                  key={`ready-${player.id}`}
+                  onPress={() => prototype.setReady(player.id, !ready)}
+                  style={styles.testPlayer}
+                >
+                  <Text style={styles.testPlayerName}>{player.name}</Text>
+                  <Badge tone={ready ? 'lime' : 'yellow'}>
+                    {ready ? 'Hazır' : 'Hazır Değil'}
+                  </Badge>
+                </Pressable>
+              );
+            })}
+          </Card>
+        ) : null}
 
-        {/* Action Controls */}
-        <View style={styles.actionsWrap}>
-          <Button
-            label={me?.isReady ? 'Hazır Değilim (Beklet)' : 'Hazırım! Oyuna Başla'}
-            onPress={toggleReady}
-            variant={me?.isReady ? 'secondary' : 'lime'}
-            fullWidth
-            style={{ marginBottom: 12 }}
-          />
-
-          {isHost ? (
-            <Button
-              label={canStart ? 'Oyunu Başlat!' : 'En az 2 hazır oyuncu bekleniyor'}
-              onPress={handleStartGame}
-              variant="orange"
-              disabled={!canStart || starting}
-              loading={starting}
-              fullWidth
-              icon={<Play color="#FFF" size={20} strokeWidth={2.5} />}
-            />
-          ) : (
-            <View style={styles.waitingNotice}>
-              <MascotFloat floatDistance={4} duration={2400}>
-                <Image source={mascotImages.lobby} style={styles.miniMascotWait} resizeMode="contain" />
-              </MascotFloat>
-              <Text style={styles.waitingText}>
-                Oda sahibinin oyunu başlatması bekleniyor…
-              </Text>
-            </View>
-          )}
-        </View>
       </ScrollView>
+      <StickyActionBar>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <Button
+          label={me && getReady(me) ? 'Hazır Değilim (Beklet)' : 'Hazırım! Oyuna Başla'}
+          onPress={toggleReady}
+          variant={me && getReady(me) ? 'secondary' : 'lime'}
+          fullWidth
+          style={{ marginBottom: 12 }}
+        />
+
+        {isHost ? (
+          <Button
+            label={canStart ? 'Oyunu Başlat!' : 'En az 2 hazır oyuncu bekleniyor'}
+            onPress={handleStartGame}
+            variant="orange"
+            disabled={!canStart || starting}
+            loading={starting}
+            fullWidth
+            icon={<Play color="#FFF" size={20} strokeWidth={2.5} />}
+          />
+        ) : (
+          <View style={styles.waitingNotice}>
+            <MascotFloat floatDistance={4} duration={2400}>
+              <Image source={mascotImages.lobby} style={styles.miniMascotWait} resizeMode="contain" />
+            </MascotFloat>
+            <Text style={styles.waitingText}>
+              Oda sahibinin oyunu başlatması bekleniyor…
+            </Text>
+          </View>
+        )}
+      </StickyActionBar>
+      <PlayerProfileSheet
+        player={profilePlayer}
+        isSelf={profilePlayer?.id === me?.id}
+        visible={profilePlayer !== null}
+        onClose={() => setProfilePlayer(null)}
+      />
     </Screen>
   );
 }
@@ -325,7 +394,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
   },
   scroll: {
-    paddingBottom: 48,
+    paddingBottom: spacing.md,
   },
   codeCard: {
     alignItems: 'center',
@@ -483,6 +552,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  nudgeBtnUsed: {
+    opacity: 0.45,
+    backgroundColor: colors.bgSurfaceAlt,
+    borderColor: colors.border,
+  },
+  playerIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  playerIdentityText: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 12,
+  },
+  testToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+  },
+  testToggleText: {
+    ...typography.small,
+    color: colors.purpleSoft,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  testPanel: {
+    marginBottom: spacing.lg,
+  },
+  testDescription: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginBottom: spacing.xs,
+  },
+  testPlayer: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  testPlayerName: {
+    ...typography.small,
+    color: colors.textPrimary,
+  },
   emptySlotCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -506,9 +624,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     fontStyle: 'italic',
-  },
-  actionsWrap: {
-    marginTop: spacing.xl,
   },
   waitingNotice: {
     flexDirection: 'row',

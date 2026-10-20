@@ -9,19 +9,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ImageBackground,
 } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronLeft, Sparkles, Check, Clock, Layers, Flame } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Screen, Button, Card, Avatar, Badge } from '@/components/ui';
+import { Screen, Button, Card, Avatar, Badge, StickyActionBar } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
-import { CATEGORIES, type CategoryId } from '@/features/game/categories';
+import {
+  CATEGORY_GROUPS,
+  CATEGORY_OPTIONS,
+  type CategoryOptionId,
+} from '@/features/game/categories';
 import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
 import { mascotImages } from '@/assets/illustrations';
-import { categoryImages } from '@/assets/categories';
 import { soundService } from '@/services/soundService';
+import { categoryOptionImages } from '@/assets/categories/options';
 
 const ROUND_OPTIONS = [3, 5, 7, 10];
 const TIME_OPTIONS = [10, 15, 20, 30];
@@ -35,28 +40,36 @@ export default function CreateRoomScreen() {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [rounds, setRounds] = useState(5);
   const [roundSeconds, setRoundSeconds] = useState(15);
-  const [selectedCats, setSelectedCats] = useState<CategoryId[]>(CATEGORIES.map((c) => c.id));
+  const [selectedCats, setSelectedCats] = useState<CategoryOptionId[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toggleCategory = (id: CategoryId) => {
+  const toggleCategory = (id: CategoryOptionId) => {
     soundService.play('click');
     trigger('light');
     if (selectedCats.includes(id)) {
-      if (selectedCats.length <= 1) return;
       setSelectedCats(selectedCats.filter((c) => c !== id));
     } else {
       setSelectedCats([...selectedCats, id]);
     }
   };
 
-  const selectAllCategories = () => {
+  const toggleAllCategories = () => {
     soundService.play('click');
     trigger('light');
-    setSelectedCats(CATEGORIES.map((c) => c.id));
+    if (selectedCats.length === CATEGORY_OPTIONS.length) {
+      setSelectedCats([]);
+    } else {
+      setSelectedCats(CATEGORY_OPTIONS.map((category) => category.id));
+    }
   };
 
   const handleCreate = async () => {
+    if (selectedCats.length === 0) {
+      trigger('warning');
+      setError('Lütfen en az 1 kategori seçin.');
+      return;
+    }
     trigger('medium');
     setLoading(true);
     setError(null);
@@ -66,7 +79,13 @@ export default function CreateRoomScreen() {
         avatarKey,
         totalRounds: rounds,
         roundSeconds,
-        categories: selectedCats,
+        categories: Array.from(
+          new Set(
+            CATEGORY_OPTIONS
+              .filter((category) => selectedCats.includes(category.id))
+              .map((category) => category.questionCategoryId)
+          )
+        ),
       });
 
       setRoomCode(res.code);
@@ -99,6 +118,7 @@ export default function CreateRoomScreen() {
         </View>
 
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -257,73 +277,84 @@ export default function CreateRoomScreen() {
               <Text style={styles.sectionTitle}>Kategoriler</Text>
               <Badge tone="yellow">{selectedCats.length} Seçili</Badge>
             </View>
-            <Pressable onPress={selectAllCategories}>
-              <Text style={styles.allLink}>Tümünü Aç</Text>
+            <Pressable onPress={toggleAllCategories}>
+              <Text style={styles.allLink}>
+                {selectedCats.length === CATEGORY_OPTIONS.length ? 'Tümünü Kaldır' : 'Tümünü Seç'}
+              </Text>
             </Pressable>
           </View>
+          <Text style={styles.categoryHint}>
+            Alt kategoriler, en yakın mevcut soru havuzunu kullanır.
+          </Text>
 
-          <View style={styles.catGrid}>
-            {CATEGORIES.map((c) => {
-              const isSelected = selectedCats.includes(c.id);
-              const bgImage = categoryImages[c.id];
-              return (
-                <Pressable
-                  key={c.id}
-                  onPress={() => toggleCategory(c.id)}
-                  style={({ pressed }) => [
-                    styles.catCard,
-                    isSelected && styles.catCardSelected,
-                    { transform: [{ scale: pressed ? 0.97 : 1 }] },
-                  ]}
-                >
-                  {bgImage ? (
-                    <Image
-                      source={bgImage}
-                      style={styles.catCardBgImage}
-                      resizeMode="cover"
-                    />
-                  ) : null}
-
-                  <LinearGradient
-                    colors={
-                      isSelected
-                        ? ['rgba(23, 16, 38, 0.20)', 'rgba(32, 16, 59, 0.68)', c.gradient[0] + 'EC']
-                        : ['rgba(15, 10, 26, 0.28)', 'rgba(23, 16, 38, 0.65)', 'rgba(32, 16, 59, 0.92)']
-                    }
-                    style={styles.catCardGradient}
-                  >
-                    <View style={styles.catTopRow}>
-                      <Text style={styles.catEmoji}>{c.emoji}</Text>
-                      <View
-                        style={[
-                          styles.checkCircle,
-                          isSelected ? styles.checkCircleActive : styles.checkCircleInactive,
-                        ]}
+          {CATEGORY_GROUPS.map((group) => (
+            <View key={group.id} style={styles.catGroup}>
+              <View style={styles.catGroupHeading}>
+                <Text style={styles.catGroupEmoji}>{group.emoji}</Text>
+                <Text style={styles.catGroupTitle}>{group.name}</Text>
+              </View>
+              <View style={styles.catGrid}>
+                {group.categories.map((category) => {
+                  const isSelected = selectedCats.includes(category.id);
+                  return (
+                    <Pressable
+                      key={category.id}
+                      onPress={() => toggleCategory(category.id)}
+                      style={({ pressed }) => [
+                        styles.catCard,
+                        isSelected && styles.catCardSelected,
+                        { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                      ]}
+                    >
+                      <ImageBackground
+                        source={categoryOptionImages[category.id]}
+                        style={styles.catCardGradient}
+                        imageStyle={styles.categoryImage}
                       >
-                        {isSelected && <Check color="#171026" size={13} strokeWidth={3} />}
-                      </View>
-                    </View>
-                    <Text style={styles.catName} numberOfLines={1}>{c.name}</Text>
-                  </LinearGradient>
-                </Pressable>
-              );
-            })}
-          </View>
+                        <LinearGradient
+                          colors={['rgba(15, 9, 27, 0.2)', 'rgba(15, 9, 27, 0.82)']}
+                          style={StyleSheet.absoluteFill}
+                          pointerEvents="none"
+                        />
+                        <View style={styles.catCardContent}>
+                          <View style={styles.catTopRow}>
+                            <Text style={styles.catEmoji}>{category.emoji}</Text>
+                            <View
+                              style={[
+                                styles.checkCircle,
+                                isSelected ? styles.checkCircleActive : styles.checkCircleInactive,
+                              ]}
+                            >
+                              {isSelected && <Check color="#171026" size={13} strokeWidth={3} />}
+                            </View>
+                          </View>
+                          <Text style={styles.catName} numberOfLines={3}>
+                            {category.name}
+                          </Text>
+                        </View>
+                      </ImageBackground>
+                      {isSelected && (
+                        <View pointerEvents="none" style={styles.catCardSelectedOutline} />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          {/* Bottom CTA */}
-          <View style={styles.actionBtnWrap}>
-            <Button
-              label="Odayı Kur & Lobiye Geç"
-              onPress={handleCreate}
-              variant="orange"
-              loading={loading}
-              fullWidth
-              icon={<Sparkles color="#FFF" size={20} />}
-            />
-          </View>
         </ScrollView>
+        <StickyActionBar>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <Button
+            label="Odayı Kur & Lobiye Geç"
+            onPress={handleCreate}
+            variant="orange"
+            loading={loading}
+            fullWidth
+            icon={<Sparkles color="#FFF" size={20} />}
+          />
+        </StickyActionBar>
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -352,7 +383,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins-Bold',
   },
   scroll: {
-    paddingBottom: 48,
+    paddingBottom: spacing.md,
   },
   mascotBanner: {
     flexDirection: 'row',
@@ -526,6 +557,30 @@ const styles = StyleSheet.create({
     color: colors.orange,
     fontFamily: 'Poppins-Bold',
   },
+  categoryHint: {
+    color: colors.textMuted,
+    fontFamily: 'Poppins-Regular',
+    fontSize: 11,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+  },
+  catGroup: {
+    marginBottom: spacing.md,
+  },
+  catGroupHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: spacing.sm,
+  },
+  catGroupEmoji: {
+    fontSize: 18,
+  },
+  catGroupTitle: {
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
+  },
   catGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -533,34 +588,40 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   catCard: {
-    width: '48%',
+    width: '47%',
+    minWidth: 0,
     borderRadius: radii.xl,
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: colors.border,
-    position: 'relative',
     backgroundColor: colors.bgCard,
     ...shadows.card,
   },
   catCardSelected: {
     borderColor: colors.orange,
-    borderWidth: 2,
     ...shadows.glowOrange,
   },
-  catCardBgImage: {
+  catCardGradient: {
+    flex: 1,
+    minHeight: 104,
+  },
+  categoryImage: {
+    resizeMode: 'cover',
+  },
+  catCardContent: {
+    flex: 1,
+    padding: spacing.md,
+    justifyContent: 'space-between',
+  },
+  catCardSelectedOutline: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    width: '100%',
-    height: '100%',
-    opacity: 0.68,
-  },
-  catCardGradient: {
-    padding: spacing.md,
-    minHeight: 88,
-    justifyContent: 'space-between',
+    borderRadius: radii.xl,
+    borderWidth: 2.5,
+    borderColor: colors.orange,
   },
   catTopRow: {
     flexDirection: 'row',
@@ -593,10 +654,6 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
-  },
-  actionBtnWrap: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.xl,
   },
   errorText: {
     ...typography.small,

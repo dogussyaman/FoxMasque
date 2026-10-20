@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronLeft, LogIn, Users, KeyRound, Sparkles } from 'lucide-react-native';
-import { Screen, Button, Card, Avatar, Badge } from '@/components/ui';
+import { Screen, Button, Card, Avatar, Badge, StickyActionBar } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -76,6 +76,7 @@ export default function JoinRoomScreen() {
         </View>
 
         <ScrollView
+          style={{ flex: 1 }}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -116,7 +117,7 @@ export default function JoinRoomScreen() {
               }}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder="ZARTO"
+              placeholder="TUZAK"
               placeholderTextColor={colors.textMuted}
               style={styles.giantCodeInput}
               maxLength={6}
@@ -161,24 +162,6 @@ export default function JoinRoomScreen() {
             </ScrollView>
           </Card>
 
-          {/* Error Message with Warning Styling */}
-          {error ? (
-            <View style={styles.errorWrap}>
-              <Text style={styles.errorText}>⚠️ {error}</Text>
-            </View>
-          ) : null}
-
-          {/* Main Action Button */}
-          <Button
-            label="Lobiye Katıl"
-            onPress={() => handleJoin()}
-            variant="orange"
-            loading={loading}
-            fullWidth
-            icon={<LogIn color="#FFF" size={20} />}
-            style={{ marginTop: spacing.xs }}
-          />
-
           {/* Open Rooms Section */}
           {openRooms.length > 0 && (
             <View style={styles.openRoomsWrap}>
@@ -205,6 +188,21 @@ export default function JoinRoomScreen() {
             </View>
           )}
         </ScrollView>
+        <StickyActionBar>
+          {error ? (
+            <View style={styles.errorWrap}>
+              <Text style={styles.errorText}>⚠️ {error}</Text>
+            </View>
+          ) : null}
+          <Button
+            label="Lobiye Katıl"
+            onPress={() => handleJoin()}
+            variant="orange"
+            loading={loading}
+            fullWidth
+            icon={<LogIn color="#FFF" size={20} />}
+          />
+        </StickyActionBar>
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -232,9 +230,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontFamily: 'Poppins-Bold',
   },
-  scroll: {
-    paddingBottom: 48,
-  },
+  scroll: { paddingBottom: spacing.md },
   mascotBanner: {
     flexDirection: 'row',
     alignItems: 'center',

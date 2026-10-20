@@ -12,6 +12,7 @@ import {
   MascotFloat,
   StaggerRow,
   PulseView,
+  StickyActionBar,
 } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -59,7 +60,11 @@ export default function ScoreboardScreen() {
 
   return (
     <Screen gradient diagonalSlice>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Top Header */}
         <View style={styles.topHeader}>
           <MascotFloat floatDistance={4} duration={2200}>
@@ -183,32 +188,31 @@ export default function ScoreboardScreen() {
           })}
         </View>
 
-        {/* Action Controls */}
-        <View style={styles.actionWrap}>
-          {isHost ? (
-            <Button
-              label={isFinalRound ? 'Final Podyumunu Aç!' : `Sonraki Tura Geç (Tur ${currentRound + 1})`}
-              onPress={handleNextRound}
-              variant="orange"
-              fullWidth
-              icon={isFinalRound ? <Sparkles color="#FFF" size={20} /> : <ArrowRight color="#FFF" size={20} />}
-            />
-          ) : (
-            <View style={styles.waitingNotice}>
-              <Text style={styles.waitingText}>
-                Oda kurucusunun {isFinalRound ? 'oyunu bitirmesi' : 'sonraki turu başlatması'} bekleniyor…
-              </Text>
-            </View>
-          )}
-        </View>
       </ScrollView>
+      <StickyActionBar>
+        {isHost ? (
+          <Button
+            label={isFinalRound ? 'Final Podyumunu Aç!' : `Sonraki Tura Geç (Tur ${currentRound + 1})`}
+            onPress={handleNextRound}
+            variant="orange"
+            fullWidth
+            icon={isFinalRound ? <Sparkles color="#FFF" size={20} /> : <ArrowRight color="#FFF" size={20} />}
+          />
+        ) : (
+          <View style={styles.waitingNotice}>
+            <Text style={styles.waitingText}>
+              Oda kurucusunun {isFinalRound ? 'oyunu bitirmesi' : 'sonraki turu başlatması'} bekleniyor…
+            </Text>
+          </View>
+        )}
+      </StickyActionBar>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingBottom: 48,
+    paddingBottom: spacing.md,
     paddingTop: 4,
   },
   topHeader: {
@@ -404,9 +408,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textMuted,
     marginTop: 1,
-  },
-  actionWrap: {
-    marginTop: spacing.xs,
   },
   waitingNotice: {
     alignItems: 'center',

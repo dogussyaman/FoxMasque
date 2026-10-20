@@ -1,46 +1,99 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput } from 'react-native';
-import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, Badge } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useSound } from '@/hooks/useSound';
 import { soundService } from '@/services/soundService';
-import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
+import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
 
 export default function ProfilScreen() {
-  const { currentPlayer, setCurrentPlayer, isLive, connection } = useGameStore();
+  const { currentPlayer, setCurrentPlayer, isLive, connection, service } = useGameStore();
   const { trigger } = useHaptics();
   const { enabled: soundEnabled, setEnabled: setSoundEnabled } = useSound();
 
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(currentPlayer?.name ?? 'Oyuncu');
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarKey>(
-    (currentPlayer?.avatarKey as AvatarKey) ?? 'fox'
-  );
+  const [selectedAvatar, setSelectedAvatar] = useState(currentPlayer?.avatarKey ?? 'fox');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
-  const handleSaveProfile = () => {
+  useEffect(() => {
+    if (!currentPlayer) return;
+    setSelectedAvatar(currentPlayer.avatarKey);
+    setTempName(currentPlayer.name);
+  }, [currentPlayer?.id]);
+
+  const saveProfile = async (name: string, avatarKey: string) => {
+    if (!currentPlayer || savingProfile) return;
+    setSavingProfile(true);
+    setProfileError(null);
     trigger('light');
-    if (currentPlayer) {
-      setCurrentPlayer({
-        ...currentPlayer,
-        name: tempName.trim() || 'Oyuncu',
-        avatarKey: selectedAvatar,
-      });
+    try {
+      const updatedPlayer = await service.updatePlayerProfile(
+        name.trim().slice(0, 32) || 'Oyuncu',
+        avatarKey
+      );
+      setCurrentPlayer(updatedPlayer);
+      setSelectedAvatar(updatedPlayer.avatarKey);
+      setTempName(updatedPlayer.name);
+      return true;
+    } catch (error) {
+      setProfileError((error as Error).message);
+      return false;
+    } finally {
+      setSavingProfile(false);
     }
+  };
+
+  const handleSaveProfile = async () => {
+    const saved = await saveProfile(tempName, selectedAvatar);
+    if (!saved) return;
     setEditingName(false);
   };
 
-  const handleAvatarSelect = (key: AvatarKey) => {
-    trigger('light');
-    setSelectedAvatar(key);
-    if (currentPlayer) {
-      setCurrentPlayer({
-        ...currentPlayer,
-        avatarKey: key,
+  const handleAvatarSelect = async (key: string) => {
+    if (!currentPlayer) return;
+    await saveProfile(currentPlayer.name, key);
+  };
+
+  const handleChoosePhoto = async () => {
+    if (!isLive) {
+      setProfileError('Fotoğrafını diğer oyuncularla paylaşmak için canlı oyun modu gerekir.');
+      return;
+    }
+    if (!currentPlayer || savingProfile) return;
+
+    setProfileError(null);
+    setSavingProfile(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+        base64: true,
       });
+      if (result.canceled) return;
+
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        setProfileError('Seçilen fotoğraf okunamadı. Başka bir fotoğraf deneyebilirsin.');
+        return;
+      }
+
+      const avatarUrl = await service.uploadAvatar(asset.base64, asset.mimeType ?? 'image/jpeg');
+      const updatedPlayer = await service.updatePlayerProfile(currentPlayer.name, avatarUrl);
+      setCurrentPlayer(updatedPlayer);
+      setSelectedAvatar(updatedPlayer.avatarKey);
+    } catch (error) {
+      setProfileError((error as Error).message);
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -78,7 +131,7 @@ export default function ProfilScreen() {
                 </View>
               ) : (
                 <View style={styles.nameDisplayRow}>
-                  <Text style={styles.playerName}>{currentPlayer?.name ?? 'FoxMasque Ustası'}</Text>
+                  <Text style={styles.playerName}>{currentPlayer?.name ?? 'TUZAK Ustası'}</Text>
                   <Pressable onPress={() => setEditingName(true)} style={styles.editIconBtn}>
                     <Edit2 color={colors.orange} size={16} />
                   </Pressable>
@@ -86,20 +139,32 @@ export default function ProfilScreen() {
               )}
               <View style={styles.rolePill}>
                 <Flame color={colors.yellow} size={12} />
-                <Text style={styles.playerRole}>FoxMasque Ustası • Seviye 8</Text>
+                <Text style={styles.playerRole}>TUZAK Ustası • Seviye 8</Text>
               </View>
             </View>
           </View>
 
-          {/* Avatar Selector Horizontal Scroll */}
-          <Text style={styles.subhead}>AVATARINI DEĞİŞTİR</Text>
+          <Pressable
+            onPress={handleChoosePhoto}
+            disabled={savingProfile || !currentPlayer}
+            style={[styles.uploadAvatarButton, (savingProfile || !currentPlayer) && styles.uploadAvatarButtonDisabled]}
+          >
+            <ImagePlus color={colors.orange} size={18} />
+            <Text style={styles.uploadAvatarText}>
+              {savingProfile ? 'Kaydediliyor...' : 'Kendi fotoğrafını ekle'}
+            </Text>
+          </Pressable>
+          {profileError ? <Text style={styles.profileError}>{profileError}</Text> : null}
+
+          <Text style={styles.subhead}>AVATAR KÜTÜPHANESİ</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.avatarList}>
-            {AVATAR_KEYS.map((key) => {
+            {[...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS].map((key) => {
               const active = selectedAvatar === key;
               return (
                 <Pressable
                   key={key}
                   onPress={() => handleAvatarSelect(key)}
+                  disabled={savingProfile}
                   style={[styles.avatarChoice, active && styles.avatarChoiceActive]}
                 >
                   <Avatar avatarKey={key} size={42} />
@@ -122,13 +187,13 @@ export default function ProfilScreen() {
             <Card variant="surface" style={styles.statBox}>
               <Zap color={colors.orange} size={24} />
               <Text style={[styles.statValue, { color: colors.orange }]}>18</Text>
-              <Text style={styles.statLabel}>Zartaladın</Text>
+              <Text style={styles.statLabel}>Tuzak Kurdun</Text>
             </Card>
 
             <Card variant="surface" style={styles.statBox}>
               <Shield color={colors.dangerSoft} size={24} />
               <Text style={[styles.statValue, { color: colors.dangerSoft }]}>4</Text>
-              <Text style={styles.statLabel}>Zartalandın</Text>
+              <Text style={styles.statLabel}>Tuzağa Düştün</Text>
             </Card>
 
             <Card variant="surface" style={styles.statBox}>
@@ -206,7 +271,7 @@ export default function ProfilScreen() {
         {/* App Info Card */}
         <View style={styles.section}>
           <Card variant="comic" style={{ alignItems: 'center' }}>
-            <Text style={styles.aboutTitle}>FoxMasque v2.0</Text>
+            <Text style={styles.aboutTitle}>TUZAK v2.0</Text>
             <Text style={styles.aboutText}>Modern Türkçe Parti & Blöf Oyunu</Text>
             <Text style={styles.aboutSub}>2–10 Oyuncu • Gerçek Zamanlı Realtime Motoru</Text>
           </Card>
@@ -294,6 +359,31 @@ const styles = StyleSheet.create({
   avatarList: {
     gap: 10,
     paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
+  uploadAvatarButton: {
+    minHeight: 44,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurfaceAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  uploadAvatarButtonDisabled: {
+    opacity: 0.55,
+  },
+  uploadAvatarText: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  profileError: {
+    ...typography.caption,
+    color: colors.dangerSoft,
+    marginTop: spacing.xs,
   },
   avatarChoice: {
     padding: 4,

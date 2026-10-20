@@ -12,6 +12,7 @@ import {
   PopView,
   ShakeView,
   StaggerRow,
+  StickyActionBar,
 } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -89,18 +90,22 @@ export default function ResultScreen() {
     : mascotImages.searching;
 
   const headerTitle = zartaladın && isCorrect
-    ? 'ÇİFTE BAŞARI! HEM BİLDİN HEM KANDIRDIN!'
+    ? 'ÇİFTE BAŞARI! HEM BİLDİN HEM TUZAK KURDUN!'
     : zartaladın
-    ? 'ZARTALADIN! RAKİPLER TUZAĞINA DÜŞTÜ!'
+    ? 'TUZAK KURDUN! RAKİPLER TUZAĞINA DÜŞTÜ!'
     : zartalandın
-    ? 'ZARTALANDIN! SAHTEYE KANDIN!'
+    ? 'TUZAĞA DÜŞTÜN! SAHTEYE KANDIN!'
     : isCorrect
     ? 'DOĞRU BİLDİN!'
     : 'YANLIŞ TAHMİN!';
 
   return (
     <Screen gradient diagonalSlice>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Top Mascot Hero Banner */}
         <View style={styles.topHeader}>
           <View style={styles.mascotCircle}>
@@ -188,9 +193,9 @@ export default function ResultScreen() {
                     <Zap color="#FFF" size={24} strokeWidth={2.5} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.outcomeZartalaTitle}>ZARTALADIN!</Text>
+                    <Text style={styles.outcomeZartalaTitle}>TUZAK KURDUN!</Text>
                     <Text style={styles.outcomeDesc}>
-                      {victimsCount} rakip senin sahte cevabına aldandı!
+                      {victimsCount} rakip senin tuzağına düştü!
                     </Text>
                   </View>
                   <Badge tone="orange" sticker>+{victimsCount * 50}</Badge>
@@ -208,9 +213,9 @@ export default function ResultScreen() {
                     <ShieldAlert color="#FFF" size={24} strokeWidth={2.5} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.outcomeZartalandinTitle}>ZARTALANDIN!</Text>
+                    <Text style={styles.outcomeZartalandinTitle}>TUZAĞA DÜŞTÜN!</Text>
                     <Text style={styles.outcomeDesc}>
-                      Başka bir oyuncunun sahte cevabına düştün
+                      Başka bir oyuncunun tuzağına düştün
                     </Text>
                   </View>
                   <Badge tone="danger" sticker>-40</Badge>
@@ -268,24 +273,23 @@ export default function ResultScreen() {
             })}
         </View>
 
-        {/* Next Step CTA */}
-        <View style={styles.actionWrap}>
-          <Button
-            label="Skor Tablosuna Geç"
-            onPress={handleNext}
-            variant="orange"
-            fullWidth
-            icon={<ArrowRight color="#FFF" size={20} />}
-          />
-        </View>
       </ScrollView>
+      <StickyActionBar>
+        <Button
+          label="Skor Tablosuna Geç"
+          onPress={handleNext}
+          variant="orange"
+          fullWidth
+          icon={<ArrowRight color="#FFF" size={20} />}
+        />
+      </StickyActionBar>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: {
-    paddingBottom: 48,
+    paddingBottom: spacing.md,
     paddingTop: 4,
   },
   topHeader: {
@@ -483,8 +487,5 @@ const styles = StyleSheet.create({
   badgesWrap: {
     flexDirection: 'row',
     gap: 6,
-  },
-  actionWrap: {
-    marginTop: spacing.xs,
   },
 });

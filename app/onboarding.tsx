@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Sparkles, ArrowRight, Shield, Zap, Target, Flame } from 'lucide-react-native';
-import { Screen, Button, Avatar, Card } from '@/components/ui';
+import { Screen, Button, Avatar, Card, StickyActionBar } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -40,7 +40,11 @@ export default function OnboardingScreen() {
         </View>
 
         {step === 1 ? (
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.headerWrap}>
               <View style={styles.mascotCircle}>
                 <Image source={mascotImages.hero} style={styles.mascotImage} resizeMode="contain" />
@@ -48,7 +52,7 @@ export default function OnboardingScreen() {
 
               <View style={styles.kickerPill}>
                 <Flame color={colors.orange} size={14} />
-                <Text style={styles.kickerText}>FoxMasque'E HOŞ GELDİN!</Text>
+                <Text style={styles.kickerText}>TUZAK'A HOŞ GELDİN!</Text>
               </View>
 
               <Text style={styles.title}>Parti & Blöf Zamanı!</Text>
@@ -76,7 +80,7 @@ export default function OnboardingScreen() {
                   <Zap color={colors.orange} size={24} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.featureTitle}>2. Sahteni Yuttur & Zartala (+50)</Text>
+                  <Text style={styles.featureTitle}>2. Sahteni Yuttur & Tuzak Kur (+50)</Text>
                   <Text style={styles.featureDesc}>
                     İnandırıcı bir blöf yaz. Sahtene kanan her rakip için kişi başı +50 kap!
                   </Text>
@@ -96,18 +100,13 @@ export default function OnboardingScreen() {
               </Card>
             </View>
 
-            <View style={styles.actionWrap}>
-              <Button
-                label="Karakterini Seç"
-                onPress={handleNext}
-                variant="orange"
-                fullWidth
-                icon={<ArrowRight color="#FFF" size={20} />}
-              />
-            </View>
           </ScrollView>
         ) : (
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
             <View style={styles.headerWrap}>
               <Text style={styles.title}>Karakterini Seç</Text>
               <Text style={styles.subtitle}>
@@ -145,23 +144,33 @@ export default function OnboardingScreen() {
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Örn: ZartalaKralı"
+              placeholder="Örn: TuzakUstası"
               placeholderTextColor={colors.textMuted}
               style={styles.input}
               maxLength={16}
             />
 
-            <View style={styles.actionWrap}>
-              <Button
-                label="Partiye Başla!"
-                onPress={handleFinish}
-                variant="orange"
-                fullWidth
-                icon={<Sparkles color="#FFF" size={20} />}
-              />
-            </View>
           </ScrollView>
         )}
+        <StickyActionBar>
+          {step === 1 ? (
+            <Button
+              label="Karakterini Seç"
+              onPress={handleNext}
+              variant="orange"
+              fullWidth
+              icon={<ArrowRight color="#FFF" size={20} />}
+            />
+          ) : (
+            <Button
+              label="Partiye Başla!"
+              onPress={handleFinish}
+              variant="orange"
+              fullWidth
+              icon={<Sparkles color="#FFF" size={20} />}
+            />
+          )}
+        </StickyActionBar>
       </View>
     </Screen>
   );
@@ -187,7 +196,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   scrollContent: {
-    paddingBottom: 48,
+    paddingBottom: spacing.md,
   },
   headerWrap: {
     alignItems: 'center',
@@ -268,10 +277,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
     lineHeight: 16,
-  },
-  actionWrap: {
-    marginTop: spacing.md,
-    marginBottom: spacing.xl,
   },
   previewAvatarWrap: {
     alignItems: 'center',

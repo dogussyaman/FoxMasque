@@ -28,7 +28,7 @@ try {
   isExpoAudioAvailable = false;
   if (__DEV__) {
     console.warn(
-      '[FoxMasque SoundService] expo-audio native module is not available in current client build. ' +
+      '[TUZAK SoundService] expo-audio native module is not available in current client build. ' +
       'On Web, HTML5 audio fallback is active. On iOS/Android, rebuild with `npx expo run:ios` or `npx expo run:android`.'
     );
   }
@@ -126,7 +126,7 @@ class SoundService {
     const source = soundAssets[effect];
     if (!source) return null;
 
-    const defaultVol = effect === 'click' ? 0.75 : 1.0;
+    const defaultVol = effect === 'click' ? 0.75 : effect === 'clock' ? 0.55 : 1.0;
 
     // 1. If expo-audio is available (Web or Native with compiled ExpoAudio)
     if (isExpoAudioAvailable && expoAudioModule?.createAudioPlayer) {
@@ -215,7 +215,7 @@ class SoundService {
       await this.initAudioMode();
     }
 
-    const effects: SoundEffect[] = ['click', 'true', 'zartalanma'];
+    const effects: SoundEffect[] = ['click', 'true', 'zartalanma', 'clock'];
     for (const effect of effects) {
       if (!this.playerPools.has(effect)) {
         // Pool size: 'click' has 2 players so consecutive fast taps don't clip each other
@@ -271,6 +271,24 @@ class SoundService {
   }
 
   /**
+   * Stop a specific sound effect (or all if not provided) and rewind
+   */
+  public stop(effect?: SoundEffect) {
+    if (!effect) {
+      this.stopAll();
+      return;
+    }
+    const pool = this.playerPools.get(effect);
+    if (!pool) return;
+    pool.forEach((player) => {
+      try {
+        player.pause();
+        void player.seekTo(0);
+      } catch {}
+    });
+  }
+
+  /**
    * Stop all currently playing sounds across all pools
    */
   public stopAll() {
@@ -278,6 +296,7 @@ class SoundService {
       pool.forEach((player) => {
         try {
           player.pause();
+          void player.seekTo(0);
         } catch {}
       });
     });
