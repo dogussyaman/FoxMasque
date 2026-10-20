@@ -27,9 +27,9 @@ export default function CategorySelectScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft color={colors.textPrimary} size={22} />
         </Pressable>
-        <Text style={styles.screenTitle}>Kategori Seçimi</Text>
+        <Text style={styles.screenTitle} numberOfLines={1}>Kategori Seçimi</Text>
         <Badge tone="orange" sticker>
-          {currentCategory?.emoji} {currentCategory?.name}
+          1 SEÇİLDİ
         </Badge>
       </View>
 
@@ -126,7 +126,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 8,
+    minHeight: 52,
   },
   backBtn: {
     width: 44,
@@ -142,6 +143,7 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.textPrimary,
     fontFamily: 'Poppins-Bold',
+    fontSize: 20,
   },
   subtitle: {
     ...typography.body,
