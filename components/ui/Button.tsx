@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View, ActivityIndicator, type ViewStyle } from 'react-native';
 import { colors, typography, radii, spacing, shadows } from '@/theme';
 import type { ReactNode } from 'react';
+import { soundService } from '@/services/soundService';
 
 type Variant = 'primary' | 'orange' | 'secondary' | 'ghost' | 'danger' | 'success' | 'lime';
 type Size = 'sm' | 'md' | 'lg';
@@ -15,6 +16,7 @@ interface ButtonProps {
   icon?: ReactNode;
   style?: ViewStyle;
   fullWidth?: boolean;
+  disableSound?: boolean;
 }
 
 const VARIANTS: Record<
@@ -79,14 +81,22 @@ export function Button({
   icon,
   style,
   fullWidth,
+  disableSound = false,
 }: ButtonProps) {
   const v = VARIANTS[variant];
   const height = size === 'lg' ? 56 : size === 'md' ? 48 : 38;
   const fontSize = size === 'lg' ? 17 : size === 'md' ? 15 : 13;
 
+  const handlePress = () => {
+    if (!disableSound) {
+      soundService.play('click');
+    }
+    onPress?.();
+  };
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled || loading}
       style={({ pressed }) => [
         styles.base,

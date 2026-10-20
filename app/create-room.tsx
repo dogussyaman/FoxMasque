@@ -21,6 +21,7 @@ import { CATEGORIES, type CategoryId } from '@/features/game/categories';
 import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
 import { mascotImages } from '@/assets/illustrations';
 import { categoryImages } from '@/assets/categories';
+import { soundService } from '@/services/soundService';
 
 const ROUND_OPTIONS = [3, 5, 7, 10];
 const TIME_OPTIONS = [10, 15, 20, 30];
@@ -39,6 +40,7 @@ export default function CreateRoomScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const toggleCategory = (id: CategoryId) => {
+    soundService.play('click');
     trigger('light');
     if (selectedCats.includes(id)) {
       if (selectedCats.length <= 1) return;
@@ -49,6 +51,7 @@ export default function CreateRoomScreen() {
   };
 
   const selectAllCategories = () => {
+    soundService.play('click');
     trigger('light');
     setSelectedCats(CATEGORIES.map((c) => c.id));
   };

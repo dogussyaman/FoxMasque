@@ -30,6 +30,7 @@ import { QUESTIONS, type Question } from '@/features/game/questions';
 import { getCategory } from '@/features/game/categories';
 import type { RoundChoice } from '@/types/game';
 import { mascotImages } from '@/assets/illustrations';
+import { soundService } from '@/services/soundService';
 
 export default function QuestionScreen() {
   const { roomCode, roomState, currentPlayer, service } = useGameStore();
@@ -310,6 +311,7 @@ export default function QuestionScreen() {
                       <Pressable
                         onPress={() => {
                           if (!isOwn) {
+                            soundService.play('click');
                             trigger('light');
                             setSelectedChoiceIndex(choice.choiceIndex);
                           }

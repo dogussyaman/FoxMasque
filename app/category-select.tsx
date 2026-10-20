@@ -9,12 +9,14 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { CATEGORIES, type CategoryId } from '@/features/game/categories';
 import { questionsForCategory } from '@/features/game/questions';
 import { categoryImages } from '@/assets/categories';
+import { soundService } from '@/services/soundService';
 
 export default function CategorySelectScreen() {
   const { trigger } = useHaptics();
   const [selectedCat, setSelectedCat] = useState<CategoryId>('genel-kultur');
 
   const selectCat = (id: CategoryId) => {
+    soundService.play('click');
     trigger('light');
     setSelectedCat(id);
   };
@@ -25,7 +27,13 @@ export default function CategorySelectScreen() {
   return (
     <Screen gradient diagonalSlice>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable
+          onPress={() => {
+            soundService.play('click');
+            router.back();
+          }}
+          style={styles.backBtn}
+        >
           <ChevronLeft color={colors.textPrimary} size={22} />
         </Pressable>
         <Text style={styles.screenTitle} numberOfLines={1}>Kategori Seçimi</Text>

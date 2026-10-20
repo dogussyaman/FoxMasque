@@ -20,6 +20,7 @@ import { QUESTIONS, type Question } from '@/features/game/questions';
 import { resolveZartoRound } from '@/features/game/engine';
 import type { RoundResultRow } from '@/types/game';
 import { mascotImages } from '@/assets/illustrations';
+import { soundService } from '@/services/soundService';
 
 export default function ResultScreen() {
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
@@ -54,12 +55,15 @@ export default function ResultScreen() {
   const zartalandın = !!outcome?.zartalandın;
 
   useEffect(() => {
-    if (isCorrect && zartaladın) {
-      trigger('success');
-    } else if (zartalandın) {
+    if (zartalandın) {
+      soundService.play('zartalanma');
       trigger('heavy');
     } else if (isCorrect) {
-      trigger('light');
+      soundService.play('true');
+      trigger(zartaladın ? 'success' : 'light');
+    } else if (zartaladın) {
+      soundService.play('true');
+      trigger('success');
     } else {
       trigger('warning');
     }

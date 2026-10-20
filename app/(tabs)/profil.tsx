@@ -5,13 +5,15 @@ import { Screen, ScreenHeader, Card, Button, Avatar, Badge } from '@/components/
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useSound } from '@/hooks/useSound';
+import { soundService } from '@/services/soundService';
 import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
 
 export default function ProfilScreen() {
   const { currentPlayer, setCurrentPlayer, isLive, connection } = useGameStore();
   const { trigger } = useHaptics();
+  const { enabled: soundEnabled, setEnabled: setSoundEnabled } = useSound();
 
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(currentPlayer?.name ?? 'Oyuncu');
@@ -154,6 +156,7 @@ export default function ProfilScreen() {
                 onValueChange={(v) => {
                   trigger('light');
                   setSoundEnabled(v);
+                  if (v) soundService.play('click');
                 }}
                 trackColor={{ false: colors.bgSurfaceAlt, true: colors.orange }}
                 thumbColor="#FFF"

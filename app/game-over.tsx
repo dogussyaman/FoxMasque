@@ -17,12 +17,14 @@ import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { mascotImages } from '@/assets/illustrations';
+import { soundService } from '@/services/soundService';
 
 export default function GameOverScreen() {
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
   const { trigger } = useHaptics();
 
   useEffect(() => {
+    soundService.play('true');
     trigger('success');
   }, [trigger]);
 

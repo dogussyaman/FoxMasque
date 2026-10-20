@@ -27,6 +27,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { CATEGORIES } from '@/features/game/categories';
 import { mascotImages } from '@/assets/illustrations';
 import { categoryImages } from '@/assets/categories';
+import { soundService } from '@/services/soundService';
 
 export default function HomeScreen() {
   const { init, isLive, service, connection, currentPlayer } = useGameStore();
@@ -190,7 +191,10 @@ export default function HomeScreen() {
               return (
                 <Pressable
                   key={c.id}
-                  onPress={() => router.push('/category-select')}
+                  onPress={() => {
+                    soundService.play('click');
+                    router.push('/category-select');
+                  }}
                   style={({ pressed }) => [
                     styles.catCardPressable,
                     { transform: [{ scale: pressed ? 0.96 : 1 }] },

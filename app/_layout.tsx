@@ -15,11 +15,16 @@ import { SplashScreen } from 'expo-router';
 import { colors } from '@/theme';
 import { ActivityIndicator, View } from 'react-native';
 import { GameStoreProvider } from '@/store/gameStore';
+import { soundService } from '@/services/soundService';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   useFrameworkReady();
+
+  useEffect(() => {
+    soundService.preload();
+  }, []);
 
   const [fontsLoaded, fontError] = useFonts({
     'Poppins-Regular': Poppins_400Regular,
