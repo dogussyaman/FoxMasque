@@ -19,7 +19,11 @@ export default function LobbyScreen() {
   useEffect(() => {
     if (roomState?.phase === 'ability_select') {
       router.replace('/ability-select');
-    } else if (roomState?.phase === 'question') {
+    } else if (
+      roomState?.phase === 'fake_answer' ||
+      roomState?.phase === 'guess' ||
+      roomState?.phase === 'question'
+    ) {
       router.replace('/question');
     }
   }, [roomState?.phase]);
@@ -87,10 +91,19 @@ export default function LobbyScreen() {
     }
   };
 
+  const handleBack = async () => {
+    if (roomCode) {
+      try {
+        await service.leaveRoom(roomCode);
+      } catch {}
+    }
+    router.replace('/(tabs)');
+  };
+
   return (
     <Screen>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.replace('/(tabs)')} style={styles.backBtn}>
+        <Pressable onPress={handleBack} style={styles.backBtn}>
           <ChevronLeft color={colors.textPrimary} size={24} />
         </Pressable>
         <Text style={styles.screenTitle}>Oyun Lobisi</Text>
@@ -329,8 +342,8 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   nudgeBtn: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
     borderRadius: radii.md,
     backgroundColor: 'rgba(249, 115, 22, 0.2)',
     alignItems: 'center',

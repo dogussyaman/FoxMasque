@@ -2,13 +2,13 @@ import { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Check, Clock, Sparkles } from 'lucide-react-native';
-import { Screen, Card, Badge, Avatar, Button, LoadingState } from '@/components/ui';
+import { Screen, Card, Badge, Avatar, Button } from '@/components/ui';
 import { colors, spacing, typography, radii } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 
 export default function WaitingScreen() {
-  const { roomState, service, roomCode } = useGameStore();
+  const { roomState, service, roomCode, currentPlayer } = useGameStore();
   const { trigger } = useHaptics();
 
   // Watch for phase change to 'reveal' or 'scoreboard'
@@ -22,12 +22,20 @@ export default function WaitingScreen() {
   }, [roomState?.phase, trigger]);
 
   const playersList = roomState ? Object.values(roomState.players) : [];
-  const answers = roomState?.answers ?? {};
-  const submittedCount = Object.keys(answers).length;
+  const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
+  const isHost = me?.isHost ?? false;
+
+  const picks = roomState?.picks ?? {};
+  const fakeAnswers = roomState?.fakeAnswers ?? {};
+  const isGuessPhase = roomState?.phase === 'guess';
+
+  const submittedCount = isGuessPhase
+    ? Object.keys(picks).length
+    : Object.keys(fakeAnswers).length || Object.keys(roomState?.answers ?? {}).length;
   const totalCount = playersList.length;
 
   const handleForceAdvance = async () => {
-    if (!roomCode) return;
+    if (!roomCode || !isHost) return;
     trigger('medium');
     await service.advancePhase(roomCode);
     router.replace('/result');
@@ -41,13 +49,15 @@ export default function WaitingScreen() {
         </View>
         <Text style={styles.title}>Cevabın Alındı!</Text>
         <Text style={styles.subtitle}>
-          Diğer parti oyuncularının cevap vermesi bekleniyor…
+          {isGuessPhase
+            ? 'Rakiplerin tahminlerini tamamlaması bekleniyor…'
+            : 'Diğer oyuncuların sahte cevaplarını göndermesi bekleniyor…'}
         </Text>
       </View>
 
       <Card style={styles.statusCard}>
         <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>Cevaplayanlar</Text>
+          <Text style={styles.statusLabel}>Tamamlayanlar</Text>
           <Badge tone={submittedCount === totalCount ? 'success' : 'purple'}>
             {submittedCount} / {totalCount} Oyuncu
           </Badge>
@@ -58,7 +68,7 @@ export default function WaitingScreen() {
         <Text style={styles.listTitle}>Oyuncu Durumları</Text>
         <Card style={styles.playersCard}>
           {playersList.map((player) => {
-            const hasAnswered = !!answers[player.id];
+            const hasDone = isGuessPhase ? picks[player.id] !== undefined : !!fakeAnswers[player.id];
             return (
               <View key={player.id} style={styles.playerRow}>
                 <Avatar avatarKey={player.avatarKey} size={40} />
@@ -66,10 +76,10 @@ export default function WaitingScreen() {
                   <Text style={styles.playerName}>{player.name}</Text>
                   <Text style={styles.playerScore}>{player.score} Puan</Text>
                 </View>
-                {hasAnswered ? (
+                {hasDone ? (
                   <View style={styles.answeredBadge}>
                     <Check color={colors.success} size={14} />
-                    <Text style={styles.answeredText}>Cevapladı</Text>
+                    <Text style={styles.answeredText}>Tamamladı</Text>
                   </View>
                 ) : (
                   <View style={styles.pendingBadge}>
@@ -86,22 +96,30 @@ export default function WaitingScreen() {
         <Card style={styles.tipCard}>
           <View style={styles.tipHeader}>
             <Sparkles color={colors.orange} size={18} />
-            <Text style={styles.tipTitle}>Parti Taktikleri</Text>
+            <Text style={styles.tipTitle}>ZARTO İpucu</Text>
           </View>
           <Text style={styles.tipBody}>
-            Eğer bu tur Kalkan kullandıysan, rakiplerinin zartal girişimleri sana işlemez ve puanın düşmez!
+            Kendi sahte cevabını seçemezsin; ne kadar çok rakibi senin sahte cevabına düşürürsen o kadar çok (+50) puan kazanırsın!
           </Text>
         </Card>
 
-        {/* Demo advance button if demo mode */}
-        <View style={styles.actionWrap}>
-          <Button
-            label="Sonuçları Açıkla"
-            onPress={handleForceAdvance}
-            variant="secondary"
-            fullWidth
-          />
-        </View>
+        {/* Host action button */}
+        {isHost ? (
+          <View style={styles.actionWrap}>
+            <Button
+              label="Sonuçları Açıkla"
+              onPress={handleForceAdvance}
+              variant="secondary"
+              fullWidth
+            />
+          </View>
+        ) : (
+          <View style={styles.waitingNotice}>
+            <Text style={styles.waitingNoticeText}>
+              Oda kurucusunun sonuçları açması bekleniyor…
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -225,5 +243,14 @@ const styles = StyleSheet.create({
   },
   actionWrap: {
     marginTop: spacing.sm,
+  },
+  waitingNotice: {
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  waitingNoticeText: {
+    ...typography.small,
+    color: colors.textMuted,
+    fontStyle: 'italic',
   },
 });

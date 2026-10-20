@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronLeft, Sparkles, Check, Clock, Layers } from 'lucide-react-native';
 import { Screen, Button, Card, Avatar } from '@/components/ui';
@@ -69,15 +69,19 @@ export default function CreateRoomScreen() {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <ChevronLeft color={colors.textPrimary} size={24} />
-        </Pressable>
-        <Text style={styles.screenTitle}>Oda Oluştur</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft color={colors.textPrimary} size={24} />
+          </Pressable>
+          <Text style={styles.screenTitle}>Oda Oluştur</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Host identity */}
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionLabel}>Profilin</Text>
@@ -188,8 +192,9 @@ export default function CreateRoomScreen() {
           />
         </View>
       </ScrollView>
-    </Screen>
-  );
+    </KeyboardAvoidingView>
+  </Screen>
+);
 }
 
 const styles = StyleSheet.create({
