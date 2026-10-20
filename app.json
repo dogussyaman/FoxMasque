@@ -20,7 +20,9 @@
       "expo-font",
       "expo-web-browser",
       "expo-splash-screen",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-audio",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,41 +1,110 @@
-import { Platform } from 'react-native';
-import { Audio } from 'expo-av';
+import { Platform, Image, AppState, type AppStateStatus } from 'react-native';
 import { soundAssets, type SoundEffect } from '@/assets/sound';
 
 type SoundListener = (enabled: boolean) => void;
+
+interface SoundPlayerInstance {
+  play: () => void;
+  pause: () => void;
+  seekTo: (seconds: number) => Promise<void>;
+  volume: number;
+  remove: () => void;
+}
+
+// Dynamically check and access expo-audio to prevent native module missing errors
+// from crashing the entire app on un-rebuilt development builds or older Expo Go versions
+let expoAudioModule: typeof import('expo-audio') | null = null;
+let isExpoAudioAvailable = false;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('expo-audio');
+  if (mod && (mod.createAudioPlayer || mod.AudioModule)) {
+    expoAudioModule = mod;
+    isExpoAudioAvailable = true;
+  }
+} catch (e) {
+  // Native module ExpoAudio is not yet compiled into the running native binary
+  isExpoAudioAvailable = false;
+  if (__DEV__) {
+    console.warn(
+      '[FoxMasque SoundService] expo-audio native module is not available in current client build. ' +
+      'On Web, HTML5 audio fallback is active. On iOS/Android, rebuild with `npx expo run:ios` or `npx expo run:android`.'
+    );
+  }
+}
 
 class SoundService {
   private enabled: boolean = true;
   private listeners: Set<SoundListener> = new Set();
   private isAudioModeConfigured: boolean = false;
-  private preloadedSounds: Partial<Record<SoundEffect, Audio.Sound>> = {};
+  private appStateSubscription: any = null;
+
+  // Multi-player pool per sound effect for rapid/overlapping playback without clipping
+  // e.g. 'click' has 2 players alternating so rapid button taps sound clean and unbroken
+  private playerPools: Map<SoundEffect, SoundPlayerInstance[]> = new Map();
+  private poolIndex: Map<SoundEffect, number> = new Map();
 
   constructor() {
-    this.configureAudioMode();
+    this.initAudioMode();
+    this.setupAppStateListener();
   }
 
-  private async configureAudioMode() {
+  private async initAudioMode() {
     if (Platform.OS === 'web') return;
+    if (!isExpoAudioAvailable || !expoAudioModule) return;
+
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-      this.isAudioModeConfigured = true;
+      if (expoAudioModule.setAudioModeAsync) {
+        await expoAudioModule.setAudioModeAsync({
+          playsInSilentMode: true,
+          interruptionMode: 'mixWithOthers',
+          shouldPlayInBackground: false,
+        });
+        this.isAudioModeConfigured = true;
+      }
     } catch {
-      // Audio mode configuration is optional; continue gracefully
+      // Graceful initialization failure
     }
+  }
+
+  private setupAppStateListener() {
+    this.appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState === 'background') {
+        this.handleAppBackground();
+      } else if (nextState === 'active') {
+        this.handleAppActive();
+      }
+    });
+  }
+
+  private async handleAppBackground() {
+    if (!isExpoAudioAvailable || !expoAudioModule) return;
+    try {
+      if (expoAudioModule.setIsAudioActiveAsync) {
+        await expoAudioModule.setIsAudioActiveAsync(false);
+      }
+    } catch {}
+  }
+
+  private async handleAppActive() {
+    if (!isExpoAudioAvailable || !expoAudioModule) return;
+    try {
+      if (expoAudioModule.setIsAudioActiveAsync) {
+        await expoAudioModule.setIsAudioActiveAsync(true);
+      }
+    } catch {}
   }
 
   public setEnabled(val: boolean) {
     this.enabled = val;
+    if (!val) {
+      this.stopAll();
+    }
     this.listeners.forEach((listener) => {
       try {
         listener(val);
-      } catch {
-        // ignore listener errors
-      }
+      } catch {}
     });
   }
 
@@ -51,25 +120,117 @@ class SoundService {
   }
 
   /**
-   * Preload sound instances for zero-latency playback
+   * Helper to create a single player instance for an asset
+   */
+  private createPlayerInstance(effect: SoundEffect): SoundPlayerInstance | null {
+    const source = soundAssets[effect];
+    if (!source) return null;
+
+    const defaultVol = effect === 'click' ? 0.75 : 1.0;
+
+    // 1. If expo-audio is available (Web or Native with compiled ExpoAudio)
+    if (isExpoAudioAvailable && expoAudioModule?.createAudioPlayer) {
+      try {
+        const player = expoAudioModule.createAudioPlayer(source, {
+          keepAudioSessionActive: true,
+        });
+        if (player) {
+          player.volume = defaultVol;
+          return {
+            play: () => {
+              try {
+                player.play();
+              } catch {}
+            },
+            pause: () => {
+              try {
+                player.pause();
+              } catch {}
+            },
+            seekTo: async (sec: number) => {
+              try {
+                if (player.seekTo) {
+                  await player.seekTo(sec);
+                }
+              } catch {}
+            },
+            volume: defaultVol,
+            remove: () => {
+              try {
+                player.remove();
+              } catch {}
+            },
+          };
+        }
+      } catch {}
+    }
+
+    // 2. Web fallback using browser Audio element
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.Audio !== 'undefined') {
+      try {
+        const resolved =
+          Image.resolveAssetSource(source)?.uri ||
+          (typeof source === 'string' ? source : (source as any)?.default);
+        if (resolved) {
+          const webAudio = new window.Audio(resolved);
+          webAudio.volume = defaultVol;
+          webAudio.preload = 'auto';
+          return {
+            play: () => {
+              try {
+                webAudio.currentTime = 0;
+                webAudio.play().catch(() => {});
+              } catch {}
+            },
+            pause: () => {
+              try {
+                webAudio.pause();
+              } catch {}
+            },
+            seekTo: async (sec: number) => {
+              try {
+                webAudio.currentTime = sec;
+              } catch {}
+            },
+            volume: defaultVol,
+            remove: () => {
+              try {
+                webAudio.pause();
+                webAudio.src = '';
+              } catch {}
+            },
+          };
+        }
+      } catch {}
+    }
+
+    return null;
+  }
+
+  /**
+   * Preload sound instances into pools for near-instant, zero-latency playback
    */
   public async preload() {
     if (!this.isAudioModeConfigured) {
-      await this.configureAudioMode();
+      await this.initAudioMode();
     }
+
     const effects: SoundEffect[] = ['click', 'true', 'zartalanma'];
     for (const effect of effects) {
-      try {
-        if (!this.preloadedSounds[effect]) {
-          const source = soundAssets[effect];
-          const { sound } = await Audio.Sound.createAsync(source, {
-            shouldPlay: false,
-            volume: effect === 'click' ? 0.75 : 1.0,
-          });
-          this.preloadedSounds[effect] = sound;
+      if (!this.playerPools.has(effect)) {
+        // Pool size: 'click' has 2 players so consecutive fast taps don't clip each other
+        const poolSize = effect === 'click' ? 2 : 1;
+        const pool: SoundPlayerInstance[] = [];
+
+        for (let i = 0; i < poolSize; i++) {
+          const inst = this.createPlayerInstance(effect);
+          if (inst) pool.push(inst);
         }
-      } catch {
-        // graceful fallback
+
+        if (pool.length > 0) {
+          this.playerPools.set(effect, pool);
+          this.poolIndex.set(effect, 0);
+        }
       }
     }
   }
@@ -80,47 +241,64 @@ class SoundService {
   public async play(effect: SoundEffect, customVolume?: number): Promise<void> {
     if (!this.enabled) return;
 
-    const source = soundAssets[effect];
-    if (!source) return;
+    let pool = this.playerPools.get(effect);
+    if (!pool || pool.length === 0) {
+      // Lazy load on first play if not preloaded
+      const inst = this.createPlayerInstance(effect);
+      if (inst) {
+        pool = [inst];
+        this.playerPools.set(effect, pool);
+        this.poolIndex.set(effect, 0);
+      }
+    }
 
-    const defaultVol = effect === 'click' ? 0.75 : 1.0;
-    const volume = customVolume !== undefined ? customVolume : defaultVol;
+    if (!pool || pool.length === 0) return;
+
+    // Round-robin selection from pool
+    const currentIdx = this.poolIndex.get(effect) || 0;
+    const player = pool[currentIdx];
+    const nextIdx = (currentIdx + 1) % pool.length;
+    this.poolIndex.set(effect, nextIdx);
 
     try {
-      const existing = this.preloadedSounds[effect];
-      if (existing) {
-        const status = await existing.getStatusAsync();
-        if (status.isLoaded) {
-          await existing.setVolumeAsync(volume);
-          await existing.replayAsync();
-          return;
-        }
-      }
-
-      // Create and play sound on-the-fly with expo-av
-      const { sound } = await Audio.Sound.createAsync(
-        source,
-        { shouldPlay: true, volume },
-        (status) => {
-          if (status.isLoaded && status.didJustFinish) {
-            sound.unloadAsync().catch(() => {});
-          }
-        }
-      );
+      const vol = customVolume !== undefined ? customVolume : player.volume;
+      player.volume = Math.max(0, Math.min(1, vol));
+      await player.seekTo(0);
+      player.play();
     } catch {
-      // Graceful fallback for Web HTML5 Audio
-      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.Audio !== 'undefined') {
+      // Autoplay or muted catch
+    }
+  }
+
+  /**
+   * Stop all currently playing sounds across all pools
+   */
+  public stopAll() {
+    this.playerPools.forEach((pool) => {
+      pool.forEach((player) => {
         try {
-          const audioSrc = typeof source === 'string' ? source : (source?.default || source?.uri || source);
-          if (audioSrc && typeof audioSrc === 'string') {
-            const webAudio = new window.Audio(audioSrc);
-            webAudio.volume = Math.max(0, Math.min(1, volume));
-            webAudio.play().catch(() => {});
-          }
-        } catch {
-          // Autoplay policy or muted
-        }
-      }
+          player.pause();
+        } catch {}
+      });
+    });
+  }
+
+  /**
+   * Release all players and clear memory
+   */
+  public destroy() {
+    this.playerPools.forEach((pool) => {
+      pool.forEach((player) => {
+        try {
+          player.remove();
+        } catch {}
+      });
+    });
+    this.playerPools.clear();
+    this.poolIndex.clear();
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
     }
   }
 }
