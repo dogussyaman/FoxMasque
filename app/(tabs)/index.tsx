@@ -1,23 +1,52 @@
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, LogIn, Sparkles, Zap, Gamepad2, ChevronRight } from 'lucide-react-native';
-import { Screen, ScreenHeader, Button, Card, Badge, Avatar } from '@/components/ui';
-import { colors, spacing, typography, radii } from '@/theme';
+import {
+  Plus,
+  LogIn,
+  Sparkles,
+  Zap,
+  Gamepad2,
+  ChevronRight,
+  Shield,
+  Smile,
+  Flame,
+} from 'lucide-react-native';
+import { Screen, Button, Card, Badge, Avatar } from '@/components/ui';
+import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { CATEGORIES } from '@/features/game/categories';
+import { mascotImages } from '@/assets/illustrations';
 
 export default function HomeScreen() {
-  const { init, isLive, service, connection } = useGameStore();
+  const { init, isLive, service, connection, currentPlayer } = useGameStore();
   const { trigger } = useHaptics();
-  const [leaderPreview, setLeaderPreview] = useState<{ id: string; name: string; avatarKey: string; score: number }[]>([]);
+  const [leaderPreview, setLeaderPreview] = useState<
+    { id: string; name: string; avatarKey: string; score: number }[]
+  >([]);
 
   useEffect(() => {
     init();
     service.getLeaderboard().then((lb) => {
-      setLeaderPreview(lb.slice(0, 5).map((p) => ({ id: p.id, name: p.name, avatarKey: p.avatarKey, score: p.score })));
+      setLeaderPreview(
+        lb
+          .slice(0, 4)
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatarKey: p.avatarKey,
+            score: p.score,
+          }))
+      );
     });
   }, [init, service]);
 
@@ -31,85 +60,246 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        <ScreenHeader
-          title="ZARTO"
-          subtitle={isLive ? 'Canlı çoklu oyuncu' : 'Demo modu — çevrimdışı örnek oyun'}
-          right={<Badge tone={isLive ? 'success' : 'warning'}>{isLive ? 'CANLI' : 'DEMO'}</Badge>}
-        />
-
-        <LinearGradient colors={[colors.purpleDeep, colors.purple, colors.blue]} style={styles.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-          <View style={styles.heroTop}>
-            <Sparkles color={colors.textOnAccent} size={22} />
-            <Text style={styles.heroKicker}>PARTİ ZAMANI</Text>
+    <Screen gradient diagonalSlice>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* Top Bar with ZARTO Brand & Player Avatar */}
+        <View style={styles.topBar}>
+          <View style={styles.brandRow}>
+            <View style={styles.logoPill}>
+              <Text style={styles.logoText}>ZARTO</Text>
+            </View>
+            <Badge
+              tone={isLive ? 'lime' : 'yellow'}
+              sticker
+              style={{ marginLeft: 6 }}
+            >
+              {isLive ? 'CANLI' : 'DEMO'}
+            </Badge>
           </View>
-          <Text style={styles.heroTitle}>Zartala, koruma yap, kazan!</Text>
-          <Text style={styles.heroText}>
-            2–10 oyuncu, 6 kategori, özel yetenekler. Doğru bil, rakibini zartala, zartalanmamak için kalkan aç.
-          </Text>
-          <View style={styles.heroBtns}>
-            <Button label="Oda Oluştur" onPress={goCreate} variant="primary" icon={<Plus color={colors.textOnAccent} size={20} />} fullWidth />
-            <View style={{ height: 12 }} />
-            <Button label="Kod ile Katıl" onPress={goJoin} variant="secondary" icon={<LogIn color={colors.textPrimary} size={20} />} fullWidth />
-          </View>
-        </LinearGradient>
 
+          <Pressable
+            style={styles.profileBtn}
+            onPress={() => router.push('/(tabs)/profil')}
+          >
+            <Avatar
+              avatarKey={currentPlayer?.avatarKey || 'fox'}
+              size={38}
+              ring
+            />
+          </Pressable>
+        </View>
+
+        {/* Hero Area: Asymmetric Card with 3D Fox Mascot */}
+        <View style={styles.heroContainer}>
+          <LinearGradient
+            colors={[colors.zartoSurface, '#35185D', '#20103B']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            {/* Diagonal Accent Stripe */}
+            <View style={styles.heroDiagonalStripe} />
+
+            <View style={styles.heroContentRow}>
+              {/* Left Column: Text & Micro Copy */}
+              <View style={styles.heroLeftCol}>
+                <View style={styles.kickerPill}>
+                  <Flame color={colors.orange} size={14} />
+                  <Text style={styles.kickerText}>PARTİ BLÖF OYUNU</Text>
+                </View>
+                <Text style={styles.heroTitle}>
+                  Blöfünü Yap,{'\n'}
+                  <Text style={{ color: colors.orange }}>Zartala!</Text>
+                </Text>
+                <Text style={styles.heroSubtitle}>
+                  Sahte cevaplar yaz, rakiplerini kandır ve gerçek cevabı bul!
+                </Text>
+              </View>
+
+              {/* Right Column: 3D Mascot Illustration */}
+              <View style={styles.mascotWrap}>
+                <Image
+                  source={mascotImages.hero}
+                  style={styles.mascotImage}
+                  resizeMode="contain"
+                />
+              </View>
+            </View>
+
+            {/* CTAs */}
+            <View style={styles.ctaRow}>
+              <Button
+                label="Oda Oluştur"
+                onPress={goCreate}
+                variant="orange"
+                icon={<Plus color="#FFF" size={20} strokeWidth={2.5} />}
+                style={styles.primaryCta}
+              />
+              <Button
+                label="Odaya Katıl"
+                onPress={goJoin}
+                variant="secondary"
+                icon={<LogIn color={colors.textPrimary} size={18} />}
+                style={styles.secondaryCta}
+              />
+            </View>
+          </LinearGradient>
+        </View>
+
+        {/* Quick Bluff Rules / Features Banner */}
+        <View style={styles.miniRulesRow}>
+          <View style={[styles.miniRuleChip, { borderColor: colors.lime }]}>
+            <Text style={[styles.miniRuleEmoji, { color: colors.lime }]}>+100</Text>
+            <Text style={styles.miniRuleText}>Doğru Bil</Text>
+          </View>
+          <View style={[styles.miniRuleChip, { borderColor: colors.orange }]}>
+            <Text style={[styles.miniRuleEmoji, { color: colors.orange }]}>+50</Text>
+            <Text style={styles.miniRuleText}>Zartala</Text>
+          </View>
+          <View style={[styles.miniRuleChip, { borderColor: colors.danger }]}>
+            <Text style={[styles.miniRuleEmoji, { color: colors.dangerSoft }]}>-40</Text>
+            <Text style={styles.miniRuleText}>Zartalanma</Text>
+          </View>
+        </View>
+
+        {/* Categories Showcase */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Kategoriler</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Kategoriler</Text>
+            <Pressable onPress={() => router.push('/category-select')}>
+              <Text style={styles.sectionLink}>Tümünü Gör</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesScroll}
+          >
             {CATEGORIES.map((c) => (
-              <LinearGradient key={c.id} colors={[c.gradient[0], c.gradient[1]]} style={styles.catCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-                <Text style={styles.catEmoji}>{c.emoji}</Text>
-                <Text style={styles.catName}>{c.name}</Text>
-              </LinearGradient>
+              <Pressable
+                key={c.id}
+                onPress={() => router.push('/category-select')}
+                style={styles.catCardPressable}
+              >
+                <LinearGradient
+                  colors={[c.gradient[0], c.gradient[1]]}
+                  style={styles.catCard}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.catEmojiCircle}>
+                    <Text style={styles.catEmoji}>{c.emoji}</Text>
+                  </View>
+                  <Text style={styles.catName} numberOfLines={2}>
+                    {c.name}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
             ))}
           </ScrollView>
         </View>
 
+        {/* How to Play - ZARTO Comic Cards */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nasıl Oynanır?</Text>
-          <Card>
-            <StepRow icon={<Gamepad2 color={colors.purpleSoft} size={22} />} title="Oda kur ya da katıl" desc="5 haneli kod ile arkadaşlarını ekle." />
-            <Divider />
-            <StepRow icon={<Zap color={colors.orange} size={22} />} title="Zartala & koru" desc="Doğru bil, rakibe zartal at; kalkanla korun." />
-            <Divider />
-            <StepRow icon={<Sparkles color={colors.blueSoft} size={22} />} title="Skorboarda yüksel" desc="Her tur sonunda puanını gör, sıralamada kal." />
+          <Card variant="surface">
+            <View style={styles.howToRow}>
+              <View style={[styles.howToBadge, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
+                <Gamepad2 color={colors.purpleSoft} size={22} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.howToTitle}>1. Odaya Gir & Soru Gelir</Text>
+                <Text style={styles.howToDesc}>
+                  2-10 arkadaşınla odaya katıl. Kategori sorusu aynı anda herkese açılır.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.howToRow}>
+              <View style={[styles.howToBadge, { backgroundColor: 'rgba(255, 113, 59, 0.2)' }]}>
+                <Zap color={colors.orange} size={22} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.howToTitle}>2. Sahte Cevap Yaz & Şıkları Karıştır</Text>
+                <Text style={styles.howToDesc}>
+                  Herkes inandırıcı bir yalan uydurur. Gerçek cevap ve sahteler harmanlanır!
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.howToRow}>
+              <View style={[styles.howToBadge, { backgroundColor: 'rgba(198, 243, 107, 0.2)' }]}>
+                <Sparkles color={colors.lime} size={22} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.howToTitle}>3. Zartala & Zartalanma!</Text>
+                <Text style={styles.howToDesc}>
+                  Doğru cevaba +100 puan; sahtene kanan her rakip için +50 puan kap!
+                </Text>
+              </View>
+            </View>
           </Card>
         </View>
 
+        {/* Leaderboard Preview */}
         <View style={styles.section}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>Liderlik</Text>
-            <Pressable onPress={() => router.push('/(tabs)/liderlik')}>
-              <Text style={styles.link}>Tümü <ChevronRight color={colors.purpleSoft} size={14} /></Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Liderlik Tablosu</Text>
+            <Pressable
+              onPress={() => router.push('/(tabs)/liderlik')}
+              style={styles.linkRow}
+            >
+              <Text style={styles.sectionLink}>Tümü</Text>
+              <ChevronRight color={colors.orange} size={16} />
             </Pressable>
           </View>
-          <Card>
+
+          <Card variant="default">
             {leaderPreview.length === 0 ? (
-              <Text style={styles.mutedText}>Henüz skor yok.</Text>
+              <Text style={styles.emptyText}>Henüz kayıtlı skor bulunmuyor.</Text>
             ) : (
               leaderPreview.map((p, i) => (
-                <View key={p.id} style={styles.leaderRow}>
-                  <Text style={styles.rank}>{i + 1}</Text>
-                  <Avatar avatarKey={p.avatarKey} size={34} />
-                  <Text style={styles.leaderName}>{p.name}</Text>
-                  <Badge tone={i === 0 ? 'warning' : 'neutral'}>{p.score} p</Badge>
+                <View
+                  key={p.id}
+                  style={[
+                    styles.leaderRow,
+                    i !== leaderPreview.length - 1 && styles.leaderRowBorder,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.rankCircle,
+                      i === 0 && styles.rankCircleFirst,
+                      i === 1 && styles.rankCircleSecond,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.rankText,
+                        i === 0 && { color: colors.yellow },
+                      ]}
+                    >
+                      {i + 1}
+                    </Text>
+                  </View>
+                  <Avatar avatarKey={p.avatarKey} size={36} />
+                  <Text style={styles.leaderName} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                  <Badge tone={i === 0 ? 'yellow' : 'purple'}>
+                    {p.score} P
+                  </Badge>
                 </View>
               ))
             )}
-          </Card>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Bağlantı</Text>
-          <Card>
-            <View style={styles.rowBetween}>
-              <Text style={styles.bodyText}>Durum</Text>
-              <Badge tone={connection === 'online' ? 'success' : connection === 'connecting' ? 'warning' : 'danger'}>
-                {connection.toUpperCase()}
-              </Badge>
-            </View>
           </Card>
         </View>
       </ScrollView>
@@ -117,61 +307,275 @@ export default function HomeScreen() {
   );
 }
 
-function StepRow({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
-  return (
-    <View style={styles.stepRow}>
-      <View style={styles.stepIcon}>{icon}</View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.stepTitle}>{title}</Text>
-        <Text style={styles.stepDesc}>{desc}</Text>
-      </View>
-    </View>
-  );
-}
-
-function Divider() {
-  return <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 12 }} />;
-}
-
 const styles = StyleSheet.create({
-  hero: {
-    borderRadius: radii['2xl'],
-    padding: spacing['2xl'],
-    marginTop: spacing.sm,
+  scrollContent: {
+    paddingBottom: 120,
+    paddingTop: 4,
   },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  heroKicker: { ...typography.caption, color: colors.textOnAccent, letterSpacing: 1.5 },
-  heroTitle: { ...typography.h2, color: colors.textOnAccent, marginBottom: 8 },
-  heroText: { ...typography.body, color: colors.textOnAccent, opacity: 0.95, marginBottom: 18 },
-  heroBtns: {},
-  section: { marginTop: spacing['3xl'] },
-  sectionTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
-  catCard: {
-    width: 130,
-    height: 90,
-    borderRadius: radii.xl,
-    padding: spacing.md,
-    marginRight: spacing.md,
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoPill: {
+    backgroundColor: colors.purple,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: radii.sm,
+    borderWidth: 1.5,
+    borderColor: '#A78BFA',
+    transform: [{ rotate: '-2deg' }],
+  },
+  logoText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 20,
+    color: '#FFF',
+    letterSpacing: 2,
+  },
+  profileBtn: {
+    padding: 2,
+  },
+  heroContainer: {
+    marginTop: spacing.md,
+  },
+  heroCard: {
+    borderRadius: radii['2xl'],
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 113, 59, 0.35)',
+    padding: spacing.xl,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  heroDiagonalStripe: {
+    position: 'absolute',
+    top: -40,
+    right: -30,
+    width: 140,
+    height: 220,
+    backgroundColor: 'rgba(255, 113, 59, 0.12)',
+    transform: [{ rotate: '-24deg' }],
+  },
+  heroContentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  catEmoji: { fontSize: 22 },
-  catName: { ...typography.small, color: colors.textOnAccent, fontFamily: 'Poppins-SemiBold' },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  link: { ...typography.bodyMedium, color: colors.purpleSoft },
-  leaderRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 12 },
-  rank: { ...typography.h4, color: colors.textMuted, width: 24 },
-  leaderName: { ...typography.bodyMedium, color: colors.textPrimary, flex: 1 },
-  mutedText: { ...typography.body, color: colors.textMuted },
-  bodyText: { ...typography.body, color: colors.textPrimary },
-  stepRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  stepIcon: {
+  heroLeftCol: {
+    flex: 1.2,
+    paddingRight: 6,
+  },
+  kickerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 113, 59, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  kickerText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 10,
+    color: colors.orange,
+    letterSpacing: 0.8,
+  },
+  heroTitle: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 26,
+    lineHeight: 32,
+    color: colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  heroSubtitle: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textSecondary,
+    marginTop: 6,
+  },
+  mascotWrap: {
+    flex: 0.9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mascotImage: {
+    width: 130,
+    height: 130,
+    borderRadius: radii.lg,
+  },
+  ctaRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: spacing.lg,
+  },
+  primaryCta: {
+    flex: 1.2,
+  },
+  secondaryCta: {
+    flex: 1,
+  },
+  miniRulesRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: spacing.md,
+  },
+  miniRuleChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgCard,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: 6,
+  },
+  miniRuleEmoji: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 13,
+  },
+  miniRuleText: {
+    fontFamily: 'Poppins-Medium',
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  section: {
+    marginTop: spacing['2xl'],
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+  },
+  sectionLink: {
+    ...typography.bodyMedium,
+    color: colors.orange,
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 13,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  categoriesScroll: {
+    paddingRight: 10,
+  },
+  catCardPressable: {
+    marginRight: 12,
+  },
+  catCard: {
+    width: 124,
+    height: 98,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    ...shadows.card,
+  },
+  catEmojiCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catEmoji: {
+    fontSize: 18,
+  },
+  catName: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 13,
+    lineHeight: 16,
+    color: '#FFF',
+  },
+  howToRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  howToBadge: {
     width: 44,
     height: 44,
     borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  howToTitle: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  howToDesc: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 12,
+  },
+  leaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 12,
+  },
+  leaderRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  rankCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: colors.bgSurfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepTitle: { ...typography.bodyMedium, color: colors.textPrimary },
-  stepDesc: { ...typography.small, color: colors.textMuted, marginTop: 2 },
+  rankCircleFirst: {
+    backgroundColor: 'rgba(255, 209, 102, 0.25)',
+    borderWidth: 1,
+    borderColor: colors.yellow,
+  },
+  rankCircleSecond: {
+    backgroundColor: 'rgba(214, 206, 229, 0.2)',
+  },
+  rankText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  leaderName: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 14,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  emptyText: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: 12,
+  },
 });

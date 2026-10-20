@@ -8,16 +8,18 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Clock, Send, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react-native';
+import { Clock, Send, Sparkles, AlertCircle, CheckCircle2, Flame, Lock } from 'lucide-react-native';
 import { Screen, Button, Card, Badge, ProgressBar } from '@/components/ui';
-import { colors, spacing, typography, radii } from '@/theme';
+import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { QUESTIONS, type Question } from '@/features/game/questions';
 import { getCategory } from '@/features/game/categories';
 import type { RoundChoice } from '@/types/game';
+import { mascotImages } from '@/assets/illustrations';
 
 export default function QuestionScreen() {
   const { roomCode, roomState, currentPlayer, service } = useGameStore();
@@ -26,6 +28,7 @@ export default function QuestionScreen() {
   const totalTime = roomState?.config.roundSeconds ?? 20;
   const [secondsLeft, setSecondsLeft] = useState(totalTime);
   const [fakeAnswerText, setFakeAnswerText] = useState('');
+  const [fakeSubmitted, setFakeSubmitted] = useState(false);
   const [choices, setChoices] = useState<RoundChoice[]>([]);
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -102,6 +105,7 @@ export default function QuestionScreen() {
     setError(null);
     try {
       await service.submitFakeAnswer(roomCode, text);
+      setFakeSubmitted(true);
       const list = await service.getRoundChoices(roomCode);
       if (list.length > 0) {
         setChoices(list);
@@ -137,12 +141,12 @@ export default function QuestionScreen() {
 
   if (isBlocked) {
     return (
-      <Screen>
+      <Screen gradient diagonalSlice>
         <View style={styles.blockedWrap}>
-          <AlertCircle color={colors.danger} size={48} />
+          <Image source={mascotImages.shocked} style={styles.blockedMascot} resizeMode="contain" />
           <Text style={styles.blockedTitle}>Bu Tur Bloklandın!</Text>
           <Text style={styles.blockedSubtitle}>
-            Bir önceki turda bir rakip sana blok uyguladı. Bu tur cevap veremezsin, sonraki turda tekrar oyundasın!
+            Rakiplerinden biri sana Blok yeteneği uyguladı. Bu tur cevap veremezsin; dinlen ve sonraki turda intikamını al!
           </Text>
         </View>
       </Screen>
@@ -150,28 +154,30 @@ export default function QuestionScreen() {
   }
 
   return (
-    <Screen>
+    <Screen gradient diagonalSlice>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* Top Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.roundWrap}>
+        {/* Top Game HUD Bar */}
+        <View style={styles.hudBar}>
+          <View style={styles.hudTopRow}>
+            <View style={styles.roundBadge}>
               <Text style={styles.roundText}>
                 Tur {roomState?.currentRound ?? 1} / {roomState?.config.totalRounds ?? 5}
               </Text>
             </View>
-            <Badge tone="purple">
+
+            <Badge tone="purple" sticker>
               {category.emoji} {category.name}
             </Badge>
-            <View style={styles.timerWrap}>
-              <Clock color={secondsLeft <= 4 ? colors.danger : colors.textPrimary} size={16} />
+
+            <View style={[styles.timerWrap, secondsLeft <= 4 && styles.timerWrapUrgent]}>
+              <Clock color={secondsLeft <= 4 ? colors.danger : colors.yellow} size={15} />
               <Text
                 style={[
                   styles.timerText,
-                  secondsLeft <= 4 && { color: colors.danger, fontFamily: 'Poppins-Bold' },
+                  secondsLeft <= 4 && { color: colors.dangerSoft },
                 ]}
               >
                 {secondsLeft}s
@@ -182,64 +188,98 @@ export default function QuestionScreen() {
           <View style={styles.progressWrap}>
             <ProgressBar
               progress={progressFraction}
-              color={secondsLeft <= 4 ? colors.danger : colors.purpleSoft}
+              color={secondsLeft <= 4 ? colors.danger : colors.orange}
             />
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Question Prompt Card */}
-          <Card style={styles.promptCard}>
+          <Card variant="surface" glow="purple" style={styles.promptCard}>
+            <View style={styles.questionIconRow}>
+              <Text style={styles.questionKicker}>ZARTO SORUSU</Text>
+            </View>
             <Text style={styles.promptText}>{question.prompt}</Text>
           </Card>
 
           {/* STAGE 1: ENTER FAKE ANSWER */}
           {!isGuessPhase ? (
             <View style={styles.stageWrap}>
-              <View style={styles.stageHeader}>
-                <Sparkles color={colors.purpleSoft} size={20} />
-                <Text style={styles.stageTitle}>1. Adım: Sahte Cevabını Yaz!</Text>
+              {/* Cunning Fox Mascot Banner */}
+              <View style={styles.cunningBanner}>
+                <Image
+                  source={mascotImages.cunning}
+                  style={styles.cunningMascot}
+                  resizeMode="contain"
+                />
+                <View style={{ flex: 1, paddingLeft: 8 }}>
+                  <View style={styles.stageKicker}>
+                    <Flame color={colors.orange} size={13} />
+                    <Text style={styles.stageKickerText}>1. ADIM: BLÖFÜNÜ YAZ</Text>
+                  </View>
+                  <Text style={styles.cunningTitle}>
+                    İnandırıcı ol!{'\n'}Kimse gerçeği anlamasın.
+                  </Text>
+                  <Text style={styles.cunningDesc}>
+                    Sahte cevabına düşen her rakip için +50 puan kaparsın!
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.stageSubtitle}>
-                Doğru cevap olduğunu düşündürtecek inandırıcı bir sahte cevap yaz. Rakiplerin buna düşerse kişi başı +50 puan kazanırsın!
-              </Text>
 
-              <TextInput
-                value={fakeAnswerText}
-                onChangeText={(t) => {
-                  setFakeAnswerText(t);
-                  if (error) setError(null);
-                }}
-                placeholder="İnandırıcı sahte cevabın..."
-                placeholderTextColor={colors.textMuted}
-                style={styles.fakeInput}
-                maxLength={48}
-                returnKeyType="done"
-                onSubmitEditing={handleFakeSubmit}
-              />
+              {!fakeSubmitted ? (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    value={fakeAnswerText}
+                    onChangeText={(t) => {
+                      setFakeAnswerText(t);
+                      if (error) setError(null);
+                    }}
+                    placeholder="İnandırıcı uydurma cevabın..."
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.fakeInput}
+                    maxLength={48}
+                    returnKeyType="done"
+                    onSubmitEditing={handleFakeSubmit}
+                  />
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                  {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-              <Button
-                label="Sahte Cevabı Kilitle"
-                onPress={handleFakeSubmit}
-                variant="primary"
-                loading={submitting}
-                fullWidth
-                icon={<Send color="#FFF" size={18} />}
-                style={{ marginTop: spacing.md }}
-              />
+                  <Button
+                    label="Sahte Cevabını Kilitle!"
+                    onPress={handleFakeSubmit}
+                    variant="orange"
+                    loading={submitting}
+                    fullWidth
+                    icon={<Send color="#FFF" size={18} />}
+                    style={{ marginTop: spacing.md }}
+                  />
+                </View>
+              ) : (
+                <Card variant="accent" style={styles.submittedCard}>
+                  <CheckCircle2 color={colors.lime} size={32} />
+                  <Text style={styles.submittedTitle}>Cevabın Havuzda Kilitlendi!</Text>
+                  <Text style={styles.submittedText}>
+                    "{fakeAnswerText}" cevabın gerçek cevapla karıştırılıyor. Diğer oyuncular bekleniyor...
+                  </Text>
+                </Card>
+              )}
             </View>
           ) : (
             /* STAGE 2: GUESS FROM BLENDED CHOICES */
             <View style={styles.stageWrap}>
-              <View style={styles.stageHeader}>
-                <CheckCircle2 color={colors.success} size={20} />
-                <Text style={styles.stageTitle}>2. Adım: Gerçek Cevabı Bul!</Text>
+              <View style={styles.guessBanner}>
+                <CheckCircle2 color={colors.lime} size={20} />
+                <View style={{ flex: 1, paddingLeft: 6 }}>
+                  <Text style={styles.guessTitle}>2. Adım: Gerçek Cevabı Bul!</Text>
+                  <Text style={styles.guessDesc}>
+                    Doğru cevap +100 puan! Kendi sahte cevabını seçemezsin. Başka birinin sahtesine kanarsan -40 puan!
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.stageSubtitle}>
-                Aşağıdaki seçeneklerden hangisi doğru? Kendi sahte cevabını seçemezsin. Başka birinin sahte cevabına düşersen -40 puan!
-              </Text>
 
               <View style={styles.choicesList}>
                 {choices.map((choice, idx) => {
@@ -280,6 +320,7 @@ export default function QuestionScreen() {
                           {letter}
                         </Text>
                       </View>
+
                       <Text
                         style={[
                           styles.choiceText,
@@ -289,8 +330,13 @@ export default function QuestionScreen() {
                       >
                         {choice.text}
                       </Text>
+
                       {isOwn ? (
-                        <Badge tone="warning">SENİN CEVABIN</Badge>
+                        <Badge tone="yellow" sticker>SENİN BLÖFÜN</Badge>
+                      ) : isSelected ? (
+                        <View style={styles.selectedTick}>
+                          <Lock color="#171026" size={14} strokeWidth={2.5} />
+                        </View>
                       ) : null}
                     </Pressable>
                   );
@@ -300,12 +346,17 @@ export default function QuestionScreen() {
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
               <Button
-                label={selectedChoiceIndex === null ? 'Lütfen Bir Şık Seç' : 'Tahmini Gönder'}
+                label={
+                  selectedChoiceIndex !== null
+                    ? 'Seçimini Onayla & Gönder'
+                    : 'Bir Seçenek Seç'
+                }
                 onPress={handlePickSubmit}
-                variant="primary"
+                variant="orange"
                 disabled={selectedChoiceIndex === null || submitting}
                 loading={submitting}
                 fullWidth
+                icon={<CheckCircle2 color="#FFF" size={20} />}
                 style={{ marginTop: spacing.md }}
               />
             </View>
@@ -317,174 +368,270 @@ export default function QuestionScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    paddingTop: 8,
-    paddingBottom: 12,
+  hudBar: {
+    paddingVertical: 10,
   },
-  headerTop: {
+  hudTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  roundWrap: {
-    backgroundColor: colors.bgSurfaceAlt,
+  roundBadge: {
+    backgroundColor: colors.bgSurface,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radii.full,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   roundText: {
     ...typography.caption,
     color: colors.textPrimary,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: 'Poppins-Bold',
   },
   timerWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.bgSurfaceAlt,
+    gap: 4,
+    backgroundColor: colors.bgSurface,
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radii.full,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  timerWrapUrgent: {
+    borderColor: colors.danger,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
   timerText: {
-    ...typography.caption,
-    color: colors.textPrimary,
-    fontFamily: 'Poppins-Medium',
+    fontFamily: 'Poppins-Bold',
+    fontSize: 13,
+    color: colors.yellow,
   },
   progressWrap: {
-    marginTop: 2,
+    marginTop: 4,
   },
   scroll: {
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
   promptCard: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.md,
-    minHeight: 110,
-    justifyContent: 'center',
+    marginVertical: spacing.md,
+    padding: spacing.xl,
+    borderWidth: 2,
+    borderColor: colors.purple,
+    ...shadows.glow,
+  },
+  questionIconRow: {
+    marginBottom: 6,
+  },
+  questionKicker: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 11,
+    color: colors.purpleSoft,
+    letterSpacing: 1.5,
   },
   promptText: {
     ...typography.h3,
-    color: colors.textPrimary,
-    textAlign: 'center',
+    color: '#FFF',
     lineHeight: 28,
-  },
-  stageWrap: {
-    marginTop: spacing.xs,
-  },
-  stageHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  stageTitle: {
-    ...typography.bodyMedium,
-    color: colors.textPrimary,
     fontFamily: 'Poppins-Bold',
   },
-  stageSubtitle: {
-    ...typography.small,
-    color: colors.textMuted,
-    lineHeight: 18,
+  stageWrap: {
+    marginTop: spacing.sm,
+  },
+  cunningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.xl,
+    padding: spacing.md,
+    borderWidth: 1.5,
+    borderColor: colors.orange,
     marginBottom: spacing.md,
+    ...shadows.card,
+  },
+  cunningMascot: {
+    width: 86,
+    height: 86,
+  },
+  stageKicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
+  stageKickerText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 10,
+    color: colors.orange,
+    letterSpacing: 1,
+  },
+  cunningTitle: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 16,
+    lineHeight: 20,
+    color: colors.textPrimary,
+  },
+  cunningDesc: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  inputContainer: {
+    marginTop: spacing.xs,
   },
   fakeInput: {
-    backgroundColor: colors.bgSurfaceAlt,
+    backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 14,
     color: colors.textPrimary,
-    fontFamily: 'Poppins-Medium',
-    fontSize: 16,
-    borderWidth: 1.5,
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 17,
+    borderWidth: 2,
     borderColor: colors.borderStrong,
-    marginBottom: 4,
+  },
+  submittedCard: {
+    alignItems: 'center',
+    padding: spacing.xl,
+    gap: 8,
+    marginTop: spacing.md,
+  },
+  submittedTitle: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 18,
+    color: colors.lime,
+    textAlign: 'center',
+  },
+  submittedText: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  guessBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(198, 243, 107, 0.12)',
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.lime,
+    marginBottom: spacing.md,
+  },
+  guessTitle: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 15,
+    color: colors.lime,
+  },
+  guessDesc: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   choicesList: {
     gap: 10,
-    marginBottom: spacing.sm,
   },
   choiceCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgSurface,
+    backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
     padding: spacing.md,
     borderWidth: 1.5,
     borderColor: colors.border,
     gap: 12,
+    ...shadows.card,
   },
   choiceCardSelected: {
-    borderColor: colors.purpleSoft,
-    backgroundColor: 'rgba(139, 92, 246, 0.18)',
+    borderColor: colors.orange,
+    backgroundColor: 'rgba(255, 113, 59, 0.15)',
+    ...shadows.glowOrange,
   },
   choiceCardOwn: {
     opacity: 0.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderColor: 'transparent',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderColor: 'rgba(255, 209, 102, 0.25)',
   },
   letterCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.bgSurfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   letterCircleSelected: {
-    backgroundColor: colors.purple,
+    backgroundColor: colors.orange,
   },
   letterCircleOwn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 209, 102, 0.2)',
   },
   letterText: {
-    ...typography.bodyMedium,
-    color: colors.textPrimary,
     fontFamily: 'Poppins-Bold',
+    fontSize: 15,
+    color: colors.textSecondary,
   },
   letterTextSelected: {
-    color: colors.textOnAccent,
+    color: '#FFF',
   },
   letterTextOwn: {
-    color: colors.textMuted,
+    color: colors.yellow,
   },
   choiceText: {
-    ...typography.bodyMedium,
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 15,
     color: colors.textPrimary,
     flex: 1,
   },
   choiceTextSelected: {
-    fontFamily: 'Poppins-Bold',
-    color: colors.textOnAccent,
+    color: colors.orange,
   },
   choiceTextOwn: {
     color: colors.textMuted,
-    fontStyle: 'italic',
   },
-  errorText: {
-    ...typography.small,
-    color: colors.danger,
-    marginTop: 6,
-    textAlign: 'center',
+  selectedTick: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   blockedWrap: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.xl,
+    padding: spacing['2xl'],
+    gap: 12,
+  },
+  blockedMascot: {
+    width: 140,
+    height: 140,
   },
   blockedTitle: {
     ...typography.h2,
-    color: colors.danger,
-    marginTop: spacing.md,
+    color: colors.dangerSoft,
+    textAlign: 'center',
   },
   blockedSubtitle: {
     ...typography.body,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginTop: spacing.sm,
     lineHeight: 22,
+  },
+  errorText: {
+    ...typography.small,
+    color: colors.dangerSoft,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    fontFamily: 'Poppins-SemiBold',
   },
 });

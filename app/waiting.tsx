@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
-import { Check, Clock, Sparkles } from 'lucide-react-native';
+import { Check, Clock, Sparkles, CheckCircle2 } from 'lucide-react-native';
 import { Screen, Card, Badge, Avatar, Button } from '@/components/ui';
-import { colors, spacing, typography, radii } from '@/theme';
+import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
+import { mascotImages } from '@/assets/illustrations';
 
 export default function WaitingScreen() {
   const { roomState, service, roomCode, currentPlayer } = useGameStore();
@@ -42,64 +43,80 @@ export default function WaitingScreen() {
   };
 
   return (
-    <Screen>
-      <View style={styles.topWrap}>
-        <View style={styles.successIcon}>
-          <Check color="#FFF" size={32} />
-        </View>
-        <Text style={styles.title}>Cevabın Alındı!</Text>
-        <Text style={styles.subtitle}>
-          {isGuessPhase
-            ? 'Rakiplerin tahminlerini tamamlaması bekleniyor…'
-            : 'Diğer oyuncuların sahte cevaplarını göndermesi bekleniyor…'}
-        </Text>
-      </View>
-
-      <Card style={styles.statusCard}>
-        <View style={styles.statusRow}>
-          <Text style={styles.statusLabel}>Tamamlayanlar</Text>
-          <Badge tone={submittedCount === totalCount ? 'success' : 'purple'}>
-            {submittedCount} / {totalCount} Oyuncu
-          </Badge>
-        </View>
-      </Card>
-
+    <Screen gradient diagonalSlice>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.listTitle}>Oyuncu Durumları</Text>
-        <Card style={styles.playersCard}>
+        {/* Mascot Banner */}
+        <View style={styles.topBanner}>
+          <Image
+            source={mascotImages.searching}
+            style={styles.mascotImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>Cevabın Alındı!</Text>
+          <Text style={styles.subtitle}>
+            {isGuessPhase
+              ? 'Rakiplerinin tahminlerini bitirmesi bekleniyor… Kim kimi zartalayacak?'
+              : 'Diğer oyuncular sahte cevaplarını hazırlıyor…'}
+          </Text>
+        </View>
+
+        {/* Status Card with Neon Progress */}
+        <Card variant="surface" glow="orange" style={styles.statusCard}>
+          <View style={styles.statusRow}>
+            <Text style={styles.statusLabel}>Tamamlayan Oyuncular</Text>
+            <Badge tone={submittedCount === totalCount ? 'lime' : 'orange'} sticker>
+              {submittedCount} / {totalCount} HAZIR
+            </Badge>
+          </View>
+        </Card>
+
+        {/* Player Status List */}
+        <Text style={styles.listTitle}>OYUNCU DURUMLARI</Text>
+        <View style={styles.playersListWrap}>
           {playersList.map((player) => {
             const hasDone = isGuessPhase ? picks[player.id] !== undefined : !!fakeAnswers[player.id];
+            const isSelf = player.id === me?.id;
             return (
-              <View key={player.id} style={styles.playerRow}>
-                <Avatar avatarKey={player.avatarKey} size={40} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.playerName}>{player.name}</Text>
+              <Card
+                key={player.id}
+                variant={isSelf ? 'accent' : 'surface'}
+                style={[styles.playerRow, isSelf && styles.playerRowSelf]}
+              >
+                <Avatar avatarKey={player.avatarKey} size={42} ring={isSelf} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
+                      {player.name}
+                    </Text>
+                    {isSelf && <Badge tone="neutral">SEN</Badge>}
+                  </View>
                   <Text style={styles.playerScore}>{player.score} Puan</Text>
                 </View>
+
                 {hasDone ? (
                   <View style={styles.answeredBadge}>
-                    <Check color={colors.success} size={14} />
-                    <Text style={styles.answeredText}>Tamamladı</Text>
+                    <CheckCircle2 color="#171026" size={14} strokeWidth={2.5} />
+                    <Text style={styles.answeredText}>TAMAM</Text>
                   </View>
                 ) : (
                   <View style={styles.pendingBadge}>
-                    <Clock color={colors.textMuted} size={14} />
+                    <Clock color={colors.yellow} size={14} />
                     <Text style={styles.pendingText}>Düşünüyor…</Text>
                   </View>
                 )}
-              </View>
+              </Card>
             );
           })}
-        </Card>
+        </View>
 
         {/* Tactical party tip */}
-        <Card style={styles.tipCard}>
+        <Card variant="comic" style={styles.tipCard}>
           <View style={styles.tipHeader}>
-            <Sparkles color={colors.orange} size={18} />
-            <Text style={styles.tipTitle}>ZARTO İpucu</Text>
+            <Sparkles color={colors.yellow} size={18} />
+            <Text style={styles.tipTitle}>ZARTO Taktik İpucu</Text>
           </View>
           <Text style={styles.tipBody}>
-            Kendi sahte cevabını seçemezsin; ne kadar çok rakibi senin sahte cevabına düşürürsen o kadar çok (+50) puan kazanırsın!
+            Ne kadar çok rakibi kendi uydurduğun cevaba inandırırsan, kişi başı +50 puan ve 3 kişide Blok hakkı kazanırsın!
           </Text>
         </Card>
 
@@ -107,9 +124,9 @@ export default function WaitingScreen() {
         {isHost ? (
           <View style={styles.actionWrap}>
             <Button
-              label="Sonuçları Açıkla"
+              label="Sonuçları Açıkla (Host)"
               onPress={handleForceAdvance}
-              variant="secondary"
+              variant="orange"
               fullWidth
             />
           </View>
@@ -126,33 +143,36 @@ export default function WaitingScreen() {
 }
 
 const styles = StyleSheet.create({
-  topWrap: {
-    alignItems: 'center',
-    paddingVertical: spacing.lg,
+  scroll: {
+    paddingBottom: 48,
+    paddingTop: 8,
   },
-  successIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.success,
+  topBanner: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
+    paddingVertical: spacing.md,
+  },
+  mascotImage: {
+    width: 120,
+    height: 120,
+    marginBottom: 8,
   },
   title: {
     ...typography.h2,
     color: colors.textPrimary,
     textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
   },
   subtitle: {
     ...typography.body,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 4,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   statusCard: {
-    marginBottom: spacing.md,
+    marginVertical: spacing.md,
   },
   statusRow: {
     flexDirection: 'row',
@@ -162,87 +182,91 @@ const styles = StyleSheet.create({
   statusLabel: {
     ...typography.bodyMedium,
     color: colors.textPrimary,
-  },
-  scroll: {
-    paddingBottom: 40,
+    fontFamily: 'Poppins-Bold',
   },
   listTitle: {
-    ...typography.caption,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 11,
     color: colors.textMuted,
-    marginBottom: 8,
-    marginTop: 4,
+    letterSpacing: 1,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
   },
-  playersCard: {
-    padding: 0,
-    overflow: 'hidden',
+  playersListWrap: {
+    gap: 8,
     marginBottom: spacing.lg,
   },
   playerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: 12,
+  },
+  playerRowSelf: {
+    borderColor: colors.orange,
+    borderWidth: 1.5,
   },
   playerName: {
-    ...typography.bodyMedium,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
     color: colors.textPrimary,
   },
   playerScore: {
     ...typography.caption,
     color: colors.textMuted,
+    marginTop: 2,
   },
   answeredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radii.full,
+    gap: 4,
+    backgroundColor: colors.lime,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radii.md,
   },
   answeredText: {
-    ...typography.caption,
-    color: colors.success,
-    fontFamily: 'Poppins-SemiBold',
+    fontSize: 10,
+    color: '#171026',
+    fontFamily: 'Poppins-Bold',
   },
   pendingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: colors.bgSurfaceAlt,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: radii.full,
+    gap: 4,
+    backgroundColor: 'rgba(255, 209, 102, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 209, 102, 0.3)',
   },
   pendingText: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: colors.yellow,
+    fontFamily: 'Poppins-Medium',
   },
   tipCard: {
-    backgroundColor: 'rgba(249, 115, 22, 0.1)',
-    borderColor: 'rgba(249, 115, 22, 0.3)',
     marginBottom: spacing.lg,
   },
   tipHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
+    gap: 6,
+    marginBottom: 4,
   },
   tipTitle: {
     ...typography.caption,
-    color: colors.orange,
+    color: colors.yellow,
     fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.5,
   },
   tipBody: {
     ...typography.small,
     color: colors.textSecondary,
-    lineHeight: 18,
+    lineHeight: 17,
   },
   actionWrap: {
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
   waitingNotice: {
     alignItems: 'center',

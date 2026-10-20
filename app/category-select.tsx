@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronLeft, Check, Sparkles, BookOpen } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Screen, Button, Badge } from '@/components/ui';
-import { colors, spacing, typography, radii } from '@/theme';
+import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useHaptics } from '@/hooks/useHaptics';
 import { CATEGORIES, type CategoryId } from '@/features/game/categories';
 import { questionsForCategory } from '@/features/game/questions';
@@ -26,21 +27,21 @@ export default function CategorySelectScreen() {
   const previewQuestions = questionsForCategory(activePreviewCat);
 
   return (
-    <Screen>
+    <Screen gradient diagonalSlice>
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <ChevronLeft color={colors.textPrimary} size={24} />
+          <ChevronLeft color={colors.textPrimary} size={22} />
         </Pressable>
-        <Text style={styles.screenTitle}>Kategoriler</Text>
-        <Badge tone="purple">{selectedCats.length} Seçili</Badge>
+        <Text style={styles.screenTitle}>Kategori Seçimi</Text>
+        <Badge tone="orange" sticker>{selectedCats.length} / {CATEGORIES.length}</Badge>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.subtitle}>
-          Oyunda hangi alanlardan sorular çıkacağını belirle ve örnek soruları incele.
+          Oyun odasında hangi alanlardan soruların döneceğini belirle. Dokunarak açıp kapatabilirsin.
         </Text>
 
-        {/* Categories Grid */}
+        {/* Categories 2-Column Grid */}
         <View style={styles.grid}>
           {CATEGORIES.map((cat) => {
             const isSelected = selectedCats.includes(cat.id);
@@ -58,53 +59,53 @@ export default function CategorySelectScreen() {
                   isPreviewing && styles.cardPreviewing,
                 ]}
               >
-                <View style={styles.cardHeader}>
-                  <Text style={styles.emoji}>{cat.emoji}</Text>
-                  {isSelected && (
-                    <View style={styles.checkWrap}>
-                      <Check color="#FFF" size={14} />
+                <LinearGradient
+                  colors={isSelected ? [cat.gradient[0], cat.gradient[1]] : [colors.bgCard, colors.bgCardAlt]}
+                  style={styles.cardGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.cardHeader}>
+                    <View style={styles.emojiCircle}>
+                      <Text style={styles.emoji}>{cat.emoji}</Text>
                     </View>
-                  )}
-                </View>
-                <Text style={styles.catName}>{cat.name}</Text>
-                <Text style={styles.catDesc} numberOfLines={2}>
-                  {cat.description}
-                </Text>
+                    <View
+                      style={[
+                        styles.checkWrap,
+                        isSelected ? styles.checkWrapActive : styles.checkWrapInactive,
+                      ]}
+                    >
+                      {isSelected ? <Check color="#171026" size={14} strokeWidth={3} /> : null}
+                    </View>
+                  </View>
+
+                  <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
+                  <Text style={styles.catDesc} numberOfLines={2}>
+                    {cat.description}
+                  </Text>
+                </LinearGradient>
               </Pressable>
             );
           })}
         </View>
 
-        {/* Sample Questions Drawer */}
+        {/* Sample Question Preview Section */}
         <View style={styles.previewSection}>
           <View style={styles.previewHeader}>
-            <BookOpen color={colors.purpleSoft} size={18} />
-            <Text style={styles.previewTitle}>Örnek Sorular: {CATEGORIES.find((c) => c.id === activePreviewCat)?.name}</Text>
+            <BookOpen color={colors.orange} size={18} />
+            <Text style={styles.previewTitle}>
+              Örnek Soru: {CATEGORIES.find((c) => c.id === activePreviewCat)?.name}
+            </Text>
           </View>
 
-          {previewQuestions.slice(0, 3).map((q, idx) => (
+          {previewQuestions.slice(0, 2).map((q, idx) => (
             <View key={q.id} style={styles.questionItem}>
-              <Text style={styles.questionIndex}>Soru {idx + 1}</Text>
+              <Text style={styles.questionIndex}>Örnek {idx + 1}</Text>
               <Text style={styles.questionPrompt}>{q.prompt}</Text>
               <View style={styles.optionsWrap}>
-                {q.options.map((opt, optIdx) => (
-                  <View
-                    key={opt}
-                    style={[
-                      styles.optBadge,
-                      optIdx === q.correctIndex && styles.optBadgeCorrect,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.optText,
-                        optIdx === q.correctIndex && styles.optTextCorrect,
-                      ]}
-                    >
-                      {opt} {optIdx === q.correctIndex ? '✓' : ''}
-                    </Text>
-                  </View>
-                ))}
+                <View style={styles.optBadgeCorrect}>
+                  <Text style={styles.optTextCorrect}>Gerçek Cevap: {q.options[q.correctIndex]}</Text>
+                </View>
               </View>
             </View>
           ))}
@@ -116,9 +117,10 @@ export default function CategorySelectScreen() {
             trigger('medium');
             router.back();
           }}
-          variant="primary"
+          variant="orange"
           fullWidth
           icon={<Sparkles color="#FFF" size={20} />}
+          style={{ marginTop: spacing.md }}
         />
       </ScrollView>
     </Screen>
@@ -130,49 +132,59 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   backBtn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: radii.md,
-    backgroundColor: colors.bgSurfaceAlt,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
   screenTitle: {
     ...typography.h3,
     color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
   },
   subtitle: {
     ...typography.body,
-    color: colors.textMuted,
-    marginVertical: spacing.sm,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+    fontSize: 13,
+    lineHeight: 18,
   },
   scroll: {
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginVertical: spacing.md,
   },
   card: {
     width: '48%',
-    backgroundColor: colors.bgSurface,
     borderRadius: radii.xl,
-    padding: spacing.md,
-    borderWidth: 1,
+    overflow: 'hidden',
+    borderWidth: 1.5,
     borderColor: colors.border,
+    ...shadows.card,
   },
   cardSelected: {
-    borderColor: colors.purpleSoft,
-    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    borderColor: colors.orange,
+    ...shadows.glowOrange,
   },
   cardPreviewing: {
     borderWidth: 2,
-    borderColor: colors.purple,
+    borderColor: colors.yellow,
+  },
+  cardGradient: {
+    padding: spacing.md,
+    minHeight: 120,
+    justifyContent: 'space-between',
   },
   cardHeader: {
     flexDirection: 'row',
@@ -180,33 +192,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  emoji: {
-    fontSize: 26,
-  },
-  checkWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.purple,
+  emojiCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  emoji: {
+    fontSize: 20,
+  },
+  checkWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkWrapActive: {
+    backgroundColor: colors.lime,
+  },
+  checkWrapInactive: {
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
   catName: {
-    ...typography.bodyMedium,
-    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 14,
+    color: '#FFF',
   },
   catDesc: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 4,
+    fontFamily: 'Poppins-Regular',
+    fontSize: 11,
+    lineHeight: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 2,
   },
   previewSection: {
-    backgroundColor: colors.bgSurface,
+    backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderStrong,
     marginVertical: spacing.lg,
+    ...shadows.card,
   },
   previewHeader: {
     flexDirection: 'row',
@@ -216,7 +247,8 @@ const styles = StyleSheet.create({
   },
   previewTitle: {
     ...typography.bodyMedium,
-    color: colors.purpleSoft,
+    color: colors.orange,
+    fontFamily: 'Poppins-Bold',
   },
   questionItem: {
     marginBottom: spacing.md,
@@ -235,27 +267,19 @@ const styles = StyleSheet.create({
   },
   optionsWrap: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
     marginTop: 4,
   },
-  optBadge: {
-    backgroundColor: colors.bgSurfaceAlt,
-    borderRadius: radii.md,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
   optBadgeCorrect: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    backgroundColor: 'rgba(198, 243, 107, 0.2)',
+    borderRadius: radii.md,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderWidth: 1,
-    borderColor: colors.success,
-  },
-  optText: {
-    ...typography.caption,
-    color: colors.textSecondary,
+    borderColor: colors.lime,
   },
   optTextCorrect: {
-    color: colors.success,
-    fontFamily: 'Poppins-SemiBold',
+    color: colors.lime,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 11,
   },
 });

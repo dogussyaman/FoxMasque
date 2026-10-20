@@ -1,54 +1,139 @@
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Gamepad2, Plus, LogIn, Users, Zap, Shield, Swords } from 'lucide-react-native';
+import { Plus, LogIn, Zap, Shield, Swords, Sparkles } from 'lucide-react-native';
 import { Screen, ScreenHeader, Button, Card, Badge } from '@/components/ui';
-import { colors, spacing, typography, radii } from '@/theme';
+import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { CATEGORIES } from '@/features/game/categories';
+import { mascotImages } from '@/assets/illustrations';
 
 export default function OynaScreen() {
   return (
-    <Screen>
+    <Screen gradient diagonalSlice>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <ScreenHeader title="Oyna" subtitle="Arkadaşlarını topla, zartala!" right={<Badge tone="purple">2–10 oyuncu</Badge>} />
-        <LinearGradient colors={[colors.purpleDeep, colors.purple, colors.blue]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <View style={styles.heroIcon}><Gamepad2 color={colors.textOnAccent} size={26} /></View>
-          <Text style={styles.kicker}>PARTİ MODU</Text>
-          <Text style={styles.heroTitle}>Hazır mısın zartalamaya?</Text>
-          <Text style={styles.heroCopy}>Oda kur, arkadaşlarını çağır ve 6 kategoride en iyi cevabı bul.</Text>
-          <View style={styles.tags}>
-            <View style={styles.tag}><Zap color="#FFE08A" size={14}/><Text style={styles.tagText}>Hızlı turlar</Text></View>
-            <View style={styles.tag}><Shield color="#C7F9D4" size={14}/><Text style={styles.tagText}>Özel yetenekler</Text></View>
+        <ScreenHeader
+          title="Oyna"
+          subtitle="Arkadaşlarını topla, blöfünle zartala!"
+          right={<Badge tone="orange" sticker>2–10 OYUNCU</Badge>}
+        />
+
+        {/* Hero Banner with Fox Lobby Mascot */}
+        <LinearGradient
+          colors={[colors.zartoSurface, '#391866', '#221140']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.hero}
+        >
+          <View style={styles.heroDiagonal} />
+          <View style={styles.heroRow}>
+            <View style={{ flex: 1.2 }}>
+              <View style={styles.kickerPill}>
+                <Sparkles color={colors.yellow} size={13} />
+                <Text style={styles.kicker}>PARTİ SALONU</Text>
+              </View>
+              <Text style={styles.heroTitle}>Oyununu Seç,{'\n'}Ortamı Isıt!</Text>
+              <Text style={styles.heroCopy}>
+                Oda açarak arkadaşlarını davet et veya paylaşılan 5 haneli kodla odaya katıl.
+              </Text>
+
+              <View style={styles.tags}>
+                <View style={styles.tag}>
+                  <Zap color={colors.yellow} size={13} />
+                  <Text style={styles.tagText}>Hızlı Turlar</Text>
+                </View>
+                <View style={styles.tag}>
+                  <Shield color={colors.lime} size={13} />
+                  <Text style={styles.tagText}>Kalkan & Blok</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.heroMascotWrap}>
+              <Image source={mascotImages.lobby} style={styles.heroMascot} resizeMode="contain" />
+            </View>
           </View>
         </LinearGradient>
 
+        {/* 2-Column Action Cards */}
         <View style={styles.actions}>
-          <Card style={styles.actionCard}>
-            <View style={[styles.actionIcon, { backgroundColor: 'rgba(139,92,246,0.18)' }]}><Plus color={colors.purpleSoft} size={22}/></View>
-            <Text style={styles.actionTitle}>Yeni oda kur</Text>
-            <Text style={styles.actionCopy}>Kuralları seç, kodunu arkadaşlarınla paylaş.</Text>
-            <Button label="Oda Oluştur" onPress={() => router.push('/create-room')} fullWidth icon={<Plus color={colors.textOnAccent} size={18}/>} />
+          <Card variant="surface" style={styles.actionCard}>
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(255, 113, 59, 0.2)' }]}>
+              <Plus color={colors.orange} size={24} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.actionTitle}>Yeni Oda Kur</Text>
+            <Text style={styles.actionCopy}>
+              Tur sayısını, soru süresini belirle ve kodunu paylaş.
+            </Text>
+            <Button
+              label="Oda Oluştur"
+              onPress={() => router.push('/create-room')}
+              variant="orange"
+              size="md"
+              fullWidth
+            />
           </Card>
-          <Card style={styles.actionCard}>
-            <View style={[styles.actionIcon, { backgroundColor: 'rgba(56,189,248,0.16)' }]}><LogIn color={colors.blueSoft} size={22}/></View>
-            <Text style={styles.actionTitle}>Odaya katıl</Text>
-            <Text style={styles.actionCopy}>Arkadaşının paylaştığı oda kodunu gir.</Text>
-            <Button label="Kod ile Katıl" onPress={() => router.push('/join-room')} variant="secondary" fullWidth icon={<Users color={colors.textPrimary} size={18}/>} />
+
+          <Card variant="surface" style={styles.actionCard}>
+            <View style={[styles.actionIcon, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
+              <LogIn color={colors.purpleSoft} size={24} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.actionTitle}>Odaya Katıl</Text>
+            <Text style={styles.actionCopy}>
+              Arkadaşının verdiği 5 haneli oda kodunu girerek lobiye katıl.
+            </Text>
+            <Button
+              label="Kod ile Katıl"
+              onPress={() => router.push('/join-room')}
+              variant="secondary"
+              size="md"
+              fullWidth
+            />
           </Card>
         </View>
 
-        <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Oyun kategorileri</Text><Text style={styles.sectionMeta}>6 kategori</Text></View>
+        {/* Categories Grid */}
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>Oyun Kategorileri</Text>
+          <Pressable onPress={() => router.push('/category-select')}>
+            <Text style={styles.sectionMeta}>Tümü (6)</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.categoryGrid}>
-          {CATEGORIES.map((category, index) => (
-            <View key={category.id} style={[styles.categoryTile, { backgroundColor: category.gradient?.[0] ?? colors.bgSurface }]}>
-              <Text style={styles.categoryEmoji}>{['🧠','🦊','👗','🎬','🎵','🍕'][index % 6]}</Text>
-              <Text style={styles.categoryName}>{category.name}</Text>
-            </View>
+          {CATEGORIES.map((category) => (
+            <Pressable
+              key={category.id}
+              style={styles.categoryTileWrap}
+              onPress={() => router.push('/category-select')}
+            >
+              <LinearGradient
+                colors={[category.gradient[0], category.gradient[1]]}
+                style={styles.categoryTile}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <View style={styles.categoryEmojiBadge}>
+                  <Text style={styles.categoryEmoji}>{category.emoji}</Text>
+                </View>
+                <Text style={styles.categoryName} numberOfLines={2}>
+                  {category.name}
+                </Text>
+              </LinearGradient>
+            </Pressable>
           ))}
         </View>
-        <Card style={styles.tipCard}>
-          <Swords color={colors.orange} size={20}/>
-          <View style={{ flex: 1 }}><Text style={styles.tipTitle}>Oyunun taktiği</Text><Text style={styles.tipCopy}>Doğru cevabı bul, rakibini zartala; kalkan ve blok yeteneklerini doğru zamanda kullan.</Text></View>
+
+        {/* Tactical Pro-Tip Card */}
+        <Card variant="comic" style={styles.tipCard}>
+          <View style={styles.tipIconWrap}>
+            <Swords color={colors.orange} size={22} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tipTitle}>ZARTO Blöf Taktikleri</Text>
+            <Text style={styles.tipCopy}>
+              Gerçek cevabı bulmak +100 puan; ancak kendi uydurduğun cevaba arkadaşlarını düşürmek rakip başına +50 puan! 3 kişiyi kandırırsan Blok yeteneği kazanırsın!
+            </Text>
+          </View>
         </Card>
       </ScrollView>
     </Screen>
@@ -56,28 +141,165 @@ export default function OynaScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 112 },
-  hero: { marginTop: spacing.sm, borderRadius: radii.xl, padding: 22, overflow: 'hidden' },
-  heroIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  kicker: { color: '#DCD0FF', fontFamily: 'Poppins-SemiBold', fontSize: 11, letterSpacing: 1.5 },
-  heroTitle: { color: colors.textOnAccent, fontFamily: 'Poppins-Bold', fontSize: 23, lineHeight: 30, marginTop: 5 },
-  heroCopy: { color: 'rgba(255,255,255,0.82)', fontFamily: 'Poppins-Regular', fontSize: 13, lineHeight: 20, marginTop: 8 },
-  tags: { flexDirection: 'row', gap: 8, marginTop: 16, flexWrap: 'wrap' },
-  tag: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 6 },
-  tagText: { color: colors.textOnAccent, fontFamily: 'Poppins-Medium', fontSize: 11 },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
-  actionCard: { flex: 1, padding: 14 },
-  actionIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  actionTitle: { color: colors.textPrimary, fontFamily: 'Poppins-SemiBold', fontSize: 14 },
-  actionCopy: { color: colors.textMuted, fontFamily: 'Poppins-Regular', fontSize: 11, lineHeight: 17, minHeight: 50, marginTop: 4, marginBottom: 12 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 24, marginBottom: 12 },
-  sectionTitle: { color: colors.textPrimary, fontFamily: 'Poppins-SemiBold', fontSize: 16 },
-  sectionMeta: { color: colors.textMuted, fontFamily: 'Poppins-Medium', fontSize: 12 },
+  content: { paddingBottom: 120 },
+  hero: {
+    marginTop: spacing.xs,
+    borderRadius: radii['2xl'],
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 113, 59, 0.3)',
+    padding: spacing.xl,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  heroDiagonal: {
+    position: 'absolute',
+    top: -50,
+    right: -40,
+    width: 140,
+    height: 220,
+    backgroundColor: 'rgba(139, 92, 246, 0.14)',
+    transform: [{ rotate: '-22deg' }],
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  kickerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 209, 102, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.sm,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  kicker: {
+    color: colors.yellow,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  heroTitle: {
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 22,
+    lineHeight: 28,
+  },
+  heroCopy: {
+    color: colors.textSecondary,
+    fontFamily: 'Poppins-Regular',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 6,
+  },
+  heroMascotWrap: {
+    flex: 0.85,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroMascot: {
+    width: 110,
+    height: 110,
+  },
+  tags: { flexDirection: 'row', gap: 6, marginTop: 12, flexWrap: 'wrap' },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  tagText: { color: colors.textPrimary, fontFamily: 'Poppins-Medium', fontSize: 10 },
+  actions: { flexDirection: 'row', gap: 12, marginTop: spacing.lg },
+  actionCard: {
+    flex: 1,
+    padding: 14,
+    justifyContent: 'space-between',
+  },
+  actionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  actionTitle: {
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 15,
+  },
+  actionCopy: {
+    color: colors.textMuted,
+    fontFamily: 'Poppins-Regular',
+    fontSize: 11,
+    lineHeight: 16,
+    minHeight: 48,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing['2xl'],
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 18,
+  },
+  sectionMeta: {
+    color: colors.orange,
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 13,
+  },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  categoryTile: { width: '31%', minHeight: 94, borderRadius: radii.lg, padding: 10, justifyContent: 'space-between' },
-  categoryEmoji: { fontSize: 22 },
-  categoryName: { color: colors.textPrimary, fontFamily: 'Poppins-SemiBold', fontSize: 11, lineHeight: 15 },
-  tipCard: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginTop: 16 },
-  tipTitle: { color: colors.textPrimary, fontFamily: 'Poppins-SemiBold', fontSize: 13 },
-  tipCopy: { color: colors.textMuted, fontFamily: 'Poppins-Regular', fontSize: 12, lineHeight: 18, marginTop: 3 },
+  categoryTileWrap: { width: '31%' },
+  categoryTile: {
+    minHeight: 100,
+    borderRadius: radii.xl,
+    padding: 10,
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    ...shadows.card,
+  },
+  categoryEmojiBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryEmoji: { fontSize: 18 },
+  categoryName: {
+    color: '#FFF',
+    fontFamily: 'Poppins-Bold',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  tipCard: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+    marginTop: spacing.xl,
+  },
+  tipIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 113, 59, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tipTitle: { color: colors.textPrimary, fontFamily: 'Poppins-Bold', fontSize: 13 },
+  tipCopy: { color: colors.textSecondary, fontFamily: 'Poppins-Regular', fontSize: 11, lineHeight: 16, marginTop: 2 },
 });
