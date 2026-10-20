@@ -177,6 +177,7 @@ export default function HomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.categoriesScrollView}
             contentContainerStyle={styles.categoriesScroll}
           >
             {CATEGORIES.map((c) => (
@@ -473,8 +474,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
+  categoriesScrollView: {
+    marginHorizontal: -18,
+  },
   categoriesScroll: {
-    paddingRight: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 4,
   },
   catCardPressable: {
     marginRight: 12,
