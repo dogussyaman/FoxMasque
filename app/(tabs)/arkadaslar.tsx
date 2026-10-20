@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 18,
     paddingTop: 4,
-    paddingBottom: 28,
+    paddingBottom: 100,
   },
   inviteRow: {
     flexDirection: 'row',

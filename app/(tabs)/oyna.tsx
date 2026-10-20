@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingTop: 4,
-    paddingBottom: 28,
+    paddingBottom: 100,
   },
   hero: {
     marginTop: spacing.xs,
