@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, Pressable } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Sparkles, ArrowRight, Shield, Zap, Target } from 'lucide-react-native';
+import { Sparkles, ArrowRight, Shield, Zap, Target, Flame } from 'lucide-react-native';
 import { Screen, Button, Avatar, Card } from '@/components/ui';
-import { colors, spacing, typography, radii } from '@/theme';
+import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
+import { mascotImages } from '@/assets/illustrations';
 
 export default function OnboardingScreen() {
   const { setCurrentPlayer, service } = useGameStore();
@@ -31,7 +31,7 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <Screen>
+    <Screen gradient diagonalSlice>
       <View style={styles.container}>
         {/* Step Indicator */}
         <View style={styles.stepIndicatorRow}>
@@ -42,52 +42,55 @@ export default function OnboardingScreen() {
         {step === 1 ? (
           <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
             <View style={styles.headerWrap}>
-              <LinearGradient
-                colors={[colors.purpleSoft, colors.purpleDeep]}
-                style={styles.logoBadge}
-              >
-                <Sparkles color="#FFF" size={36} />
-              </LinearGradient>
-              <Text style={styles.title}>ZARTO'ya Hoş Geldin!</Text>
+              <View style={styles.mascotCircle}>
+                <Image source={mascotImages.hero} style={styles.mascotImage} resizeMode="contain" />
+              </View>
+
+              <View style={styles.kickerPill}>
+                <Flame color={colors.orange} size={14} />
+                <Text style={styles.kickerText}>ZARTO'YA HOŞ GELDİN!</Text>
+              </View>
+
+              <Text style={styles.title}>Parti & Blöf Zamanı!</Text>
               <Text style={styles.subtitle}>
-                Arkadaşlarınla oynayabileceğin en eğlenceli, bol çekişmeli Türkçe parti ve bilgi oyunu.
+                Arkadaşlarınla oynayabileceğin, sahte cevaplar uydurup rakipleri tuzağa düşürdüğün Türkçe parti oyunu.
               </Text>
             </View>
 
             {/* Feature Cards */}
             <View style={styles.featuresWrap}>
-              <Card style={styles.featureCard}>
-                <View style={styles.iconCircle}>
-                  <Target color={colors.purpleSoft} size={24} />
+              <Card variant="surface" style={styles.featureCard}>
+                <View style={[styles.iconCircle, { backgroundColor: 'rgba(198, 243, 107, 0.2)' }]}>
+                  <Target color={colors.lime} size={24} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.featureTitle}>Soruyu Bil</Text>
+                  <Text style={styles.featureTitle}>1. Gerçek Cevabı Bul (+100)</Text>
                   <Text style={styles.featureDesc}>
-                    6 eğlenceli kategorideki soruları doğru yanıtla, +100 puan kazan.
+                    Karışık cevap havuzundan doğrusunu tahmin et, hanene +100 puanı yazdır.
                   </Text>
                 </View>
               </Card>
 
-              <Card style={styles.featureCard}>
-                <View style={[styles.iconCircle, { backgroundColor: 'rgba(249, 115, 22, 0.15)' }]}>
+              <Card variant="surface" style={styles.featureCard}>
+                <View style={[styles.iconCircle, { backgroundColor: 'rgba(255, 113, 59, 0.2)' }]}>
                   <Zap color={colors.orange} size={24} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.featureTitle}>Rakibini Zartala</Text>
+                  <Text style={styles.featureTitle}>2. Sahteni Yuttur & Zartala (+50)</Text>
                   <Text style={styles.featureDesc}>
-                    Yanılacağını düşündüğün rakibini hedefle. O bilemezse +50 bonus senin!
+                    İnandırıcı bir blöf yaz. Sahtene kanan her rakip için kişi başı +50 kap!
                   </Text>
                 </View>
               </Card>
 
-              <Card style={styles.featureCard}>
-                <View style={[styles.iconCircle, { backgroundColor: 'rgba(59, 130, 246, 0.15)' }]}>
-                  <Shield color={colors.blueSoft} size={24} />
+              <Card variant="surface" style={styles.featureCard}>
+                <View style={[styles.iconCircle, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
+                  <Shield color={colors.purpleSoft} size={24} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.featureTitle}>Kalkan ve Karşı Hamle</Text>
+                  <Text style={styles.featureTitle}>3. Kalkan & Blok Yetenekleri</Text>
                   <Text style={styles.featureDesc}>
-                    Özel yeteneklerini stratejik kullan, rakiplerin zartalını bertaraf et.
+                    3 doğru bildiğinde Kalkan, 3 kişiyi kandırdığında rakibi pas geçiren Blok açılır!
                   </Text>
                 </View>
               </Card>
@@ -95,9 +98,9 @@ export default function OnboardingScreen() {
 
             <View style={styles.actionWrap}>
               <Button
-                label="Devam Et"
+                label="Karakterini Seç"
                 onPress={handleNext}
-                variant="primary"
+                variant="orange"
                 fullWidth
                 icon={<ArrowRight color="#FFF" size={20} />}
               />
@@ -114,11 +117,11 @@ export default function OnboardingScreen() {
 
             {/* Preview Avatar */}
             <View style={styles.previewAvatarWrap}>
-              <Avatar avatarKey={selectedAvatar} size={90} />
+              <Avatar avatarKey={selectedAvatar} size={90} ring />
             </View>
 
             {/* Avatar Grid */}
-            <Text style={styles.sectionLabel}>Avatar Seç</Text>
+            <Text style={styles.sectionLabel}>AVATARINI SEÇ</Text>
             <View style={styles.avatarGrid}>
               {AVATAR_KEYS.map((key) => {
                 const active = selectedAvatar === key;
@@ -138,7 +141,7 @@ export default function OnboardingScreen() {
             </View>
 
             {/* Name Input */}
-            <Text style={styles.sectionLabel}>Kullanıcı Adın</Text>
+            <Text style={styles.sectionLabel}>KULLANICI ADIN</Text>
             <TextInput
               value={name}
               onChangeText={setName}
@@ -152,7 +155,7 @@ export default function OnboardingScreen() {
               <Button
                 label="Partiye Başla!"
                 onPress={handleFinish}
-                variant="primary"
+                variant="orange"
                 fullWidth
                 icon={<Sparkles color="#FFF" size={20} />}
               />
@@ -176,107 +179,139 @@ const styles = StyleSheet.create({
   },
   stepBar: {
     flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.bgSurfaceAlt,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.bgCard,
   },
   stepBarActive: {
-    backgroundColor: colors.purpleSoft,
+    backgroundColor: colors.orange,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
   headerWrap: {
     alignItems: 'center',
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
     marginBottom: spacing.xl,
   },
-  logoBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  mascotCircle: {
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: colors.bgCard,
+    borderWidth: 2,
+    borderColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     marginBottom: spacing.md,
+    ...shadows.glowOrange,
+  },
+  mascotImage: {
+    width: 120,
+    height: 120,
+  },
+  kickerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 113, 59, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    marginBottom: 8,
+  },
+  kickerText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 11,
+    color: colors.orange,
+    letterSpacing: 1,
   },
   title: {
     ...typography.h2,
     color: colors.textPrimary,
     textAlign: 'center',
+    fontFamily: 'Poppins-Bold',
   },
   subtitle: {
     ...typography.body,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 6,
     paddingHorizontal: 16,
+    lineHeight: 20,
   },
   featuresWrap: {
     gap: 12,
-    marginBottom: spacing['2xl'],
+    marginBottom: spacing.xl,
   },
   featureCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 16,
+    padding: spacing.md,
   },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },
   featureTitle: {
     ...typography.bodyMedium,
     color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
   },
   featureDesc: {
     ...typography.small,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginTop: 2,
+    lineHeight: 16,
   },
   actionWrap: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
+    marginBottom: spacing.xl,
   },
   previewAvatarWrap: {
     alignItems: 'center',
-    marginVertical: spacing.lg,
+    marginVertical: spacing.md,
   },
   sectionLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 1,
     marginBottom: 8,
     marginTop: 12,
   },
   avatarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
     justifyContent: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   avatarBox: {
-    padding: 6,
+    padding: 4,
     borderRadius: radii.xl,
     borderWidth: 2,
     borderColor: 'transparent',
   },
   avatarBoxActive: {
-    borderColor: colors.purpleSoft,
-    backgroundColor: 'rgba(139, 92, 246, 0.25)',
+    borderColor: colors.orange,
+    backgroundColor: 'rgba(255, 113, 59, 0.2)',
   },
   input: {
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1.5,
     borderColor: colors.borderStrong,
     borderRadius: radii.lg,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     color: colors.textPrimary,
-    fontFamily: 'Poppins-Medium',
+    fontFamily: 'Poppins-SemiBold',
     fontSize: 16,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
 });

@@ -1,3 +1,5 @@
+import { colors } from './colors';
+
 export const spacing = {
   xs: 4,
   sm: 8,
@@ -14,11 +16,12 @@ export const spacing = {
 export type SpacingKey = keyof typeof spacing;
 
 export const radii = {
-  sm: 8,
-  md: 12,
-  lg: 18,
-  xl: 24,
-  '2xl': 32,
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 20,
+  xl: 26,
+  '2xl': 34,
   pill: 999,
   full: 999,
 } as const;
@@ -37,8 +40,8 @@ export const typography = {
   bodyMedium: { fontSize: 16, lineHeight: 24, fontFamily: 'Poppins-Medium' as const },
   small: { fontSize: 13, lineHeight: 18, fontFamily: 'Poppins-Regular' as const },
   caption: { fontSize: 11, lineHeight: 16, fontFamily: 'Poppins-Medium' as const },
-  big: { fontSize: 48, lineHeight: 54, fontFamily: 'Poppins-Bold' as const },
-  mega: { fontSize: 64, lineHeight: 70, fontFamily: 'Poppins-Bold' as const },
+  big: { fontSize: 46, lineHeight: 52, fontFamily: 'Poppins-Bold' as const },
+  mega: { fontSize: 62, lineHeight: 68, fontFamily: 'Poppins-Bold' as const },
 } as const;
 
 export const layout = {
@@ -59,17 +62,36 @@ export const shadows = {
   glow: {
     shadowColor: colors.purple,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 18,
+    shadowOpacity: 0.55,
+    shadowRadius: 16,
     elevation: 8,
+  },
+  glowOrange: {
+    shadowColor: colors.orange,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  glowLime: {
+    shadowColor: colors.lime,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.45,
+    shadowRadius: 12,
+    elevation: 6,
   },
   glowBlue: {
     shadowColor: colors.blue,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.55,
-    shadowRadius: 18,
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
     elevation: 8,
   },
+  arcade3D: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 0,
+    elevation: 5,
+  },
 } as const;
-
-import { colors } from './colors';

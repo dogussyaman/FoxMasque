@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { Shield, Sparkles, ChevronRight, Check } from 'lucide-react-native';
+import { Shield, Sparkles, ChevronRight, Check, Zap } from 'lucide-react-native';
 import { Screen, Button, Card, Badge, Avatar } from '@/components/ui';
-import { colors, spacing, typography, radii } from '@/theme';
+import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { ABILITIES, type AbilityId, canUseAbility, remainingUses } from '@/features/game/abilities';
@@ -93,7 +93,7 @@ export default function AbilitySelectScreen() {
   const currentAbilityObj = ABILITIES.find((a) => a.id === selectedAbility);
 
   return (
-    <Screen>
+    <Screen gradient diagonalSlice>
       <View style={styles.header}>
         <View style={styles.roundBadge}>
           <Text style={styles.roundText}>
@@ -102,7 +102,7 @@ export default function AbilitySelectScreen() {
         </View>
         <Text style={styles.screenTitle}>Strateji & Yetenek</Text>
         <Text style={styles.subtitle}>
-          Bu tur için gizli bir savunma veya saldırı hamlesi seç ya da yeteneğini sonraya sakla.
+          Bu tur için gizli bir hamle seç ya da hakkını sonraki turlara sakla.
         </Text>
       </View>
 
@@ -129,21 +129,21 @@ export default function AbilitySelectScreen() {
                     <Text style={styles.emoji}>{ab.emoji}</Text>
                     <Text style={styles.name}>{ab.name}</Text>
                   </View>
-                  <Badge tone={check.allowed ? (isSelected ? 'purple' : 'neutral') : 'danger'}>
-                    {check.allowed ? `${left} Hak` : 'Kilitli'}
+                  <Badge tone={check.allowed ? (isSelected ? 'orange' : 'lime') : 'neutral'} sticker>
+                    {check.allowed ? `${left} HAK` : 'KİLİTLİ'}
                   </Badge>
                 </View>
                 <Text style={styles.desc}>{ab.description}</Text>
-                <Text style={styles.unlockDesc}>🔓 {ab.unlockRule}</Text>
+                <Text style={styles.unlockDesc}>🔒 Kural: {ab.unlockRule}</Text>
               </Pressable>
             );
           })}
         </View>
 
         {/* Target selection if needed */}
-        {selectedAbility && currentAbilityObj?.targetRequired && opponents.length > 0 ? (
+        {selectedAbility && currentAbilityObj?.targetRequired && opponents.length > 0 && (
           <View style={styles.targetSection}>
-            <Text style={styles.targetTitle}>Kimi Hedefliyorsun?</Text>
+            <Text style={styles.targetTitle}>KİMİ HEDEFLİYORSUN?</Text>
             <View style={styles.targetsRow}>
               {opponents.map((opp) => {
                 const isTarget = targetId === opp.id;
@@ -156,17 +156,17 @@ export default function AbilitySelectScreen() {
                     }}
                     style={[styles.targetChip, isTarget && styles.targetChipActive]}
                   >
-                    <Avatar avatarKey={opp.avatarKey} size={36} />
+                    <Avatar avatarKey={opp.avatarKey} size={36} ring={isTarget} />
                     <Text style={[styles.targetName, isTarget && styles.targetNameActive]}>
                       {opp.name}
                     </Text>
-                    {isTarget && <Check color="#FFF" size={14} />}
+                    {isTarget && <Check color="#FFF" size={14} strokeWidth={2.5} />}
                   </Pressable>
                 );
               })}
             </View>
           </View>
-        ) : null}
+        )}
 
         <View style={styles.actionWrap}>
           <Button
@@ -176,7 +176,7 @@ export default function AbilitySelectScreen() {
                 : 'Yetenek Kullanmadan Devam Et'
             }
             onPress={selectedAbility ? handleConfirm : handleSkip}
-            variant="primary"
+            variant={selectedAbility ? 'orange' : 'secondary'}
             loading={loading}
             fullWidth
             icon={<Sparkles color="#FFF" size={20} />}
@@ -189,47 +189,53 @@ export default function AbilitySelectScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   roundBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    paddingHorizontal: 12,
+    backgroundColor: colors.bgSurface,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radii.full,
+    borderRadius: radii.pill,
     marginBottom: 6,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
   },
   roundText: {
     ...typography.caption,
-    color: colors.purpleSoft,
-    fontFamily: 'Poppins-SemiBold',
+    color: colors.orange,
+    fontFamily: 'Poppins-Bold',
   },
   screenTitle: {
     ...typography.h2,
     color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
   },
   subtitle: {
     ...typography.body,
-    color: colors.textMuted,
-    marginTop: 4,
+    color: colors.textSecondary,
+    marginTop: 2,
+    fontSize: 13,
   },
   scroll: {
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
   abilitiesList: {
     gap: 12,
     marginVertical: spacing.md,
   },
   abilityCard: {
-    backgroundColor: colors.bgSurface,
+    backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
     padding: spacing.lg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
+    ...shadows.card,
   },
   abilityCardSelected: {
-    borderColor: colors.purpleSoft,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    borderColor: colors.orange,
+    backgroundColor: 'rgba(255, 113, 59, 0.15)',
+    ...shadows.glowOrange,
   },
   abilityCardDisabled: {
     opacity: 0.45,
@@ -260,22 +266,23 @@ const styles = StyleSheet.create({
   },
   unlockDesc: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: colors.yellow,
     marginTop: 6,
     fontStyle: 'italic',
   },
   targetSection: {
-    marginTop: spacing.md,
-    backgroundColor: colors.bgSurfaceAlt,
+    marginTop: spacing.sm,
+    backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
     padding: spacing.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.borderStrong,
   },
   targetTitle: {
-    ...typography.caption,
-    color: colors.textPrimary,
-    fontFamily: 'Poppins-SemiBold',
+    fontFamily: 'Poppins-Bold',
+    fontSize: 11,
+    color: colors.textMuted,
+    letterSpacing: 1,
     marginBottom: 10,
   },
   targetsRow: {
@@ -290,23 +297,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radii.full,
-    backgroundColor: colors.bgSurface,
-    borderWidth: 1,
+    backgroundColor: colors.bgSurfaceAlt,
+    borderWidth: 1.5,
     borderColor: colors.border,
   },
   targetChipActive: {
-    backgroundColor: colors.purple,
-    borderColor: colors.purpleSoft,
+    backgroundColor: colors.orange,
+    borderColor: '#FFA07A',
   },
   targetName: {
     ...typography.caption,
     color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
   },
   targetNameActive: {
-    color: colors.textOnAccent,
-    fontFamily: 'Poppins-SemiBold',
+    color: '#FFF',
   },
   actionWrap: {
     marginTop: spacing.xl,
+    marginBottom: spacing.xl,
   },
 });
