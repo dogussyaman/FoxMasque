@@ -8,7 +8,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 
 export default function GameOverScreen() {
-  const { roomState, currentPlayer } = useGameStore();
+  const { roomState, currentPlayer, roomCode, service } = useGameStore();
   const { trigger } = useHaptics();
 
   useEffect(() => {
@@ -24,9 +24,23 @@ export default function GameOverScreen() {
   const rest = playersList.slice(3);
 
   const isMeWinner = winner?.id === currentPlayer?.id;
+  const isHost = currentPlayer?.isHost || playersList.find((p) => p.id === currentPlayer?.id)?.isHost;
 
-  const handlePlayAgain = () => {
+  useEffect(() => {
+    if (roomState?.phase === 'lobby') {
+      router.replace('/lobby');
+    }
+  }, [roomState?.phase]);
+
+  const handlePlayAgain = async () => {
     trigger('medium');
+    if (roomCode && isHost) {
+      try {
+        await service.rematch(roomCode);
+        router.replace('/lobby');
+        return;
+      } catch {}
+    }
     router.replace('/create-room');
   };
 

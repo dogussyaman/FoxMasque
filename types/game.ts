@@ -13,12 +13,20 @@ export interface Player {
   isOnline: boolean;
   score: number;
   abilityUsedCounts: Record<AbilityId, number>;
+  consecutiveCorrect: number;
+  shieldsAvailable: number;
+  blocksAvailable: number;
+  isBlockedCurrentRound: boolean;
+  isBlockedNextRound: boolean;
+  lastBlockedPlayerId?: PlayerId | null;
 }
 
 export type RoomPhase =
   | 'lobby'
   | 'category_select'
   | 'ability_select'
+  | 'fake_answer'
+  | 'guess'
   | 'question'
   | 'submitting'
   | 'waiting'
@@ -36,22 +44,38 @@ export interface RoomConfig {
   selectedCategoryIds: CategoryId[];
 }
 
-export interface ZartalAttempt {
-  attackerId: PlayerId;
-  defenderId: PlayerId;
-}
-
 export interface AbilityAction {
   playerId: PlayerId;
   abilityId: AbilityId;
   targetId?: PlayerId;
 }
 
+export interface FakeAnswerSubmission {
+  playerId: PlayerId;
+  fakeAnswer: string;
+}
+
+export interface PickSubmission {
+  playerId: PlayerId;
+  choiceIndex: number;
+}
+
+// Backward-compatible with previous submission shape
 export interface AnswerSubmission {
   playerId: PlayerId;
   questionId: string;
-  selectedIndex: number;
+  selectedIndex?: number;
+  choiceIndex?: number;
+  fakeAnswer?: string;
   zartalTargetId?: PlayerId;
+}
+
+export interface RoundChoice {
+  choiceIndex: number;
+  text: string;
+  authorId?: PlayerId | null; // NULL if correct answer or system decoy
+  isCorrect?: boolean;
+  isOwnFake?: boolean; // Client flag
 }
 
 export interface RoundResultRow {
@@ -59,6 +83,11 @@ export interface RoundResultRow {
   outcome: RoundOutcome;
   labels: OutcomeLabel[];
   pointsDelta: number;
+  victimsCount: number;
+  deceivedByAuthorId?: PlayerId | null;
+  pickedText?: string;
+  ownFakeText?: string;
+  isBlocked?: boolean;
 }
 
 export interface GameState {
@@ -67,6 +96,9 @@ export interface GameState {
   phase: RoomPhase;
   currentRound: number;
   currentQuestionId: string | null;
+  fakeAnswers: Record<PlayerId, string>;
+  choices: RoundChoice[];
+  picks: Record<PlayerId, number>;
   answers: Record<PlayerId, AnswerSubmission>;
   abilityActions: AbilityAction[];
   roundResults: Record<PlayerId, RoundResultRow>;

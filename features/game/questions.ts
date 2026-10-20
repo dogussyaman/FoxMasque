@@ -6,6 +6,8 @@ export interface Question {
   prompt: string;
   options: readonly string[];
   correctIndex: number;
+  correctAnswer?: string;
+  defaultDecoys?: readonly string[];
   explanation: string;
 }
 

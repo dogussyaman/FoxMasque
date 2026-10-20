@@ -18,9 +18,9 @@ export default function AbilitySelectScreen() {
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Transition to question screen once room enters 'question' phase
+  // Transition to question screen once room enters 'fake_answer' or 'question' phase
   useEffect(() => {
-    if (roomState?.phase === 'question') {
+    if (roomState?.phase === 'fake_answer' || roomState?.phase === 'guess' || roomState?.phase === 'question') {
       router.replace('/question');
     }
   }, [roomState?.phase]);
@@ -32,10 +32,16 @@ export default function AbilitySelectScreen() {
   const abilityState = {
     playerId: me?.id ?? '',
     usedCounts: me?.abilityUsedCounts ?? { block: 0, shield: 0, penalty: 0, counter: 0 },
+    shieldsAvailable: me?.shieldsAvailable ?? 0,
+    blocksAvailable: me?.blocksAvailable ?? 0,
+    isBlockedCurrentRound: me?.isBlockedCurrentRound ?? false,
+    isBlockedNextRound: me?.isBlockedNextRound ?? false,
+    lastBlockedPlayerId: me?.lastBlockedPlayerId ?? null,
   };
 
   const handleSelectAbility = (id: AbilityId) => {
-    if (!canUseAbility(abilityState, id)) {
+    const check = canUseAbility(abilityState, id, targetId || undefined);
+    if (!check.allowed) {
       trigger('heavy');
       return;
     }
@@ -68,10 +74,9 @@ export default function AbilitySelectScreen() {
       }
       setConfirmed(true);
 
-      // In demo mode or if host, advance phase to 'question'
+      // Advance phase to 'fake_answer'
       await service.advancePhase(roomCode);
     } catch {
-      // fallback advance
       router.replace('/question');
     } finally {
       setLoading(false);
@@ -104,7 +109,7 @@ export default function AbilitySelectScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.abilitiesList}>
           {ABILITIES.map((ab) => {
-            const available = canUseAbility(abilityState, ab.id);
+            const check = canUseAbility(abilityState, ab.id, targetId || undefined);
             const left = remainingUses(abilityState, ab.id);
             const isSelected = selectedAbility === ab.id;
 
@@ -112,11 +117,11 @@ export default function AbilitySelectScreen() {
               <Pressable
                 key={ab.id}
                 onPress={() => handleSelectAbility(ab.id)}
-                disabled={!available || confirmed}
+                disabled={!check.allowed || confirmed}
                 style={[
                   styles.abilityCard,
                   isSelected && styles.abilityCardSelected,
-                  !available && styles.abilityCardDisabled,
+                  !check.allowed && styles.abilityCardDisabled,
                 ]}
               >
                 <View style={styles.abilityTopRow}>
@@ -124,11 +129,12 @@ export default function AbilitySelectScreen() {
                     <Text style={styles.emoji}>{ab.emoji}</Text>
                     <Text style={styles.name}>{ab.name}</Text>
                   </View>
-                  <Badge tone={available ? (isSelected ? 'purple' : 'neutral') : 'danger'}>
-                    {available ? `${left} Hak Kaldı` : 'Tükendi'}
+                  <Badge tone={check.allowed ? (isSelected ? 'purple' : 'neutral') : 'danger'}>
+                    {check.allowed ? `${left} Hak` : 'Kilitli'}
                   </Badge>
                 </View>
                 <Text style={styles.desc}>{ab.description}</Text>
+                <Text style={styles.unlockDesc}>🔓 {ab.unlockRule}</Text>
               </Pressable>
             );
           })}
@@ -251,6 +257,12 @@ const styles = StyleSheet.create({
     ...typography.small,
     color: colors.textSecondary,
     lineHeight: 18,
+  },
+  unlockDesc: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   targetSection: {
     marginTop: spacing.md,

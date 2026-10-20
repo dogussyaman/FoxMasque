@@ -1,4 +1,13 @@
-import type { RoomConfig, Player, GameState, AbilityAction, AnswerSubmission, Nudge, RoomPhase } from '../types/game';
+import type {
+  RoomConfig,
+  Player,
+  GameState,
+  AbilityAction,
+  AnswerSubmission,
+  Nudge,
+  RoomPhase,
+  RoundChoice,
+} from '../types/game';
 import type { CategoryId } from '../features/game/categories';
 
 export interface RoomSummary {
@@ -19,6 +28,9 @@ export interface ServiceEvent {
     | 'player_ready'
     | 'nudge'
     | 'phase_changed'
+    | 'fake_submitted'
+    | 'choices_ready'
+    | 'pick_submitted'
     | 'answer_submitted'
     | 'ability_used'
     | 'round_resolved'
@@ -62,10 +74,16 @@ export interface GameService {
   nudgePlayer(code: string, toId: string): Promise<Nudge>;
   startGame(code: string): Promise<void>;
 
-  // Game flow (host-authoritative in Supabase; demo uses local engine)
-  submitAnswer(code: string, submission: AnswerSubmission): Promise<void>;
+  // ZARTO Bluff Game flow
+  submitFakeAnswer(code: string, fakeAnswer: string): Promise<void>;
+  getRoundChoices(code: string): Promise<RoundChoice[]>;
+  submitPick(code: string, choiceIndex: number): Promise<void>;
   useAbility(code: string, action: AbilityAction): Promise<void>;
   advancePhase(code: string): Promise<void>;
+  rematch(code: string): Promise<void>;
+
+  // Backward-compatible submit
+  submitAnswer(code: string, submission: AnswerSubmission): Promise<void>;
 
   // Profile / leaderboard
   getLeaderboard(): Promise<Player[]>;

@@ -2,31 +2,29 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import {
   computeOutcome,
-  resolveZartal,
   POINTS,
 } from '../features/game/outcomes';
 import {
-  resolveRound,
+  blendChoices,
+  resolveZartoRound,
   applyRoundToPlayers,
-  applyAbilityActionsToPlayers,
 } from '../features/game/engine';
 import {
-  freshAbilityState,
   canUseAbility,
-  applyAbilityUse,
-  remainingUses,
-  ABILITIES,
+  freshAbilityState,
 } from '../features/game/abilities';
-import type { Player, AnswerSubmission, AbilityAction } from '../types/game';
+import type { Player, RoundChoice } from '../types/game';
 import type { Question } from '../features/game/questions';
 
 const sampleQuestion: Question = {
   id: 'test-q1',
   categoryId: 'genel-kultur',
-  prompt: 'Test sorusu?',
-  options: ['Cevap A', 'Cevap B (Doğru)', 'Cevap C', 'Cevap D'],
+  prompt: 'Türkiye Cumhuriyeti hangi yıl ilan edildi?',
+  options: ['1920', '1923', '1925', '1930'],
   correctIndex: 1,
-  explanation: 'Test açıklaması',
+  correctAnswer: '1923',
+  defaultDecoys: ['1920', '1925', '1930'],
+  explanation: '29 Ekim 1923',
 };
 
 function createPlayer(id: string, name: string, score = 0): Player {
@@ -39,19 +37,55 @@ function createPlayer(id: string, name: string, score = 0): Player {
     isOnline: true,
     score,
     abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
+    consecutiveCorrect: 0,
+    shieldsAvailable: 0,
+    blocksAvailable: 0,
+    isBlockedCurrentRound: false,
+    isBlockedNextRound: false,
+    lastBlockedPlayerId: null,
   };
 }
 
-describe('ZARTIX Game Engine Tests', () => {
-  describe('1. Scoring & Outcome Combinations', () => {
-    test('Correct answer earns +100 points and DOĞRU BİLDİN label', () => {
+describe('ZARTO Game Engine — Bluff & Scoring Tests', () => {
+  describe('1. Blend Choices (True Answer + Fake Answers)', () => {
+    test('Blends true answer and player fake answers, deduplicates and keeps author tags', () => {
+      const fakeAnswers = {
+        p1: '1920', // identical to a decoy
+        p2: '1881', // novel fake
+        p3: '1938', // novel fake
+      };
+
+      const choices = blendChoices(sampleQuestion, fakeAnswers, 123);
+      assert.ok(choices.length >= 4, 'Should contain at least 4 choices');
+
+      // Must contain real answer
+      const real = choices.find((c) => c.text === '1923');
+      assert.ok(real, 'Real answer must be present');
+      assert.equal(real.isCorrect, true);
+      assert.equal(real.authorId, null);
+
+      // Must contain p2 and p3 fake answers
+      const p2Choice = choices.find((c) => c.text === '1881');
+      assert.ok(p2Choice);
+      assert.equal(p2Choice.authorId, 'p2');
+      assert.equal(p2Choice.isCorrect, false);
+
+      const p3Choice = choices.find((c) => c.text === '1938');
+      assert.ok(p3Choice);
+      assert.equal(p3Choice.authorId, 'p3');
+      assert.equal(p3Choice.isCorrect, false);
+    });
+  });
+
+  describe('2. ZARTO Core Scoring Rules (+100, +50, -40)', () => {
+    test('Correct answer chosen earns +100 points and DOĞRU BİLDİN label', () => {
       const outcome = computeOutcome({
         answeredCorrectly: true,
-        zartaledByMe: false,
-        zartaledMeBy: false,
+        victimsCount: 0,
+        choseRivalFake: false,
       });
 
-      assert.equal(outcome.pointsEarned, POINTS.correct);
+      assert.equal(outcome.pointsEarned, 100);
       assert.equal(outcome.correct, true);
       assert.equal(outcome.zartaladın, false);
       assert.equal(outcome.zartalandın, false);
@@ -59,194 +93,241 @@ describe('ZARTIX Game Engine Tests', () => {
       assert.equal(outcome.labels[0].kind, 'correct');
     });
 
-    test('Both answered correctly AND zartaladın gives +150 points with both labels', () => {
-      const outcome = computeOutcome({
-        answeredCorrectly: true,
-        zartaledByMe: true,
-        zartaledMeBy: false,
-      });
-
-      assert.equal(outcome.pointsEarned, POINTS.correct + POINTS.zartaladınBonus); // 100 + 50 = 150
-      assert.equal(outcome.correct, true);
-      assert.equal(outcome.zartaladın, true);
-      assert.equal(outcome.zartalandın, false);
-      assert.equal(outcome.labels.length, 2);
-      assert.equal(outcome.labels[0].kind, 'correct');
-      assert.equal(outcome.labels[1].kind, 'zartaladın');
-    });
-
-    test('Wrong answer and zartalandın gives -40 points with ZARTALANDIN label', () => {
+    test('Having rivals pick your fake answer gives +50 per victim and ZARTALADIN label', () => {
       const outcome = computeOutcome({
         answeredCorrectly: false,
-        zartaledByMe: false,
-        zartaledMeBy: true,
+        victimsCount: 2, // 2 rivals tricked
+        choseRivalFake: false,
       });
 
-      assert.equal(outcome.pointsEarned, POINTS.zartalandınPenalty); // -40
+      assert.equal(outcome.pointsEarned, 100); // 2 * 50 = 100
+      assert.equal(outcome.correct, false);
+      assert.equal(outcome.zartaladın, true);
+      assert.equal(outcome.victimsCount, 2);
+      assert.equal(outcome.labels.length, 1);
+      assert.equal(outcome.labels[0].kind, 'zartaladın');
+    });
+
+    test('Choosing another player fake answer results in -40 and ZARTALANDIN label', () => {
+      const outcome = computeOutcome({
+        answeredCorrectly: false,
+        victimsCount: 0,
+        choseRivalFake: true,
+      });
+
+      assert.equal(outcome.pointsEarned, -40);
       assert.equal(outcome.correct, false);
       assert.equal(outcome.zartalandın, true);
       assert.equal(outcome.labels.length, 1);
       assert.equal(outcome.labels[0].kind, 'zartalandın');
     });
 
-    test('Wrong answer with no zartal gives 0 points and empty labels', () => {
+    test('Double success: Both correct answer (+100) AND deceived rivals (2 x +50 = +100) gives +200', () => {
       const outcome = computeOutcome({
-        answeredCorrectly: false,
-        zartaledByMe: false,
-        zartaledMeBy: false,
+        answeredCorrectly: true,
+        victimsCount: 2,
+        choseRivalFake: false,
       });
 
-      assert.equal(outcome.pointsEarned, 0);
-      assert.equal(outcome.labels.length, 0);
+      assert.equal(outcome.pointsEarned, 200); // 100 + 100
+      assert.equal(outcome.correct, true);
+      assert.equal(outcome.zartaladın, true);
+      assert.equal(outcome.labels.length, 2);
+      assert.equal(outcome.labels[0].kind, 'correct');
+      assert.equal(outcome.labels[1].kind, 'zartaladın');
     });
   });
 
-  describe('2. Zartal Resolution Rules', () => {
-    test('Zartal succeeds when attacker correct and defender wrong', () => {
-      const res = resolveZartal({
-        attackerCorrect: true,
-        defenderCorrect: false,
-        defenderShielded: false,
-        attackerBlocked: false,
-      });
-      assert.equal(res.success, true);
-    });
+  describe('3. Full Round Resolution with Multiple Players', () => {
+    test('Resolves full round: true answer, victims tricked, and fell for fake', () => {
+      const p1 = createPlayer('p1', 'Ali', 50);
+      const p2 = createPlayer('p2', 'Ayşe', 100);
+      const p3 = createPlayer('p3', 'Mehmet', 80);
 
-    test('Zartal fails if attacker is wrong', () => {
-      const res = resolveZartal({
-        attackerCorrect: false,
-        defenderCorrect: false,
-        defenderShielded: false,
-        attackerBlocked: false,
-      });
-      assert.equal(res.success, false);
-    });
-
-    test('Zartal fails if defender also answered correctly', () => {
-      const res = resolveZartal({
-        attackerCorrect: true,
-        defenderCorrect: true,
-        defenderShielded: false,
-        attackerBlocked: false,
-      });
-      assert.equal(res.success, false);
-    });
-
-    test('Zartal fails if defender has active Shield', () => {
-      const res = resolveZartal({
-        attackerCorrect: true,
-        defenderCorrect: false,
-        defenderShielded: true,
-        attackerBlocked: false,
-      });
-      assert.equal(res.success, false);
-    });
-
-    test('Zartal fails if attacker is blocked by defender', () => {
-      const res = resolveZartal({
-        attackerCorrect: true,
-        defenderCorrect: false,
-        defenderShielded: false,
-        attackerBlocked: true,
-      });
-      assert.equal(res.success, false);
-    });
-  });
-
-  describe('3. Special Ability Rules & Usage Limits', () => {
-    test('Shield and Block have max 2 uses, Penalty and Counter have 1 use', () => {
-      const shield = ABILITIES.find((a) => a.id === 'shield');
-      const block = ABILITIES.find((a) => a.id === 'block');
-      const penalty = ABILITIES.find((a) => a.id === 'penalty');
-      const counter = ABILITIES.find((a) => a.id === 'counter');
-
-      assert.equal(shield?.maxUses, 2);
-      assert.equal(block?.maxUses, 2);
-      assert.equal(penalty?.maxUses, 1);
-      assert.equal(counter?.maxUses, 1);
-    });
-
-    test('Enforces ability usage limits correctly', () => {
-      let state = freshAbilityState('p1');
-      assert.equal(canUseAbility(state, 'counter'), true);
-      assert.equal(remainingUses(state, 'counter'), 1);
-
-      state = applyAbilityUse(state, 'counter');
-      assert.equal(canUseAbility(state, 'counter'), false);
-      assert.equal(remainingUses(state, 'counter'), 0);
-
-      // Attempting to use again does not exceed count
-      const state2 = applyAbilityUse(state, 'counter');
-      assert.equal(state2.usedCounts.counter, 1);
-    });
-
-    test('Counter ability reflects zartal attack back to attacker', () => {
-      const p1 = createPlayer('p1', 'Attacker', 100);
-      const p2 = createPlayer('p2', 'Defender', 100);
-
-      const answers: Record<string, AnswerSubmission> = {
-        p1: { playerId: 'p1', questionId: 'q1', selectedIndex: 1, zartalTargetId: 'p2' },
-        p2: { playerId: 'p2', questionId: 'q1', selectedIndex: 0 }, // wrong answer
-      };
-
-      const abilities: AbilityAction[] = [
-        { playerId: 'p2', abilityId: 'counter' },
+      // Choices:
+      // index 0: "1923" (Real, null author)
+      // index 1: "1881" (Fake by p1)
+      // index 2: "1938" (Fake by p2)
+      // index 3: "1919" (Decoy)
+      const choices: RoundChoice[] = [
+        { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+        { choiceIndex: 1, text: '1881', authorId: 'p1', isCorrect: false },
+        { choiceIndex: 2, text: '1938', authorId: 'p2', isCorrect: false },
+        { choiceIndex: 3, text: '1919', authorId: null, isCorrect: false },
       ];
 
-      const resolution = resolveRound({
+      // Picks:
+      // p1 picks 0 (Correct -> +100)
+      // p2 picks 1 (Picks p1 fake -> -40, p1 gets +50)
+      // p3 picks 1 (Picks p1 fake -> -40, p1 gets +50)
+      const picks = {
+        p1: 0,
+        p2: 1,
+        p3: 1,
+      };
+
+      const res = resolveZartoRound({
         question: sampleQuestion,
-        players: [p1, p2],
-        answers,
-        abilityActions: abilities,
+        players: [p1, p2, p3],
+        choices,
+        picks,
+        fakeAnswers: { p1: '1881', p2: '1938' },
       });
 
-      // P1 answered correct (+100) but was countered (-40) = +60
-      assert.equal(resolution.rows['p1'].pointsDelta, 60);
-      // P2 answered wrong (0) and counter prevented zartalandın = 0
-      assert.equal(resolution.rows['p2'].pointsDelta, 0);
+      // p1: +100 (correct) + 100 (2 victims) = +200
+      assert.equal(res.rows['p1'].pointsDelta, 200);
+      assert.equal(res.rows['p1'].outcome.correct, true);
+      assert.equal(res.rows['p1'].victimsCount, 2);
+      assert.equal(res.updatedPlayers['p1'].score, 250); // 50 + 200
+
+      // p2: -40 (zartalandı by p1)
+      assert.equal(res.rows['p2'].pointsDelta, -40);
+      assert.equal(res.rows['p2'].outcome.zartalandın, true);
+      assert.equal(res.updatedPlayers['p2'].score, 60); // 100 - 40
+
+      // p3: -40 (zartalandı by p1)
+      assert.equal(res.rows['p3'].pointsDelta, -40);
+      assert.equal(res.updatedPlayers['p3'].score, 40); // 80 - 40
+    });
+
+    test('Clamps score to 0 when penalty exceeds player current score', () => {
+      const p1 = createPlayer('p1', 'Yeni', 20);
+      const choices: RoundChoice[] = [
+        { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+        { choiceIndex: 1, text: '1881', authorId: 'p2', isCorrect: false },
+      ];
+      const picks = { p1: 1 }; // picks rival fake -> -40
+
+      const res = resolveZartoRound({
+        question: sampleQuestion,
+        players: [p1],
+        choices,
+        picks,
+      });
+
+      assert.equal(res.rows['p1'].pointsDelta, -40);
+      assert.equal(res.updatedPlayers['p1'].score, 0); // 20 - 40 clamped to 0
     });
   });
 
-  describe('4. Full Round Resolution & Player Score Progression', () => {
-    test('Applies round points deltas and prevents scores from dropping below 0', () => {
-      const players: Record<string, Player> = {
-        p1: createPlayer('p1', 'Ali', 20),
-        p2: createPlayer('p2', 'Ayşe', 100),
-      };
+  describe('4. Special Ability Rules & Unlock Progression', () => {
+    test('3 consecutive correct answers unlocks a Shield', () => {
+      const p1 = createPlayer('p1', 'Dahi', 0);
+      p1.consecutiveCorrect = 2; // already 2 correct in previous rounds
 
-      const rows = {
-        p1: {
-          playerId: 'p1',
-          outcome: computeOutcome({ answeredCorrectly: false, zartaledByMe: false, zartaledMeBy: true }),
-          labels: [],
-          pointsDelta: -40,
-        },
-        p2: {
-          playerId: 'p2',
-          outcome: computeOutcome({ answeredCorrectly: true, zartaledByMe: true, zartaledMeBy: false }),
-          labels: [],
-          pointsDelta: 150,
-        },
-      };
+      const choices: RoundChoice[] = [
+        { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+      ];
+      const picks = { p1: 0 }; // 3rd correct answer!
 
-      const updated = applyRoundToPlayers(players, rows);
-      // p1 score was 20, -40 => clamped to 0
-      assert.equal(updated['p1'].score, 0);
-      // p2 score was 100, +150 => 250
-      assert.equal(updated['p2'].score, 250);
+      const res = resolveZartoRound({
+        question: sampleQuestion,
+        players: [p1],
+        choices,
+        picks,
+      });
+
+      assert.equal(res.updatedPlayers['p1'].shieldsAvailable, 1);
+      assert.equal(res.updatedPlayers['p1'].consecutiveCorrect, 0); // reset counter after unlock
     });
 
-    test('Tracks ability action usages in player state', () => {
-      const players: Record<string, Player> = {
-        p1: createPlayer('p1', 'Ali', 50),
-      };
+    test('Tricking at least 3 rivals unlocks a Block', () => {
+      const p1 = createPlayer('p1', 'Blöfçü', 0);
+      const p2 = createPlayer('p2', 'Kurban1', 100);
+      const p3 = createPlayer('p3', 'Kurban2', 100);
+      const p4 = createPlayer('p4', 'Kurban3', 100);
 
-      const actions: AbilityAction[] = [
-        { playerId: 'p1', abilityId: 'shield' },
+      const choices: RoundChoice[] = [
+        { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+        { choiceIndex: 1, text: '1881', authorId: 'p1', isCorrect: false },
       ];
 
-      const updated = applyAbilityActionsToPlayers(players, actions);
-      assert.equal(updated['p1'].abilityUsedCounts.shield, 1);
+      const picks = {
+        p1: 0,
+        p2: 1,
+        p3: 1,
+        p4: 1, // 3 rivals picked p1's fake!
+      };
+
+      const res = resolveZartoRound({
+        question: sampleQuestion,
+        players: [p1, p2, p3, p4],
+        choices,
+        picks,
+      });
+
+      assert.equal(res.updatedPlayers['p1'].blocksAvailable, 1);
+    });
+
+    test('Block ability marks target as isBlockedNextRound; Shield protects defender', () => {
+      const p1 = createPlayer('p1', 'Attacker', 0);
+      const p2 = createPlayer('p2', 'Defender', 0);
+      const p3 = createPlayer('p3', 'ShieldedDefender', 0);
+      p3.shieldsAvailable = 1;
+
+      const choices: RoundChoice[] = [
+        { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+      ];
+      const picks = { p1: 0, p2: 0, p3: 0 };
+
+      const res = resolveZartoRound({
+        question: sampleQuestion,
+        players: [p1, p2, p3],
+        choices,
+        picks,
+        abilityActions: [
+          { playerId: 'p1', abilityId: 'block', targetId: 'p2' },
+          { playerId: 'p1', abilityId: 'block', targetId: 'p3' },
+          { playerId: 'p3', abilityId: 'shield' }, // p3 activates shield!
+        ],
+      });
+
+      // p2 was not shielded -> blocked for next round!
+      assert.equal(res.updatedPlayers['p2'].isBlockedNextRound, true);
+
+      // p3 had active shield -> protected! Not blocked!
+      assert.equal(res.updatedPlayers['p3'].isBlockedNextRound, false);
+      assert.equal(res.updatedPlayers['p3'].shieldsAvailable, 0); // shield consumed
+    });
+
+    test('Blocked player skips round: receives 0 points and cannot answer', () => {
+      const p1 = createPlayer('p1', 'BlockedGuy', 100);
+      p1.isBlockedCurrentRound = true;
+
+      const choices: RoundChoice[] = [
+        { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+      ];
+      const picks = { p1: 0 };
+
+      const res = resolveZartoRound({
+        question: sampleQuestion,
+        players: [p1],
+        choices,
+        picks,
+      });
+
+      assert.equal(res.rows['p1'].isBlocked, true);
+      assert.equal(res.rows['p1'].pointsDelta, 0);
+      assert.equal(res.updatedPlayers['p1'].score, 100);
+      assert.equal(res.updatedPlayers['p1'].isBlockedCurrentRound, false); // reset
+    });
+
+    test('canUseAbility enforces constraints (cannot block self, cannot block same target consecutively)', () => {
+      const state = freshAbilityState('p1');
+      state.blocksAvailable = 1;
+
+      // Cannot block self
+      const selfBlock = canUseAbility(state, 'block', 'p1');
+      assert.equal(selfBlock.allowed, false);
+
+      // Valid rival block
+      const validBlock = canUseAbility(state, 'block', 'p2');
+      assert.equal(validBlock.allowed, true);
+
+      // Cannot block same target consecutively
+      state.lastBlockedPlayerId = 'p2';
+      const repeatBlock = canUseAbility(state, 'block', 'p2');
+      assert.equal(repeatBlock.allowed, false);
     });
   });
 });

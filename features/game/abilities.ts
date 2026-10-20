@@ -5,44 +5,42 @@ export interface Ability {
   name: string;
   emoji: string;
   description: string;
-  maxUses: number;
   targetRequired: boolean;
+  unlockRule: string;
 }
 
 export const ABILITIES: readonly Ability[] = [
   {
     id: 'block',
-    name: 'Blok',
-    emoji: '🛡️',
-    description:
-      'Bir rakibin bu turdaki zartal girişimini engeller. Hedef bir oyuncu seç.',
-    maxUses: 2,
+    name: 'Bloklama',
+    emoji: '🛑',
+    description: 'Hedef rakip bir sonraki turu oynayamaz ve puan kazanamaz. Art arda aynı hedefe uygulanamaz.',
     targetRequired: true,
+    unlockRule: 'Sahte cevabını en az 3 rakip veya rakiplerin yarısından fazlası seçtiğinde açılır.',
   },
   {
     id: 'shield',
-    name: 'Kalkan',
-    emoji: '🟣',
-    description: 'Bu tur boyunca zartalanmaya karşı korur. Hedef gerekmez.',
-    maxUses: 2,
+    name: 'Koruma Kalkanı',
+    emoji: '🛡️',
+    description: 'Seni bu tur gelen hedefli bloklama veya ceza yeteneklerine karşı korur. Kullanıldığında harcanır.',
     targetRequired: false,
+    unlockRule: 'Arka arkaya 3 soruyu doğru bildiğinde 1 kalkan hakkı kazanırsın.',
   },
   {
     id: 'penalty',
     name: 'Ceza',
     emoji: '⚡',
-    description: 'Hedef rakibe -30 puan ceza uygular (sadece yanlış cevabında).',
-    maxUses: 1,
+    description: 'Hedef rakip soruyu bilemezse fazladan -30 puan ceza alır.',
     targetRequired: true,
+    unlockRule: 'Özel stratejik hamle.',
   },
   {
     id: 'counter',
     name: 'Karşı Hamle',
     emoji: '🔁',
-    description:
-      'Sana zartal yapan rakibin zartalını geri çevir; saldırgan -40 puan alır.',
-    maxUses: 1,
+    description: 'Sana yöneltilen ceza veya saldırı hamlesini tersine çevirir.',
     targetRequired: false,
+    unlockRule: 'Özel savunma hamlesi.',
   },
 ] as const;
 
@@ -53,39 +51,78 @@ export function getAbility(id: AbilityId): Ability {
 export interface AbilityState {
   playerId: string;
   usedCounts: Record<AbilityId, number>;
+  shieldsAvailable: number;
+  blocksAvailable: number;
+  isBlockedCurrentRound: boolean;
+  isBlockedNextRound: boolean;
+  lastBlockedPlayerId?: string | null;
 }
 
 export function freshAbilityState(playerId: string): AbilityState {
   return {
     playerId,
     usedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
+    shieldsAvailable: 0,
+    blocksAvailable: 0,
+    isBlockedCurrentRound: false,
+    isBlockedNextRound: false,
+    lastBlockedPlayerId: null,
   };
 }
 
-export function canUseAbility(state: AbilityState, id: AbilityId): boolean {
-  const ability = getAbility(id);
-  return state.usedCounts[id] < ability.maxUses;
-}
-
-export function applyAbilityUse(
+export function canUseAbility(
   state: AbilityState,
-  id: AbilityId
-): AbilityState {
-  if (!canUseAbility(state, id)) return state;
-  return {
-    ...state,
-    usedCounts: { ...state.usedCounts, [id]: state.usedCounts[id] + 1 },
-  };
+  id: AbilityId,
+  targetId?: string
+): { allowed: boolean; reason?: string } {
+  if (state.isBlockedCurrentRound) {
+    return { allowed: false, reason: 'Bu tur bloklandığın için yetenek kullanamazsın.' };
+  }
+
+  if (id === 'block') {
+    if (state.blocksAvailable <= 0) {
+      return { allowed: false, reason: 'Bloklama hakkın henüz açılmadı.' };
+    }
+    if (targetId && targetId === state.playerId) {
+      return { allowed: false, reason: 'Kendini bloklayamazsın!' };
+    }
+    if (targetId && state.lastBlockedPlayerId === targetId) {
+      return { allowed: false, reason: 'Aynı oyuncuyu arka arkaya iki tur bloklayamazsın.' };
+    }
+    return { allowed: true };
+  }
+
+  if (id === 'shield') {
+    if (state.shieldsAvailable <= 0) {
+      return { allowed: false, reason: 'Kalkan hakkın henüz açılmadı.' };
+    }
+    return { allowed: true };
+  }
+
+  if (id === 'penalty') {
+    if (state.usedCounts.penalty >= 1) {
+      return { allowed: false, reason: 'Ceza yeteneği oyun başına maksimum 1 kez kullanılabilir.' };
+    }
+    if (targetId && targetId === state.playerId) {
+      return { allowed: false, reason: 'Kendine ceza veremezsin!' };
+    }
+    return { allowed: true };
+  }
+
+  if (id === 'counter') {
+    if (state.usedCounts.counter >= 1) {
+      return { allowed: false, reason: 'Karşı hamle maksimum 1 kez kullanılabilir.' };
+    }
+    return { allowed: true };
+  }
+
+  return { allowed: true };
 }
 
-export function remainingUses(state: AbilityState, id: AbilityId): number {
-  const ability = getAbility(id);
-  return Math.max(0, ability.maxUses - state.usedCounts[id]);
-}
-
-/**
- * Whether a "counter" can fire against an incoming zartal on this player.
- */
-export function canCounterZartal(state: AbilityState): boolean {
-  return canUseAbility(state, 'counter');
+export function remainingUses(state: Partial<AbilityState>, id: AbilityId): number {
+  if (id === 'shield') return state.shieldsAvailable ?? 0;
+  if (id === 'block') return state.blocksAvailable ?? 0;
+  if (id === 'penalty') return Math.max(0, 1 - (state.usedCounts?.penalty ?? 0));
+  if (id === 'counter') return Math.max(0, 1 - (state.usedCounts?.counter ?? 0));
+  return 0;
 }

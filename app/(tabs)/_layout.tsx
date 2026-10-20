@@ -2,13 +2,18 @@ import { Tabs } from 'expo-router';
 import { Home, Users, Trophy, User as UserIcon, Gamepad2 } from 'lucide-react-native';
 import { colors } from '@/theme';
 import { StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
+  const barHeight = 58 + bottomInset;
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.bar,
+        tabBarStyle: [styles.bar, { height: barHeight, paddingBottom: bottomInset }],
         tabBarActiveTintColor: colors.purpleSoft,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: styles.label,

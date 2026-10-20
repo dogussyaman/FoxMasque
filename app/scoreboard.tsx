@@ -27,6 +27,8 @@ export default function ScoreboardScreen() {
   const playersList = roomState
     ? Object.values(roomState.players).sort((a, b) => b.score - a.score)
     : [];
+  const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
+  const isHost = me?.isHost ?? false;
 
   const handleNextRound = async () => {
     trigger('medium');
@@ -95,13 +97,21 @@ export default function ScoreboardScreen() {
         </Card>
 
         <View style={styles.actionWrap}>
-          <Button
-            label={isFinalRound ? 'Final Podyumunu Gör' : `Sonraki Tura Geç (Tur ${currentRound + 1})`}
-            onPress={handleNextRound}
-            variant="primary"
-            fullWidth
-            icon={isFinalRound ? <Sparkles color="#FFF" size={20} /> : <ArrowRight color="#FFF" size={20} />}
-          />
+          {isHost ? (
+            <Button
+              label={isFinalRound ? 'Final Podyumunu Gör' : `Sonraki Tura Geç (Tur ${currentRound + 1})`}
+              onPress={handleNextRound}
+              variant="primary"
+              fullWidth
+              icon={isFinalRound ? <Sparkles color="#FFF" size={20} /> : <ArrowRight color="#FFF" size={20} />}
+            />
+          ) : (
+            <View style={styles.waitingNotice}>
+              <Text style={styles.waitingText}>
+                Oda kurucusunun {isFinalRound ? 'oyunu bitirmesi' : 'sonraki turu başlatması'} bekleniyor…
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </Screen>
@@ -171,5 +181,15 @@ const styles = StyleSheet.create({
   },
   actionWrap: {
     marginTop: spacing.sm,
+  },
+  waitingNotice: {
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  waitingText: {
+    ...typography.small,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });

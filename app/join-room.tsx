@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { ChevronLeft, LogIn, Users } from 'lucide-react-native';
 import { Screen, Button, Card, Avatar, Badge } from '@/components/ui';
@@ -51,15 +51,19 @@ export default function JoinRoomScreen() {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <ChevronLeft color={colors.textPrimary} size={24} />
-        </Pressable>
-        <Text style={styles.screenTitle}>Odaya Katıl</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft color={colors.textPrimary} size={24} />
+          </Pressable>
+          <Text style={styles.screenTitle}>Odaya Katıl</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Code Input Card */}
         <Card style={styles.sectionCard}>
           <Text style={styles.sectionLabel}>Oda Kodu</Text>
@@ -141,8 +145,9 @@ export default function JoinRoomScreen() {
           </View>
         ) : null}
       </ScrollView>
-    </Screen>
-  );
+    </KeyboardAvoidingView>
+  </Screen>
+);
 }
 
 const styles = StyleSheet.create({
