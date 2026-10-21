@@ -244,7 +244,13 @@ export function LiquidGlassTabBar({ state, navigation, descriptors }: LiquidGlas
     >
       <View style={[styles.bar, { width: barWidth }]}>
         <Svg width={barWidth} height={BAR_H} style={StyleSheet.absoluteFill}>
-          <AnimatedPath d={initialPath} animatedProps={pathProps} fill={colors.bgSurfaceMuted} />
+          <AnimatedPath
+            d={initialPath}
+            animatedProps={pathProps}
+            fill={colors.bgSurfaceAlt}
+            stroke="rgba(184, 142, 255, 0.48)"
+            strokeWidth={1.5}
+          />
         </Svg>
 
         <View style={[styles.tabsRow, { paddingHorizontal: pad }]}>
@@ -303,7 +309,7 @@ export function LiquidGlassTabBar({ state, navigation, descriptors }: LiquidGlas
           <Animated.View
             style={[styles.ring, { backgroundColor: activeConfig.activeColor }, ringStyle]}
           />
-          <View style={styles.disc}>
+          <View style={[styles.disc, { shadowColor: activeConfig.activeColor }]}>
             <Animated.View style={activeIconStyle}>
               <ActiveIcon color="#FFFFFF" size={23} strokeWidth={2.5} />
             </Animated.View>
@@ -326,11 +332,11 @@ const styles = StyleSheet.create({
   },
   bar: {
     height: BAR_H,
-    shadowColor: '#000000',
-    shadowOpacity: 0.32,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
+    shadowColor: colors.purple,
+    shadowOpacity: 0.62,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 20,
   },
   tabsRow: {
     ...StyleSheet.absoluteFill,
@@ -377,10 +383,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: colors.bgSurfaceMuted,
-    shadowColor: colors.purple,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowOpacity: 0.42,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    elevation: 9,
   },
 });
