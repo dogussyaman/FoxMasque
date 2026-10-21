@@ -8,6 +8,7 @@ import {
   Badge,
   Avatar,
   MascotFloat,
+  FloatingToast,
   PopView,
   StaggerRow,
   StickyActionBar,
@@ -106,11 +107,7 @@ export default function WaitingScreen() {
   return (
     <Screen gradient diagonalSlice>
       {prototype.toast ? (
-        <PopView duration={220}>
-          <View style={styles.toast}>
-            <Text style={styles.toastText}>{prototype.toast.message}</Text>
-          </View>
-        </PopView>
+        <FloatingToast title="Dürtme!" message={prototype.toast.message} />
       ) : null}
       <ScrollView
         style={{ flex: 1 }}
@@ -406,25 +403,6 @@ const styles = StyleSheet.create({
     ...typography.small,
     color: colors.textMuted,
     fontStyle: 'italic',
-  },
-  toast: {
-    position: 'absolute',
-    top: 12,
-    left: 16,
-    right: 16,
-    zIndex: 5,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.orange,
-    backgroundColor: colors.bgSurface,
-  },
-  toastText: {
-    ...typography.small,
-    color: colors.textPrimary,
-    textAlign: 'center',
-    fontFamily: 'Poppins-SemiBold',
   },
   playerRowNudged: {
     borderColor: colors.orange,

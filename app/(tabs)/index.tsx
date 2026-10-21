@@ -109,15 +109,13 @@ export default function HomeScreen() {
             <View style={styles.logoPill}>
               <Text style={styles.logoText}>FOXMASQUE</Text>
             </View>
-            <PulseView minScale={0.96} maxScale={1.04} duration={1800}>
-              <Badge
-                tone={isLive ? 'lime' : 'yellow'}
-                sticker
-                style={{ marginLeft: 6 }}
-              >
-                {isLive ? 'CANLI' : 'DEMO'}
-              </Badge>
-            </PulseView>
+            <Badge
+              tone={isLive ? 'lime' : 'yellow'}
+              sticker
+              style={{ marginLeft: 6 }}
+            >
+              {isLive ? 'CANLI' : 'DEMO'}
+            </Badge>
           </View>
 
           <Pressable
@@ -161,13 +159,11 @@ export default function HomeScreen() {
 
               {/* Right Column: 3D Mascot Illustration */}
               <View style={styles.mascotWrap}>
-                <MascotFloat floatDistance={6} duration={2600}>
-                  <Image
-                    source={mascotImages.hero}
-                    style={styles.mascotImage}
-                    resizeMode="contain"
-                  />
-                </MascotFloat>
+                <Image
+                  source={mascotImages.hero}
+                  style={styles.mascotImage}
+                  resizeMode="contain"
+                />
               </View>
             </View>
 
@@ -483,8 +479,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   mascotImage: {
-    width: 104,
-    height: 104,
+    width: 130,
+    height: 130,
     borderRadius: radii.lg,
   },
   ctaRow: {

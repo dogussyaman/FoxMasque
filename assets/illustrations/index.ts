@@ -1,5 +1,5 @@
 export const mascotImages = {
-  hero: require('@/assets/illustrations/fox_hero.png'),
+  hero: require('@/assets/illustrations/fox_hero.jpg'),
   cunning: require('@/assets/illustrations/fox_cunning.png'),
   smug: require('@/assets/illustrations/fox_smug.png'),
   shocked: require('@/assets/illustrations/fox_shocked.png'),

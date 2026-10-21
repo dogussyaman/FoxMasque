@@ -6,6 +6,7 @@ export * from './Countdown';
 export * from './ProgressBar';
 export * from './ModalSheet';
 export * from './FeedbackBanner';
+export * from './FloatingToast';
 export * from './States';
 export * from './Screen';
 export * from './CategoryChip';

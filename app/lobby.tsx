@@ -27,7 +27,7 @@ import {
   Card,
   Avatar,
   Badge,
-  FeedbackBanner,
+  FloatingToast,
   StaggerRow,
   PopView,
   PulseView,
@@ -166,15 +166,9 @@ export default function LobbyScreen() {
       </View>
 
       {prototype.toast ? (
-        <PopView duration={220}>
-          <View style={{ marginBottom: 12 }}>
-            <FeedbackBanner tone="warning" title="Dürtme!" message={prototype.toast.message} />
-          </View>
-        </PopView>
+        <FloatingToast title="Dürtme!" message={prototype.toast.message} />
       ) : nudgeBanner ? (
-        <View style={{ marginBottom: 12 }}>
-          <FeedbackBanner tone="warning" title="Dürtme Geldi!" message={nudgeBanner} />
-        </View>
+        <FloatingToast title="Dürtme Geldi!" message={nudgeBanner} />
       ) : null}
 
       <ScrollView
