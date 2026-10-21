@@ -114,7 +114,7 @@ export default function LobbyScreen() {
     if (!roomCode) return;
     try {
       await Share.share({
-        message: `TUZAK parti oyununa davetlisin! Oda kodumuz: ${roomCode}. Hemen katıl ve blöfünü konuştur!`,
+        message: `FOXMASQUE parti oyununa davetlisin! Oda kodumuz: ${roomCode}. Hemen katıl ve blöfünü konuştur!`,
       });
     } catch {}
   };

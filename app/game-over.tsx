@@ -96,7 +96,7 @@ export default function GameOverScreen() {
             <View style={{ alignItems: 'center' }}>
               <View style={styles.trophyPill}>
                 <Crown color={colors.yellow} size={15} fill={colors.yellow} />
-                <Text style={styles.trophyPillText}>TUZAK ŞAMPİYONU</Text>
+                <Text style={styles.trophyPillText}>FOXMASQUE ŞAMPİYONU</Text>
               </View>
 
               <Text style={styles.winnerName}>{winner?.name ?? 'Şampiyon'}</Text>

@@ -20,6 +20,8 @@ import {
   Shield,
   Smile,
   Flame,
+  CheckCircle2,
+  ShieldAlert,
 } from 'lucide-react-native';
 import { Screen, Button, Card, Badge, Avatar, MascotFloat, PulseView } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
@@ -29,6 +31,42 @@ import { CATEGORY_OPTIONS } from '@/features/game/categories';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 import { categoryOptionImages } from '@/assets/categories/options';
+
+const QUICK_SCORING_RULES = [
+  {
+    key: 'correct',
+    score: '+100',
+    label: 'Doğru Bil',
+    icon: CheckCircle2,
+    color: colors.lime,
+    gradient: ['rgba(198, 243, 107, 0.18)', 'rgba(37, 20, 66, 0.75)'] as const,
+    borderColor: 'rgba(198, 243, 107, 0.38)',
+    iconBg: 'rgba(198, 243, 107, 0.2)',
+    glow: colors.lime,
+  },
+  {
+    key: 'trap',
+    score: '+50',
+    label: 'Tuzağa Düşürme',
+    icon: Zap,
+    color: colors.orange,
+    gradient: ['rgba(255, 113, 59, 0.2)', 'rgba(37, 20, 66, 0.75)'] as const,
+    borderColor: 'rgba(255, 113, 59, 0.38)',
+    iconBg: 'rgba(255, 113, 59, 0.2)',
+    glow: colors.orange,
+  },
+  {
+    key: 'victim',
+    score: '-40',
+    label: 'Tuzağa Düşme',
+    icon: ShieldAlert,
+    color: colors.dangerSoft,
+    gradient: ['rgba(239, 68, 68, 0.18)', 'rgba(37, 20, 66, 0.75)'] as const,
+    borderColor: 'rgba(239, 68, 68, 0.38)',
+    iconBg: 'rgba(239, 68, 68, 0.2)',
+    glow: colors.danger,
+  },
+];
 
 export default function HomeScreen() {
   const { init, isLive, service, connection, currentPlayer } = useGameStore();
@@ -68,11 +106,11 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Top Bar with TUZAK Brand & Player Avatar */}
+        {/* Top Bar with FOXMASQUE Brand & Player Avatar */}
         <View style={styles.topBar}>
           <View style={styles.brandRow}>
             <View style={styles.logoPill}>
-              <Text style={styles.logoText}>TUZAK</Text>
+              <Text style={styles.logoText}>FOXMASQUE</Text>
             </View>
             <PulseView minScale={0.96} maxScale={1.04} duration={1800}>
               <Badge
@@ -113,11 +151,11 @@ export default function HomeScreen() {
               <View style={styles.heroLeftCol}>
                 <View style={styles.kickerPill}>
                   <Flame color={colors.orange} size={14} />
-                  <Text style={styles.kickerText}>PARTİ BLÖF OYUNU</Text>
+                  <Text style={styles.kickerText}>FOXMASQUE</Text>
                 </View>
                 <Text style={styles.heroTitle}>
                   Blöfünü Yap,{'\n'}
-                  <Text style={{ color: colors.orange }}>Tuzak Kur!</Text>
+                  <Text style={{ color: colors.orange }}>Tuzağa Düşür!</Text>
                 </Text>
                 <Text style={styles.heroSubtitle}>
                   Sahte cevaplar yaz, rakiplerini kandır ve gerçek cevabı bul!
@@ -156,20 +194,44 @@ export default function HomeScreen() {
           </LinearGradient>
         </View>
 
-        {/* Quick Bluff Rules / Features Banner */}
+        {/* Quick Bluff Rules / Scoring Highlights Banner */}
         <View style={styles.miniRulesRow}>
-          <View style={[styles.miniRuleChip, { borderColor: colors.lime }]}>
-            <Text style={[styles.miniRuleEmoji, { color: colors.lime }]}>+100</Text>
-            <Text style={styles.miniRuleText}>Doğru Bil</Text>
-          </View>
-          <View style={[styles.miniRuleChip, { borderColor: colors.orange }]}>
-            <Text style={[styles.miniRuleEmoji, { color: colors.orange }]}>+50</Text>
-            <Text style={styles.miniRuleText}>Tuzak Kur</Text>
-          </View>
-          <View style={[styles.miniRuleChip, { borderColor: colors.danger }]}>
-            <Text style={[styles.miniRuleEmoji, { color: colors.dangerSoft }]}>-40</Text>
-            <Text style={styles.miniRuleText}>Tuzağa Düşme</Text>
-          </View>
+          {QUICK_SCORING_RULES.map((rule) => {
+            const Icon = rule.icon;
+            return (
+              <Pressable
+                key={rule.key}
+                onPress={() => trigger('light')}
+                style={({ pressed }) => [
+                  styles.miniRuleCard,
+                  {
+                    borderColor: rule.borderColor,
+                    shadowColor: rule.glow,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
+                  },
+                ]}
+              >
+                <LinearGradient
+                  colors={rule.gradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0.8, y: 1 }}
+                  style={styles.miniRuleCardGradient}
+                >
+                  <View style={styles.miniRuleHeader}>
+                    <View style={[styles.miniRuleIconCircle, { backgroundColor: rule.iconBg }]}>
+                      <Icon size={12} color={rule.color} strokeWidth={2.6} />
+                    </View>
+                    <Text style={[styles.miniRuleScore, { color: rule.color }]}>
+                      {rule.score}
+                    </Text>
+                  </View>
+                  <Text style={styles.miniRuleLabel} numberOfLines={1}>
+                    {rule.label}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Categories Showcase */}
@@ -223,7 +285,7 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
 
-        {/* How to Play - TUZAK Guide Cards */}
+        {/* How to Play - FOXMASQUE Guide Cards */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nasıl Oynanır?</Text>
           <Card variant="surface">
@@ -260,9 +322,9 @@ export default function HomeScreen() {
                 <Sparkles color={colors.lime} size={22} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.howToTitle}>3. Tuzak Kur & Tuzağa Düşme!</Text>
+                <Text style={styles.howToTitle}>3. Tuzağa Düşür & Tuzağa Düşme!</Text>
                 <Text style={styles.howToDesc}>
-                  Doğru cevaba +100 puan; sahtene kanan her rakip için +50 puan kap!
+                  Doğru cevaba +100 puan; sahtene kanan her rakip için +50 puan kap! Başkasının sahtesine kanarsan -40 puan.
                 </Text>
               </View>
             </View>
@@ -354,9 +416,9 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontFamily: 'Poppins-Bold',
-    fontSize: 20,
+    fontSize: 16,
     color: '#FFF',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
   },
   profileBtn: {
     padding: 2,
@@ -444,29 +506,49 @@ const styles = StyleSheet.create({
   },
   miniRulesRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
     marginTop: spacing.md,
   },
-  miniRuleChip: {
+  miniRuleCard: {
     flex: 1,
-    flexDirection: 'row',
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+    backgroundColor: colors.bgCard,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  miniRuleCardGradient: {
+    paddingVertical: 9,
+    paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.bgCard,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    gap: 6,
   },
-  miniRuleEmoji: {
+  miniRuleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+  },
+  miniRuleIconCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniRuleScore: {
     fontFamily: 'Poppins-Bold',
     fontSize: 13,
+    letterSpacing: 0.2,
   },
-  miniRuleText: {
-    fontFamily: 'Poppins-Medium',
+  miniRuleLabel: {
+    fontFamily: 'Poppins-SemiBold',
     fontSize: 11,
-    color: colors.textSecondary,
+    color: colors.textPrimary,
+    letterSpacing: 0.1,
   },
   section: {
     marginTop: spacing['2xl'],

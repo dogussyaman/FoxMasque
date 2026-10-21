@@ -90,9 +90,9 @@ export default function ResultScreen() {
     : mascotImages.searching;
 
   const headerTitle = zartaladın && isCorrect
-    ? 'ÇİFTE BAŞARI! HEM BİLDİN HEM TUZAK KURDUN!'
+    ? 'ÇİFTE BAŞARI! HEM BİLDİN HEM TUZAĞA DÜŞÜRDÜN!'
     : zartaladın
-    ? 'TUZAK KURDUN! RAKİPLER TUZAĞINA DÜŞTÜ!'
+    ? 'TUZAĞA DÜŞÜRDÜN! RAKİPLER TUZAĞINA DÜŞTÜ!'
     : zartalandın
     ? 'TUZAĞA DÜŞTÜN! SAHTEYE KANDIN!'
     : isCorrect
@@ -193,7 +193,7 @@ export default function ResultScreen() {
                     <Zap color="#FFF" size={24} strokeWidth={2.5} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.outcomeZartalaTitle}>TUZAK KURDUN!</Text>
+                    <Text style={styles.outcomeZartalaTitle}>TUZAĞA DÜŞÜRDÜN!</Text>
                     <Text style={styles.outcomeDesc}>
                       {victimsCount} rakip senin tuzağına düştü!
                     </Text>

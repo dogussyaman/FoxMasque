@@ -52,7 +52,7 @@ export default function OnboardingScreen() {
 
               <View style={styles.kickerPill}>
                 <Flame color={colors.orange} size={14} />
-                <Text style={styles.kickerText}>TUZAK'A HOŞ GELDİN!</Text>
+                <Text style={styles.kickerText}>FOXMASQUE'A HOŞ GELDİN!</Text>
               </View>
 
               <Text style={styles.title}>Parti & Blöf Zamanı!</Text>
@@ -80,9 +80,9 @@ export default function OnboardingScreen() {
                   <Zap color={colors.orange} size={24} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.featureTitle}>2. Sahteni Yuttur & Tuzak Kur (+50)</Text>
+                  <Text style={styles.featureTitle}>2. Sahteni Yuttur & Tuzağa Düşür (+50)</Text>
                   <Text style={styles.featureDesc}>
-                    İnandırıcı bir blöf yaz. Sahtene kanan her rakip için kişi başı +50 kap!
+                    İnandırıcı bir blöf yaz. Sahtene kanan ve tuzağa düşürdüğün her rakip için +50 puan kap!
                   </Text>
                 </View>
               </Card>

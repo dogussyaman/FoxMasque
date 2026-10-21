@@ -131,7 +131,7 @@ export default function ProfilScreen() {
                 </View>
               ) : (
                 <View style={styles.nameDisplayRow}>
-                  <Text style={styles.playerName}>{currentPlayer?.name ?? 'TUZAK Ustası'}</Text>
+                  <Text style={styles.playerName}>{currentPlayer?.name ?? 'FOXMASQUE Ustası'}</Text>
                   <Pressable onPress={() => setEditingName(true)} style={styles.editIconBtn}>
                     <Edit2 color={colors.orange} size={16} />
                   </Pressable>
@@ -139,7 +139,7 @@ export default function ProfilScreen() {
               )}
               <View style={styles.rolePill}>
                 <Flame color={colors.yellow} size={12} />
-                <Text style={styles.playerRole}>TUZAK Ustası • Seviye 8</Text>
+                <Text style={styles.playerRole}>FOXMASQUE Ustası • Seviye 8</Text>
               </View>
             </View>
           </View>
@@ -187,7 +187,7 @@ export default function ProfilScreen() {
             <Card variant="surface" style={styles.statBox}>
               <Zap color={colors.orange} size={24} />
               <Text style={[styles.statValue, { color: colors.orange }]}>18</Text>
-              <Text style={styles.statLabel}>Tuzak Kurdun</Text>
+              <Text style={styles.statLabel}>Tuzağa Düşürdün</Text>
             </Card>
 
             <Card variant="surface" style={styles.statBox}>
@@ -271,7 +271,7 @@ export default function ProfilScreen() {
         {/* App Info Card */}
         <View style={styles.section}>
           <Card variant="comic" style={{ alignItems: 'center' }}>
-            <Text style={styles.aboutTitle}>TUZAK v2.0</Text>
+            <Text style={styles.aboutTitle}>FOXMASQUE v2.0</Text>
             <Text style={styles.aboutText}>Modern Türkçe Parti & Blöf Oyunu</Text>
             <Text style={styles.aboutSub}>2–10 Oyuncu • Gerçek Zamanlı Realtime Motoru</Text>
           </Card>

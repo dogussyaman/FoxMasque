@@ -93,7 +93,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(outcome.labels[0].kind, 'correct');
     });
 
-    test('Having rivals pick your fake answer gives +50 per victim and TUZAK KURDUN label', () => {
+    test('Having rivals pick your fake answer gives +50 per victim and TUZAĞA DÜŞÜRDÜN label', () => {
       const outcome = computeOutcome({
         answeredCorrectly: false,
         victimsCount: 2, // 2 rivals tricked
@@ -106,7 +106,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(outcome.victimsCount, 2);
       assert.equal(outcome.labels.length, 1);
       assert.equal(outcome.labels[0].kind, 'zartaladın');
-      assert.equal(outcome.labels[0].text, 'TUZAK KURDUN');
+      assert.equal(outcome.labels[0].text, 'TUZAĞA DÜŞÜRDÜN');
     });
 
     test('Choosing another player fake answer results in -40 and TUZAĞA DÜŞTÜN label', () => {
@@ -137,7 +137,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(outcome.labels.length, 2);
       assert.equal(outcome.labels[0].kind, 'correct');
       assert.equal(outcome.labels[1].kind, 'zartaladın');
-      assert.equal(outcome.labels[1].text, 'TUZAK KURDUN');
+      assert.equal(outcome.labels[1].text, 'TUZAĞA DÜŞÜRDÜN');
     });
   });
 

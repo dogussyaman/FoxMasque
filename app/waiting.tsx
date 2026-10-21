@@ -218,7 +218,7 @@ export default function WaitingScreen() {
         <Card variant="comic" style={styles.tipCard}>
           <View style={styles.tipHeader}>
             <Sparkles color={colors.yellow} size={18} />
-            <Text style={styles.tipTitle}>TUZAK Taktik İpucu</Text>
+            <Text style={styles.tipTitle}>FOXMASQUE Taktik İpucu</Text>
           </View>
           <Text style={styles.tipBody}>
             Ne kadar çok rakibi kendi uydurduğun cevaba inandırırsan, kişi başı +50 puan ve 3 kişide Blok hakkı kazanırsın!
