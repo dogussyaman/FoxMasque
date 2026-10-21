@@ -84,6 +84,7 @@ export default function RootLayout() {
           <Stack.Screen name="result" options={{ animation: 'fade_from_bottom' }} />
           <Stack.Screen name="scoreboard" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="game-over" options={{ animation: 'fade' }} />
+          <Stack.Screen name="loading-demo" options={{ animation: 'fade' }} />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="light" />
