@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Sparkles, ArrowRight, Shield, Zap, Target, Flame } from 'lucide-react-native';
-import { Screen, Button, Avatar, Card, StickyActionBar } from '@/components/ui';
+import { Screen, Button, Avatar, Card, StickyActionBar, Input } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -151,13 +151,14 @@ export default function OnboardingScreen() {
 
             {/* Name Input */}
             <Text style={styles.sectionLabel}>KULLANICI ADIN</Text>
-            <TextInput
+            <Input
               value={name}
               onChangeText={setName}
               placeholder="Örn: TuzakUstası"
               placeholderTextColor={colors.textMuted}
               style={styles.input}
               maxLength={16}
+              focusedBorderColor={colors.orange}
             />
 
           </ScrollView>

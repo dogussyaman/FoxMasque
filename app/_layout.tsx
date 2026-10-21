@@ -13,10 +13,26 @@ import {
 } from '@expo-google-fonts/poppins';
 import { SplashScreen } from 'expo-router';
 import { colors } from '@/theme';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { GameStoreProvider } from '@/store/gameStore';
 import { soundService } from '@/services/soundService';
 import { PrototypeProvider } from '@/features/prototype/PrototypeProvider';
+
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const styleId = 'zarto-web-input-reset';
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      input, textarea, select, [contenteditable="true"] {
+        outline: none !important;
+        box-shadow: none !important;
+        -webkit-tap-highlight-color: transparent;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+}
 
 SplashScreen.preventAutoHideAsync();
 

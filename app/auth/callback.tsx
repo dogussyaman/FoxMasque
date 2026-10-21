@@ -9,7 +9,7 @@ import {
   TextInput,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Button, Screen } from '@/components/ui';
+import { Button, Screen, Input } from '@/components/ui';
 import { colors, radii, spacing, typography } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import type { Player } from '@/types/game';
@@ -82,7 +82,7 @@ export default function AuthCallbackScreen() {
           ) : recoveryPlayer ? (
             <>
               <Text style={styles.text}>Yeni şifreni belirle</Text>
-              <TextInput
+              <Input
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Yeni şifre (en az 6 karakter)"
@@ -91,6 +91,8 @@ export default function AuthCallbackScreen() {
                 autoComplete="new-password"
                 textContentType="newPassword"
                 style={styles.input}
+                variant="dark"
+                focusedBorderColor={colors.orange}
               />
               <Button
                 label="Şifreyi güncelle"
@@ -122,11 +124,12 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     minHeight: 52,
     borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
     backgroundColor: colors.bgDark,
     color: colors.textPrimary,
     paddingHorizontal: spacing.md,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
     ...typography.body,
   },
 });

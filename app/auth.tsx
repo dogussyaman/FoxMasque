@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { Mail, ShieldCheck } from 'lucide-react-native';
-import { Screen, Button, Card } from '@/components/ui';
+import { Screen, Button, Card, Input } from '@/components/ui';
 import { colors, spacing, typography, radii } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import type { Player } from '@/types/game';
@@ -122,7 +122,7 @@ export default function AuthScreen() {
             </View>
 
             {mode === 'register' ? (
-              <TextInput
+              <Input
                 value={name}
                 onChangeText={setName}
                 placeholder="Oyuncu adı"
@@ -131,9 +131,11 @@ export default function AuthScreen() {
                 maxLength={32}
                 autoCapitalize="words"
                 textContentType="name"
+                variant="dark"
+                focusedBorderColor={colors.purple}
               />
             ) : null}
-            <TextInput
+            <Input
               value={email}
               onChangeText={setEmail}
               placeholder="E-posta"
@@ -143,8 +145,10 @@ export default function AuthScreen() {
               autoComplete="email"
               keyboardType="email-address"
               textContentType="emailAddress"
+              variant="dark"
+              focusedBorderColor={colors.purple}
             />
-            <TextInput
+            <Input
               value={password}
               onChangeText={setPassword}
               placeholder="Şifre (en az 6 karakter)"
@@ -153,6 +157,8 @@ export default function AuthScreen() {
               secureTextEntry
               autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
               textContentType={mode === 'register' ? 'newPassword' : 'password'}
+              variant="dark"
+              focusedBorderColor={colors.purple}
             />
 
             {mode === 'login' ? (
@@ -216,8 +222,14 @@ const styles = StyleSheet.create({
   rule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   orText: { ...typography.caption, color: colors.textMuted },
   input: {
-    minHeight: 52, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border,
-    backgroundColor: colors.bgDark, color: colors.textPrimary, paddingHorizontal: spacing.md,
+    minHeight: 52,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgDark,
+    color: colors.textPrimary,
+    paddingHorizontal: spacing.md,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
     ...typography.body,
   },
   error: { ...typography.caption, color: colors.dangerSoft },

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut, LoaderCircle } from 'lucide-react-native';
-import { Screen, ScreenHeader, Card, Button, Avatar, Badge } from '@/components/ui';
+import { Screen, ScreenHeader, Card, Button, Avatar, Badge, Input } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -133,13 +133,15 @@ export default function ProfilScreen() {
             <View style={{ flex: 1 }}>
               {editingName ? (
                 <View style={styles.editRow}>
-                  <TextInput
+                  <Input
                     value={tempName}
                     onChangeText={setTempName}
                     style={styles.nameInput}
                     placeholder="İsmin"
                     placeholderTextColor={colors.textMuted}
                     maxLength={16}
+                    variant="surface"
+                    focusedBorderColor={colors.orange}
                   />
                   <Pressable onPress={handleSaveProfile} style={styles.saveBtn}>
                     <Check color="#FFF" size={18} strokeWidth={2.5} />
@@ -397,6 +399,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1.5,
     borderColor: colors.orange,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
   saveBtn: {
     backgroundColor: colors.orange,

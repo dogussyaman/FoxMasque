@@ -24,6 +24,7 @@ import {
   PulseView,
   MascotFloat,
   StickyActionBar,
+  Input,
 } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -433,7 +434,7 @@ export default function QuestionScreen() {
 
               {!fakeSubmitted ? (
                 <View style={styles.inputContainer}>
-                  <TextInput
+                  <Input
                     value={fakeAnswerText}
                     onChangeText={(t) => {
                       setFakeAnswerText(t);
@@ -445,8 +446,8 @@ export default function QuestionScreen() {
                     maxLength={48}
                     returnKeyType="done"
                     onSubmitEditing={handleFakeSubmit}
+                    focusedBorderColor={colors.purple}
                   />
-
                 </View>
               ) : (
                 <PopView delay={80} duration={350}>
@@ -770,6 +771,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     borderWidth: 2,
     borderColor: colors.borderStrong,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
   submittedCard: {
     alignItems: 'center',

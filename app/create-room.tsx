@@ -14,7 +14,7 @@ import {
 import { router } from 'expo-router';
 import { ChevronLeft, Sparkles, Check, Clock, Layers, Flame } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Screen, Button, Card, Avatar, Badge, StickyActionBar } from '@/components/ui';
+import { Screen, Button, Card, Avatar, Badge, StickyActionBar, Input } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
@@ -170,13 +170,15 @@ export default function CreateRoomScreen() {
                 </View>
               </Pressable>
 
-              <TextInput
+              <Input
                 value={hostName}
                 onChangeText={setHostName}
                 placeholder="Oda Sahibinin İsmi"
                 placeholderTextColor={colors.textMuted}
                 style={styles.hostInput}
                 maxLength={16}
+                variant="surface"
+                focusedBorderColor={colors.orange}
               />
             </View>
 
@@ -499,15 +501,6 @@ const styles = StyleSheet.create({
   },
   hostInput: {
     flex: 1,
-    backgroundColor: colors.bgSurfaceAlt,
-    borderRadius: radii.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: colors.textPrimary,
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 16,
-    borderWidth: 1.5,
-    borderColor: colors.borderStrong,
   },
   optionRow: {
     flexDirection: 'row',
