@@ -2,7 +2,6 @@ import { useEffect, useRef, type ComponentType } from 'react';
 import {
   Pressable,
   StyleSheet,
-  Text,
   View,
   useWindowDimensions,
 } from 'react-native';
@@ -179,7 +178,6 @@ type TabItemProps = {
   label: string;
   focused: boolean;
   icon: TabIcon;
-  activeColor: string;
   onPress: () => void;
   onLongPress: () => void;
 };
@@ -190,7 +188,6 @@ function TabItem({
   label,
   focused,
   icon: Icon,
-  activeColor,
   onPress,
   onLongPress,
 }: TabItemProps) {
@@ -217,17 +214,8 @@ function TabItem({
       style={styles.tab}
     >
       <Animated.View style={[styles.inactiveIcon, iconStyle]}>
-        <Icon color="rgba(255, 247, 255, 0.62)" size={21} strokeWidth={2.2} />
+        <Icon color="rgba(255, 247, 255, 0.62)" size={29} strokeWidth={2.2} />
       </Animated.View>
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.tabLabel,
-          { color: focused ? activeColor : 'rgba(255, 247, 255, 0.55)' },
-        ]}
-      >
-        {label}
-      </Text>
     </Pressable>
   );
 }
@@ -372,7 +360,6 @@ export function LiquidGlassTabBar({ state, navigation, descriptors }: LiquidGlas
                 label={config.label}
                 focused={focused}
                 icon={config.icon}
-                activeColor={config.activeColor}
                 onPress={onPress}
                 onLongPress={onLongPress}
               />
@@ -393,7 +380,7 @@ export function LiquidGlassTabBar({ state, navigation, descriptors }: LiquidGlas
           />
           <View style={[styles.disc, { shadowColor: activeConfig.activeColor }]}>
             <Animated.View style={activeIconStyle}>
-              <ActiveIcon color="#FFFFFF" size={23} strokeWidth={2.5} />
+              <ActiveIcon color="#FFFFFF" size={29} strokeWidth={2.5} />
             </Animated.View>
           </View>
         </Animated.View>
@@ -433,16 +420,9 @@ const styles = StyleSheet.create({
   },
   inactiveIcon: {
     position: 'absolute',
-    top: 17,
+    top: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  tabLabel: {
-    maxWidth: '100%',
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 9,
-    lineHeight: 13,
-    textAlign: 'center',
   },
   circleWrap: {
     position: 'absolute',
