@@ -40,7 +40,8 @@ export default function RootLayout() {
   useFrameworkReady();
 
   useEffect(() => {
-    soundService.preload();
+    void soundService.preload();
+    return () => soundService.destroy();
   }, []);
 
   const [fontsLoaded, fontError] = useFonts({

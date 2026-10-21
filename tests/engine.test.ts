@@ -17,6 +17,7 @@ import {
 import { pickQuestions, questionsForCategory } from '../features/game/questions';
 import type { Player, RoundChoice } from '../types/game';
 import type { Question } from '../features/game/questions';
+import './soundService.test';
 
 const sampleQuestion: Question = {
   id: 'test-q1',

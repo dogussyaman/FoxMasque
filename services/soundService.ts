@@ -1,324 +1,248 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Image, AppState, type AppStateStatus } from 'react-native';
 import { soundAssets, type SoundEffect } from '@/assets/sound';
+import { SoundPool, type SoundPoolPlayer } from './soundPool';
+import { SoundPreference } from './soundPreference';
 
-type SoundListener = (enabled: boolean) => void;
+const SOUND_PREFERENCE_KEY = '@foxmasque/sound-effects-enabled';
+const PLAYER_READY_TIMEOUT_MS = 5000;
+const INITIALIZATION_TIMEOUT_MS = 3000;
 
-interface SoundPlayerInstance {
-  play: () => void;
-  pause: () => void;
-  seekTo: (seconds: number) => Promise<void>;
-  volume: number;
-  remove: () => void;
-}
+type ExpoAudioModule = typeof import('expo-audio');
 
-// Dynamically check and access expo-audio to prevent native module missing errors
-// from crashing the entire app on un-rebuilt development builds or older Expo Go versions
-let expoAudioModule: typeof import('expo-audio') | null = null;
-let isExpoAudioAvailable = false;
-
+let expoAudioModule: ExpoAudioModule | null = null;
 try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = require('expo-audio');
-  if (mod && (mod.createAudioPlayer || mod.AudioModule)) {
-    expoAudioModule = mod;
-    isExpoAudioAvailable = true;
-  }
-} catch (e) {
-  // Native module ExpoAudio is not yet compiled into the running native binary
-  isExpoAudioAvailable = false;
+  const module = require('expo-audio') as ExpoAudioModule;
+  expoAudioModule = module;
+} catch (error) {
   if (__DEV__) {
-    console.warn(
-      '[TUZAK SoundService] expo-audio native module is not available in current client build. ' +
-      'On Web, HTML5 audio fallback is active. On iOS/Android, rebuild with `npx expo run:ios` or `npx expo run:android`.'
-    );
+    console.warn('[SoundService] expo-audio could not be loaded; native sound is unavailable.', error);
   }
+}
+
+function reportError(effect: string, operation: string, error?: unknown) {
+  if (__DEV__) {
+    console.warn(`[SoundService] ${operation} failed for "${effect}".`, error);
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+}
+
+function getAsset(effect: SoundEffect): number {
+  return soundAssets[effect];
 }
 
 class SoundService {
-  private enabled: boolean = true;
-  private listeners: Set<SoundListener> = new Set();
-  private isAudioModeConfigured: boolean = false;
-  private appStateSubscription: any = null;
-
-  // Multi-player pool per sound effect for rapid/overlapping playback without clipping
-  // e.g. 'click' has 2 players alternating so rapid button taps sound clean and unbroken
-  private playerPools: Map<SoundEffect, SoundPlayerInstance[]> = new Map();
-  private poolIndex: Map<SoundEffect, number> = new Map();
+  private appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+  private audioModePromise: Promise<void> | null = null;
+  private preference: SoundPreference;
+  private pool: SoundPool;
 
   constructor() {
-    this.initAudioMode();
-    this.setupAppStateListener();
+    this.pool = new SoundPool(
+      (effect) => this.createPlayerInstance(effect as SoundEffect),
+      reportError,
+      { click: 2, true: 1, zartalanma: 1, clock: 1 },
+    );
+    this.preference = new SoundPreference(AsyncStorage, SOUND_PREFERENCE_KEY, (operation, error) => {
+      reportError('settings', operation, error);
+    });
+    this.preference.subscribe((enabled) => this.pool.setEnabled(enabled));
+    this.attachAppStateListener();
   }
 
-  private async initAudioMode() {
-    if (Platform.OS === 'web') return;
-    if (!isExpoAudioAvailable || !expoAudioModule) return;
-
-    try {
-      if (expoAudioModule.setAudioModeAsync) {
-        await expoAudioModule.setAudioModeAsync({
-          playsInSilentMode: true,
-          interruptionMode: 'mixWithOthers',
-          shouldPlayInBackground: false,
-        });
-        this.isAudioModeConfigured = true;
-      }
-    } catch {
-      // Graceful initialization failure
+  private ensureAudioMode(): Promise<void> {
+    if (!this.audioModePromise) {
+      this.audioModePromise = (async () => {
+        if (Platform.OS === 'web' || !expoAudioModule) return;
+        try {
+          await withTimeout(
+            expoAudioModule.setAudioModeAsync({
+              playsInSilentMode: true,
+              interruptionMode: 'mixWithOthers',
+              shouldPlayInBackground: false,
+            }),
+            INITIALIZATION_TIMEOUT_MS,
+            'Audio mode configuration timed out.',
+          );
+        } catch (error) {
+          reportError('audio-mode', 'configure', error);
+        }
+      })();
     }
+    return this.audioModePromise;
   }
 
-  private setupAppStateListener() {
+  private attachAppStateListener(): void {
+    if (this.appStateSubscription) return;
     this.appStateSubscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       if (nextState === 'background') {
-        this.handleAppBackground();
+        this.pool.stop();
+        void this.setAudioActive(false);
       } else if (nextState === 'active') {
-        this.handleAppActive();
+        void this.setAudioActive(true);
       }
     });
   }
 
-  private async handleAppBackground() {
-    if (!isExpoAudioAvailable || !expoAudioModule) return;
+  private async setAudioActive(active: boolean): Promise<void> {
+    if (Platform.OS === 'web' || !expoAudioModule) return;
     try {
-      if (expoAudioModule.setIsAudioActiveAsync) {
-        await expoAudioModule.setIsAudioActiveAsync(false);
-      }
-    } catch {}
-  }
-
-  private async handleAppActive() {
-    if (!isExpoAudioAvailable || !expoAudioModule) return;
-    try {
-      if (expoAudioModule.setIsAudioActiveAsync) {
-        await expoAudioModule.setIsAudioActiveAsync(true);
-      }
-    } catch {}
-  }
-
-  public setEnabled(val: boolean) {
-    this.enabled = val;
-    if (!val) {
-      this.stopAll();
+      await expoAudioModule.setIsAudioActiveAsync(active);
+    } catch (error) {
+      reportError('audio-session', active ? 'resume' : 'deactivate', error);
     }
-    this.listeners.forEach((listener) => {
-      try {
-        listener(val);
-      } catch {}
-    });
   }
 
-  public isEnabled(): boolean {
-    return this.enabled;
-  }
+  private createPlayerInstance(effect: SoundEffect): SoundPoolPlayer | null {
+    const source = getAsset(effect);
+    const defaultVolume = effect === 'click' ? 0.75 : effect === 'clock' ? 0.55 : 1;
 
-  public subscribe(listener: SoundListener): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  }
+    if (Platform.OS !== 'web' && expoAudioModule?.createAudioPlayer) {
+      const player = expoAudioModule.createAudioPlayer(source, {
+        keepAudioSessionActive: false,
+      });
+      return {
+        waitUntilReady: () => new Promise<boolean>((resolve) => {
+          if (player.isLoaded) {
+            resolve(true);
+            return;
+          }
 
-  /**
-   * Helper to create a single player instance for an asset
-   */
-  private createPlayerInstance(effect: SoundEffect): SoundPlayerInstance | null {
-    const source = soundAssets[effect];
-    if (!source) return null;
-
-    const defaultVol = effect === 'click' ? 0.75 : effect === 'clock' ? 0.55 : 1.0;
-
-    // 1. If expo-audio is available (Web or Native with compiled ExpoAudio)
-    if (isExpoAudioAvailable && expoAudioModule?.createAudioPlayer) {
-      try {
-        const player = expoAudioModule.createAudioPlayer(source, {
-          keepAudioSessionActive: true,
-        });
-        if (player) {
-          player.volume = defaultVol;
-          return {
-            play: () => {
-              try {
-                player.play();
-              } catch {}
-            },
-            pause: () => {
-              try {
-                player.pause();
-              } catch {}
-            },
-            seekTo: async (sec: number) => {
-              try {
-                if (player.seekTo) {
-                  await player.seekTo(sec);
-                }
-              } catch {}
-            },
-            volume: defaultVol,
-            remove: () => {
-              try {
-                player.remove();
-              } catch {}
-            },
+          const startedAt = Date.now();
+          const checkReady = () => {
+            if (player.isLoaded) {
+              resolve(true);
+            } else if (Date.now() - startedAt >= PLAYER_READY_TIMEOUT_MS) {
+              resolve(false);
+            } else {
+              setTimeout(checkReady, 100);
+            }
           };
-        }
-      } catch {}
+          checkReady();
+        }),
+        play: () => player.play(),
+        pause: () => player.pause(),
+        seekTo: (seconds) => player.seekTo(seconds),
+        setVolume: (volume) => {
+          player.volume = volume;
+        },
+        remove: () => player.remove(),
+      };
     }
 
-    // 2. Web fallback using browser Audio element
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.Audio !== 'undefined') {
-      try {
-        const resolved =
-          Image.resolveAssetSource(source)?.uri ||
-          (typeof source === 'string' ? source : (source as any)?.default);
-        if (resolved) {
-          const webAudio = new window.Audio(resolved);
-          webAudio.volume = defaultVol;
-          webAudio.preload = 'auto';
-          return {
-            play: () => {
-              try {
-                webAudio.currentTime = 0;
-                webAudio.play().catch(() => {});
-              } catch {}
-            },
-            pause: () => {
-              try {
-                webAudio.pause();
-              } catch {}
-            },
-            seekTo: async (sec: number) => {
-              try {
-                webAudio.currentTime = sec;
-              } catch {}
-            },
-            volume: defaultVol,
-            remove: () => {
-              try {
-                webAudio.pause();
-                webAudio.src = '';
-              } catch {}
-            },
-          };
-        }
-      } catch {}
+      const resolved = Image.resolveAssetSource(source)?.uri;
+      if (!resolved) return null;
+
+      const audio = new window.Audio(resolved);
+      audio.volume = defaultVolume;
+      audio.preload = 'auto';
+      return {
+        waitUntilReady: () => {
+          if (audio.readyState >= 3) return Promise.resolve(true);
+          return new Promise<boolean>((resolve) => {
+            let settled = false;
+            const finish = (ready: boolean) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timeout);
+              audio.removeEventListener('canplaythrough', onReady);
+              audio.removeEventListener('error', onError);
+              resolve(ready);
+            };
+            const onReady = () => finish(true);
+            const onError = () => finish(false);
+            const timeout = setTimeout(() => finish(audio.readyState >= 3), PLAYER_READY_TIMEOUT_MS);
+            audio.addEventListener('canplaythrough', onReady, { once: true });
+            audio.addEventListener('error', onError, { once: true });
+          });
+        },
+        play: () => {
+          audio.currentTime = 0;
+          return audio.play();
+        },
+        pause: () => audio.pause(),
+        seekTo: async (seconds) => {
+          audio.currentTime = seconds;
+        },
+        setVolume: (volume) => {
+          audio.volume = volume;
+        },
+        remove: () => {
+          audio.pause();
+          audio.removeAttribute('src');
+          audio.load();
+        },
+      };
     }
 
     return null;
   }
 
-  /**
-   * Preload sound instances into pools for near-instant, zero-latency playback
-   */
-  public async preload() {
-    if (!this.isAudioModeConfigured) {
-      await this.initAudioMode();
-    }
-
-    const effects: SoundEffect[] = ['click', 'true', 'zartalanma', 'clock'];
-    for (const effect of effects) {
-      if (!this.playerPools.has(effect)) {
-        // Pool size: 'click' has 2 players so consecutive fast taps don't clip each other
-        const poolSize = effect === 'click' ? 2 : 1;
-        const pool: SoundPlayerInstance[] = [];
-
-        for (let i = 0; i < poolSize; i++) {
-          const inst = this.createPlayerInstance(effect);
-          if (inst) pool.push(inst);
-        }
-
-        if (pool.length > 0) {
-          this.playerPools.set(effect, pool);
-          this.poolIndex.set(effect, 0);
-        }
-      }
-    }
+  public async preload(): Promise<void> {
+    this.attachAppStateListener();
+    await this.ensureAudioMode();
+    this.pool.preload(Object.keys(soundAssets) as SoundEffect[]);
   }
 
-  /**
-   * Play a game sound effect
-   */
-  public async play(effect: SoundEffect, customVolume?: number): Promise<void> {
-    if (!this.enabled) return;
-
-    let pool = this.playerPools.get(effect);
-    if (!pool || pool.length === 0) {
-      // Lazy load on first play if not preloaded
-      const inst = this.createPlayerInstance(effect);
-      if (inst) {
-        pool = [inst];
-        this.playerPools.set(effect, pool);
-        this.poolIndex.set(effect, 0);
-      }
-    }
-
-    if (!pool || pool.length === 0) return;
-
-    // Round-robin selection from pool
-    const currentIdx = this.poolIndex.get(effect) || 0;
-    const player = pool[currentIdx];
-    const nextIdx = (currentIdx + 1) % pool.length;
-    this.poolIndex.set(effect, nextIdx);
-
-    try {
-      const vol = customVolume !== undefined ? customVolume : player.volume;
-      player.volume = Math.max(0, Math.min(1, vol));
-      await player.seekTo(0);
-      player.play();
-    } catch {
-      // Autoplay or muted catch
-    }
+  public async play(effect: SoundEffect, customVolume?: number): Promise<boolean> {
+    await this.preference.ready;
+    if (!this.preference.isReady()) return false;
+    if (!this.preference.isEnabled()) return false;
+    await this.ensureAudioMode();
+    if (!this.preference.isEnabled()) return false;
+    const defaultVolume = effect === 'click' ? 0.75 : effect === 'clock' ? 0.55 : 1;
+    return this.pool.play(effect, customVolume ?? defaultVolume, defaultVolume);
   }
 
-  /**
-   * Stop a specific sound effect (or all if not provided) and rewind
-   */
-  public stop(effect?: SoundEffect) {
-    if (!effect) {
-      this.stopAll();
-      return;
-    }
-    const pool = this.playerPools.get(effect);
-    if (!pool) return;
-    pool.forEach((player) => {
-      try {
-        player.pause();
-        void player.seekTo(0);
-      } catch {}
-    });
+  public stop(effect?: SoundEffect): void {
+    this.pool.stop(effect);
   }
 
-  /**
-   * Stop all currently playing sounds across all pools
-   */
-  public stopAll() {
-    this.playerPools.forEach((pool) => {
-      pool.forEach((player) => {
-        try {
-          player.pause();
-          void player.seekTo(0);
-        } catch {}
-      });
-    });
+  public stopAll(): void {
+    this.pool.stop();
   }
 
-  /**
-   * Release all players and clear memory
-   */
-  public destroy() {
-    this.playerPools.forEach((pool) => {
-      pool.forEach((player) => {
-        try {
-          player.remove();
-        } catch {}
-      });
-    });
-    this.playerPools.clear();
-    this.poolIndex.clear();
-    if (this.appStateSubscription) {
-      this.appStateSubscription.remove();
-      this.appStateSubscription = null;
-    }
+  public setEnabled(enabled: boolean): void {
+    this.preference.setEnabled(enabled);
+  }
+
+  public isEnabled(): boolean {
+    return this.preference.isEnabled();
+  }
+
+  public isPreferenceReady(): boolean {
+    return this.preference.isReady();
+  }
+
+  public waitForPreference(): Promise<void> {
+    return this.preference.ready;
+  }
+
+  public subscribePreferenceReady(listener: () => void): () => void {
+    return this.preference.subscribeReady(listener);
+  }
+
+  public subscribe(listener: (enabled: boolean) => void): () => void {
+    return this.preference.subscribe(listener);
+  }
+
+  public destroy(): void {
+    this.pool.destroy();
+    this.appStateSubscription?.remove();
+    this.appStateSubscription = null;
   }
 }
 

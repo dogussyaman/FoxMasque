@@ -35,11 +35,13 @@ import type { RoundChoice } from '@/types/game';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 import { usePrototype } from '@/features/prototype/PrototypeProvider';
+import { useSound } from '@/hooks/useSound';
 
 export default function QuestionScreen() {
   const { roomCode, roomState, currentPlayer, service, refreshRoom, isLive } = useGameStore();
   const prototype = usePrototype();
   const { trigger } = useHaptics();
+  const { enabled: soundEnabled, ready: soundPreferenceReady } = useSound();
 
   const totalTime = roomState?.config.roundSeconds ?? 20;
   const [secondsLeft, setSecondsLeft] = useState(totalTime);
@@ -65,6 +67,9 @@ export default function QuestionScreen() {
 
   const clockPlayedFake = useRef(false);
   const clockPlayedGuess = useRef(false);
+  const clockAttemptedFake = useRef(false);
+  const clockAttemptedGuess = useRef(false);
+  const clockRequestId = useRef(0);
   const prevIsGuessPhase = useRef(false);
   const isFirstMount = useRef(true);
   const expirationRequested = useRef<string | null>(null);
@@ -131,6 +136,7 @@ export default function QuestionScreen() {
 
   // Reset timer & clock state when new question begins
   useEffect(() => {
+    clockRequestId.current += 1;
     if (isFirstMount.current) {
       isFirstMount.current = false;
       prevIsGuessPhase.current = isGuessPhase;
@@ -138,6 +144,8 @@ export default function QuestionScreen() {
     }
     clockPlayedFake.current = false;
     clockPlayedGuess.current = false;
+    clockAttemptedFake.current = false;
+    clockAttemptedGuess.current = false;
     setFakeSubmitted(false);
     setFakeAnswerText('');
     setChoices([]);
@@ -149,10 +157,14 @@ export default function QuestionScreen() {
 
   // Transition from fake_answer to guess phase: stop previous clock & reset timer
   useEffect(() => {
-    if (!prevIsGuessPhase.current && isGuessPhase) {
+    if (prevIsGuessPhase.current !== isGuessPhase) {
+      clockRequestId.current += 1;
       soundService.stop('clock');
+      clockPlayedFake.current = false;
+      clockAttemptedFake.current = false;
       clockPlayedGuess.current = false;
-      setSecondsLeft(totalTime);
+      clockAttemptedGuess.current = false;
+      if (isGuessPhase) setSecondsLeft(totalTime);
     }
     prevIsGuessPhase.current = isGuessPhase;
   }, [isGuessPhase, totalTime]);
@@ -160,30 +172,53 @@ export default function QuestionScreen() {
   // Stop clock sound when unmounting
   useEffect(() => {
     return () => {
+      clockRequestId.current += 1;
       soundService.stop('clock');
     };
   }, []);
 
   // Clock sound playback: 9-second countdown audio starts once when secondsLeft < 10
   useEffect(() => {
+    if (!soundPreferenceReady || !soundEnabled) {
+      if (!clockPlayedFake.current) clockAttemptedFake.current = false;
+      if (!clockPlayedGuess.current) clockAttemptedGuess.current = false;
+      soundService.stop('clock');
+      return;
+    }
     if (isPaused) {
+      clockRequestId.current += 1;
+      soundService.stop('clock');
+      return;
+    }
+    if (fakeSubmitted || submitting) {
+      clockRequestId.current += 1;
       soundService.stop('clock');
       return;
     }
     if (displayedSecondsLeft < 10 && displayedSecondsLeft > 0) {
       if (!isGuessPhase) {
-        if (!fakeSubmitted && !submitting && !clockPlayedFake.current) {
-          clockPlayedFake.current = true;
-          void soundService.play('clock');
+        if (!fakeSubmitted && !submitting && !clockAttemptedFake.current) {
+          clockAttemptedFake.current = true;
+          const requestId = clockRequestId.current;
+          void soundService.play('clock').then((started) => {
+            if (started && requestId === clockRequestId.current) clockPlayedFake.current = true;
+          }).catch((error: unknown) => {
+            if (__DEV__) console.warn('[QuestionScreen] Could not start fake-answer countdown audio.', error);
+          });
         }
       } else {
-        if (!submitting && !clockPlayedGuess.current) {
-          clockPlayedGuess.current = true;
-          void soundService.play('clock');
+        if (!submitting && !clockAttemptedGuess.current) {
+          clockAttemptedGuess.current = true;
+          const requestId = clockRequestId.current;
+          void soundService.play('clock').then((started) => {
+            if (started && requestId === clockRequestId.current) clockPlayedGuess.current = true;
+          }).catch((error: unknown) => {
+            if (__DEV__) console.warn('[QuestionScreen] Could not start guess countdown audio.', error);
+          });
         }
       }
     }
-  }, [displayedSecondsLeft, isGuessPhase, fakeSubmitted, submitting, isPaused]);
+  }, [displayedSecondsLeft, isGuessPhase, fakeSubmitted, submitting, isPaused, soundEnabled, soundPreferenceReady]);
 
   // Listen for phase transitions to result / scoreboard
   useEffect(() => {
@@ -219,6 +254,7 @@ export default function QuestionScreen() {
       return;
     }
     if (displayedSecondsLeft <= 0) {
+      clockRequestId.current += 1;
       soundService.stop('clock');
       handleTimeExpire();
       return;
@@ -244,6 +280,8 @@ export default function QuestionScreen() {
         if (displayedSecondsLeft < 10 && displayedSecondsLeft > 0) {
           clockPlayedFake.current = false;
           clockPlayedGuess.current = false;
+          clockAttemptedFake.current = false;
+          clockAttemptedGuess.current = false;
         }
       }
       return next;

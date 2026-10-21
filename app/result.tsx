@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
 import { CheckCircle2, AlertTriangle, Zap, ShieldAlert, ArrowRight, HelpCircle } from 'lucide-react-native';
@@ -29,6 +29,7 @@ export default function ResultScreen() {
   const [advanceError, setAdvanceError] = useState<string | null>(null);
   const [advancing, setAdvancing] = useState(false);
   const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
+  const playedResultSound = useRef<string | null>(null);
 
   const currentQId = roomState?.currentQuestionId || QUESTIONS[0].id;
   const localQuestion = QUESTIONS.find((q) => q.id === currentQId);
@@ -77,6 +78,11 @@ export default function ResultScreen() {
   const zartalandın = !!outcome?.zartalandın;
 
   useEffect(() => {
+    if (!myResult) return;
+    const resultSoundKey = `${roomCode ?? 'local'}:${roomState?.currentRound ?? 1}:${me?.id ?? 'unknown'}`;
+    if (playedResultSound.current === resultSoundKey) return;
+    playedResultSound.current = resultSoundKey;
+
     if (zartalandın) {
       soundService.play('zartalanma');
       trigger('heavy');
@@ -89,7 +95,7 @@ export default function ResultScreen() {
     } else {
       trigger('warning');
     }
-  }, [isCorrect, zartaladın, zartalandın, trigger]);
+  }, [myResult, isCorrect, zartaladın, zartalandın, trigger, roomCode, roomState?.currentRound, me?.id]);
 
   const handleNext = async () => {
     trigger('medium');

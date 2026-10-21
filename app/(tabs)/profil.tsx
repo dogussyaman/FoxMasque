@@ -14,7 +14,7 @@ import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
 export default function ProfilScreen() {
   const { currentPlayer, setCurrentPlayer, isLive, isAnonymous, connection, service } = useGameStore();
   const { trigger } = useHaptics();
-  const { enabled: soundEnabled, setEnabled: setSoundEnabled } = useSound();
+  const { enabled: soundEnabled, ready: soundPreferenceReady, setEnabled: setSoundEnabled } = useSound();
 
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [editingName, setEditingName] = useState(false);
@@ -236,6 +236,7 @@ export default function ProfilScreen() {
               </View>
               <Switch
                 value={soundEnabled}
+                disabled={!soundPreferenceReady}
                 onValueChange={(v) => {
                   trigger('light');
                   setSoundEnabled(v);
