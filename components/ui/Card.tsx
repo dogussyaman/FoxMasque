@@ -16,7 +16,7 @@ export function Card({ children, style, variant = 'default', glow = 'none' }: Ca
       : variant === 'outline'
       ? 'transparent'
       : variant === 'surface'
-      ? colors.zartoSurface
+      ? colors.bgCard
       : variant === 'accent'
       ? colors.bgSurfaceAlt
       : variant === 'comic'

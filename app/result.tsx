@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
 import { CheckCircle2, AlertTriangle, Zap, ShieldAlert, ArrowRight, HelpCircle } from 'lucide-react-native';
@@ -26,12 +26,33 @@ import { soundService } from '@/services/soundService';
 export default function ResultScreen() {
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
   const { trigger } = useHaptics();
+  const [advanceError, setAdvanceError] = useState<string | null>(null);
+  const [advancing, setAdvancing] = useState(false);
+  const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
 
   const currentQId = roomState?.currentQuestionId || QUESTIONS[0].id;
-  const question: Question = QUESTIONS.find((q) => q.id === currentQId) || QUESTIONS[0];
+  const localQuestion = QUESTIONS.find((q) => q.id === currentQId);
+  const question: Question = loadedQuestion?.id === currentQId
+    ? loadedQuestion
+    : localQuestion || QUESTIONS[0];
+  const currentRoomPhase = roomState?.phase;
+
+  useEffect(() => {
+    if (!roomCode || !currentRoomPhase || currentRoomPhase === 'lobby') return;
+    let cancelled = false;
+    void service.getCurrentQuestion(roomCode).then((nextQuestion) => {
+      if (!cancelled && nextQuestion?.id === currentQId) setLoadedQuestion(nextQuestion);
+    }).catch((error: unknown) => {
+      if (!cancelled) setAdvanceError(error instanceof Error ? error.message : 'Soru yüklenemedi.');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentQId, currentRoomPhase, roomCode, service]);
 
   const playersList = roomState ? Object.values(roomState.players) : [];
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
+  const isHost = me?.isHost ?? false;
 
   // Use authoritative roundResults from server/store or resolve locally
   let myResult: RoundResultRow | undefined = me ? roomState?.roundResults?.[me.id] : undefined;
@@ -72,13 +93,22 @@ export default function ResultScreen() {
 
   const handleNext = async () => {
     trigger('medium');
-    if (roomCode) {
-      await service.advancePhase(roomCode);
+    setAdvanceError(null);
+    if (isHost && roomCode) {
+      setAdvancing(true);
+      try {
+        await service.advancePhase(roomCode);
+      } catch (error) {
+        setAdvanceError((error as Error).message || 'Aşama ilerletilemedi.');
+        setAdvancing(false);
+        return;
+      }
+      setAdvancing(false);
     }
     router.replace('/scoreboard');
   };
 
-  const trueAnswerText = question.correctAnswer || question.options?.[question.correctIndex];
+  const trueAnswerText = question.correctAnswer;
 
   // Mascot expression based on round outcome
   const mascotSource = zartaladın
@@ -253,7 +283,7 @@ export default function ResultScreen() {
               return (
                 <StaggerRow key={player.id} index={idx} delay={70}>
                   <Card variant="surface" style={styles.playerRow}>
-                    <Avatar avatarKey={player.avatarKey} size={38} />
+                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} size={38} />
                     <Text style={styles.playerName}>{player.name}</Text>
                     <View style={styles.badgesWrap}>
                       {res?.outcome.correct ? (
@@ -275,11 +305,16 @@ export default function ResultScreen() {
 
       </ScrollView>
       <StickyActionBar>
+        {advanceError ? (
+          <Text accessibilityRole="alert" style={styles.advanceError}>{advanceError}</Text>
+        ) : null}
         <Button
-          label="Skor Tablosuna Geç"
+          label={isHost ? 'Skor Tablosuna Geç' : 'Sonuç Tablosunu Gör'}
           onPress={handleNext}
           variant="orange"
           fullWidth
+          loading={advancing}
+          disabled={advancing}
           icon={<ArrowRight color="#FFF" size={20} />}
         />
       </StickyActionBar>
@@ -288,6 +323,13 @@ export default function ResultScreen() {
 }
 
 const styles = StyleSheet.create({
+  advanceError: {
+    ...typography.caption,
+    color: colors.dangerSoft,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xs,
+  },
   scroll: {
     paddingBottom: spacing.md,
     paddingTop: 4,

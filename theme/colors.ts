@@ -1,36 +1,36 @@
 export const colors = {
   // ZARTO Core Palette
-  zartoNight: '#171026',     // Ana gece moru
-  zartoSurface: '#281548',   // Derin mor yüzey
-  zartoPurple: '#8B5CF6',    // Elektrik moru
-  zartoOrange: '#FF713B',    // ZARTO turuncusu
+  zartoNight: '#110D1B',     // Ana gece moru
+  zartoSurface: '#28183D',   // Derin mor yüzey
+  zartoPurple: '#A16BFF',    // Marka moru
+  zartoOrange: '#FF713D',    // ZARTO turuncusu
   zartoYellow: '#FFD166',    // Sıcak sarı
   zartoLime: '#C6F36B',      // Lime vurgu
-  zartoCream: '#FFF7F0',     // Açık metin ve yüzeyler
+  zartoCream: '#FFF7FF',     // Açık metin ve yüzeyler
 
   // Backgrounds - Night & Deep Purple
-  bgDarkest: '#171026',
-  bgDark: '#1B122E',
-  bgSurface: '#281548',
-  bgSurfaceAlt: '#361D61',
-  bgSurfaceMuted: '#241442',
-  bgElevated: '#422177',
-  bgCard: '#251442',
-  bgCardAlt: '#321A57',
+  bgDarkest: '#110D1B',
+  bgDark: '#1A1228',
+  bgSurface: '#28183D',
+  bgSurfaceAlt: '#35204C',
+  bgSurfaceMuted: '#21172F',
+  bgElevated: '#35204C',
+  bgCard: '#28183D',
+  bgCardAlt: '#35204C',
 
   // Accents - Electric Purple
-  purple: '#8B5CF6',
-  purpleDeep: '#6D28D9',
-  purpleSoft: '#A78BFA',
-  purpleGlow: 'rgba(139, 92, 246, 0.45)',
+  purple: '#A16BFF',
+  purpleDeep: '#7547C4',
+  purpleSoft: '#B88EFF',
+  purpleGlow: 'rgba(161, 107, 255, 0.28)',
 
   // Accents - ZARTO Orange / Coral
-  orange: '#FF713B',
-  orangeDeep: '#E0551E',
-  orangeGlow: 'rgba(255, 113, 59, 0.45)',
-  coral: '#FF713B',
-  coralDeep: '#E0551E',
-  coralSoft: '#FF8F66',
+  orange: '#FF713D',
+  orangeDeep: '#D9562B',
+  orangeGlow: 'rgba(255, 113, 61, 0.28)',
+  coral: '#FF713D',
+  coralDeep: '#D9562B',
+  coralSoft: '#FF9872',
 
   // Accents - Warm Yellow & Electric Lime
   yellow: '#FFD166',
@@ -47,25 +47,34 @@ export const colors = {
   success: '#10B981',
   successSoft: '#34D399',
   successGlow: 'rgba(16, 185, 129, 0.45)',
+  successSurface: 'rgba(198, 243, 107, 0.14)',
   warning: '#FFD166',
   warningGlow: 'rgba(255, 209, 102, 0.45)',
   danger: '#EF4444',
   dangerSoft: '#F87171',
   dangerGlow: 'rgba(239, 68, 68, 0.45)',
+  dangerSurface: 'rgba(239, 68, 68, 0.14)',
+  purpleSurface: 'rgba(161, 107, 255, 0.14)',
+  orangeSurface: 'rgba(255, 113, 61, 0.14)',
+  goldSurface: 'rgba(255, 209, 102, 0.18)',
+  silverSurface: 'rgba(185, 173, 201, 0.14)',
+  categoryOverlayTop: 'rgba(17, 13, 27, 0.12)',
+  categoryOverlayBottom: 'rgba(17, 13, 27, 0.82)',
+  imageIconSurface: 'rgba(17, 13, 27, 0.48)',
 
   // Text
-  textPrimary: '#FFF7F0',
-  textSecondary: '#D6CEE5',
-  textMuted: '#9389A8',
+  textPrimary: '#FFF7FF',
+  textSecondary: '#B9ADC9',
+  textMuted: '#91849F',
   textOnAccent: '#FFFFFF',
-  textInverse: '#171026',
+  textInverse: '#110D1B',
 
   // Borders / overlays
-  border: 'rgba(255, 247, 240, 0.09)',
-  borderStrong: 'rgba(255, 247, 240, 0.20)',
-  borderAccent: 'rgba(139, 92, 246, 0.35)',
-  overlay: 'rgba(23, 16, 38, 0.78)',
-  overlayLight: 'rgba(40, 21, 72, 0.65)',
+  border: 'rgba(255, 247, 255, 0.09)',
+  borderStrong: 'rgba(255, 247, 255, 0.16)',
+  borderAccent: 'rgba(161, 107, 255, 0.30)',
+  overlay: 'rgba(17, 13, 27, 0.78)',
+  overlayLight: 'rgba(40, 24, 61, 0.65)',
 } as const;
 
 export type ColorKey = keyof typeof colors;

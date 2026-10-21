@@ -83,10 +83,13 @@ export function canUseAbility(
     if (state.blocksAvailable <= 0) {
       return { allowed: false, reason: 'Bloklama hakkın henüz açılmadı.' };
     }
-    if (targetId && targetId === state.playerId) {
+    if (!targetId) {
+      return { allowed: false, reason: 'Bloklamak için bir rakip seçmelisin.' };
+    }
+    if (targetId === state.playerId) {
       return { allowed: false, reason: 'Kendini bloklayamazsın!' };
     }
-    if (targetId && state.lastBlockedPlayerId === targetId) {
+    if (state.lastBlockedPlayerId === targetId) {
       return { allowed: false, reason: 'Aynı oyuncuyu arka arkaya iki tur bloklayamazsın.' };
     }
     return { allowed: true };
@@ -103,7 +106,10 @@ export function canUseAbility(
     if (state.usedCounts.penalty >= 1) {
       return { allowed: false, reason: 'Ceza yeteneği oyun başına maksimum 1 kez kullanılabilir.' };
     }
-    if (targetId && targetId === state.playerId) {
+    if (!targetId) {
+      return { allowed: false, reason: 'Ceza vermek için bir rakip seçmelisin.' };
+    }
+    if (targetId === state.playerId) {
       return { allowed: false, reason: 'Kendine ceza veremezsin!' };
     }
     return { allowed: true };

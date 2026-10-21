@@ -1,8 +1,15 @@
 import { supabase, supabaseConfigured, ensureSupabase } from '../lib/supabase/client';
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import type {
   ConnectionState,
+  EmailSignUpResult,
+  FriendRequest,
   GameService,
+  RelationshipStatus,
   RoomSummary,
+  SocialPlayer,
   ServiceEvent,
   ServiceEventHandler,
 } from './types';
@@ -15,10 +22,64 @@ import type {
   Player,
   PlayerId,
   RoundChoice,
+  RoundProgress,
   RoundResultRow,
 } from '../types/game';
-import type { CategoryId } from '../features/game/categories';
+import { isCategoryId, type CategoryId } from '../features/game/categories';
+import type { Question } from '../features/game/questions';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+
+interface ProfilePayload {
+  id: string;
+  display_name: string;
+  avatar_key: string;
+  avatar_url: string | null;
+  stats?: {
+    games_played?: number;
+    games_won?: number;
+    correct_answers?: number;
+    successful_traps?: number;
+    times_trapped?: number;
+    total_score?: number;
+  };
+}
+
+interface OpenRoomRow {
+  code: string;
+  host_name: string;
+  player_count: number;
+  phase: GameState['phase'];
+  created_at: string;
+}
+
+interface LeaderboardRow {
+  player_id: string;
+  name: string;
+  avatar_key: string;
+  avatar_url: string | null;
+  score: number;
+  games_played: number;
+  games_won: number;
+  correct_answers: number;
+  successful_traps: number;
+  times_trapped: number;
+}
+
+interface SocialPlayerRow {
+  user_id: string;
+  display_name: string;
+  avatar_key: string;
+  avatar_url: string | null;
+  relationship_status: RelationshipStatus;
+}
+
+interface FriendRequestRow {
+  request_id: string;
+  user_id: string;
+  display_name: string;
+  avatar_key: string;
+  created_at: string;
+}
 
 function decodeBase64(value: string): Uint8Array {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -42,6 +103,15 @@ function decodeBase64(value: string): Uint8Array {
   return output.subarray(0, outputIndex);
 }
 
+function decodeTimestamp(value: unknown, field: string): number | null {
+  if (value === null || value === undefined) return null;
+  const timestamp = typeof value === 'number' ? value : Date.parse(String(value));
+  if (!Number.isFinite(timestamp)) {
+    throw new ServiceError('ROOM_STATE_INVALID', `Oda durumundaki ${field} zamanı geçersiz.`);
+  }
+  return timestamp;
+}
+
 export class SupabaseGameService implements GameService {
   readonly kind = 'supabase' as const;
 
@@ -50,6 +120,7 @@ export class SupabaseGameService implements GameService {
   private cachedPlayer: Player | null = null;
   private currentChannel: RealtimeChannel | null = null;
   private currentRoomCode: string | null = null;
+  private authSubscription: { unsubscribe: () => void } | null = null;
 
   async connect(): Promise<void> {
     if (!supabaseConfigured) {
@@ -58,24 +129,40 @@ export class SupabaseGameService implements GameService {
     }
 
     const sb = ensureSupabase();
-    const { data } = await sb.auth.getSession();
+    if (!this.authSubscription) {
+      const { data } = sb.auth.onAuthStateChange((event, session) => {
+        if (event === 'INITIAL_SESSION') return;
+        setTimeout(() => {
+          void (async () => {
+            try {
+              const player = session?.user ? await this.loadProfile(session.user.id) : null;
+              this.cachedPlayer = player;
+              this.emit({
+                type: 'auth_state',
+                payload: { player, isAnonymous: session?.user.is_anonymous ?? false },
+              });
+            } catch (error) {
+              this.emit({ type: 'error', payload: { message: (error as Error).message } });
+            }
+          })();
+        }, 0);
+      });
+      this.authSubscription = data.subscription;
+    }
+    const { data, error } = await sb.auth.getSession();
+    if (error) throw new ServiceError('AUTH_SESSION_FAILED', error.message);
     if (data.session?.user) {
-      this.cachedPlayer = {
-        id: data.session.user.id,
-        name: data.session.user.user_metadata?.name || 'Oyuncu',
-        avatarKey: data.session.user.user_metadata?.avatarKey || 'fox',
-        isHost: false,
-        isReady: false,
-        isOnline: true,
-        score: 0,
-        abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
-        consecutiveCorrect: 0,
-        shieldsAvailable: 0,
-        blocksAvailable: 0,
-        isBlockedCurrentRound: false,
-        isBlockedNextRound: false,
-        lastBlockedPlayerId: null,
-      };
+      this.cachedPlayer = await this.loadProfile(data.session.user.id);
+      if (!this.cachedPlayer) {
+        throw new ServiceError('PROFILE_NOT_FOUND', 'Oturum profili bulunamadı.');
+      }
+      this.emit({
+        type: 'auth_state',
+        payload: { player: this.cachedPlayer, isAnonymous: data.session.user.is_anonymous },
+      });
+    } else {
+      this.cachedPlayer = null;
+      this.emit({ type: 'auth_state', payload: { player: null, isAnonymous: false } });
     }
     this.connection = 'online';
     this.emit({ type: 'connection', payload: { state: 'online' } });
@@ -104,6 +191,44 @@ export class SupabaseGameService implements GameService {
     for (const h of this.handlers) h(event);
   }
 
+  private async loadProfile(userId: string): Promise<Player | null> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('get_profile_secure', { p_user_id: userId });
+    if (error) throw new ServiceError('PROFILE_LOAD_FAILED', error.message);
+    if (!data || typeof data !== 'object') return null;
+    const profile = data as ProfilePayload;
+    if (
+      typeof profile.id !== 'string' ||
+      typeof profile.display_name !== 'string' ||
+      typeof profile.avatar_key !== 'string'
+    ) {
+      throw new ServiceError('PROFILE_INVALID', 'Sunucudan geçersiz profil bilgisi alındı.');
+    }
+    const stats = profile.stats ?? {};
+    return {
+      id: profile.id,
+      name: profile.display_name,
+      avatarKey: profile.avatar_key,
+      avatarUrl: profile.avatar_url,
+      isHost: false,
+      isReady: false,
+      isOnline: true,
+      score: Number(stats.total_score ?? 0),
+      gamesPlayed: Number(stats.games_played ?? 0),
+      gamesWon: Number(stats.games_won ?? 0),
+      correctAnswers: Number(stats.correct_answers ?? 0),
+      successfulTraps: Number(stats.successful_traps ?? 0),
+      timesTrapped: Number(stats.times_trapped ?? 0),
+      abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
+      consecutiveCorrect: 0,
+      shieldsAvailable: 0,
+      blocksAvailable: 0,
+      isBlockedCurrentRound: false,
+      isBlockedNextRound: false,
+      lastBlockedPlayerId: null,
+    };
+  }
+
   async signInAnonymously(name: string, avatarKey: string): Promise<Player> {
     const sb = ensureSupabase();
     const { data, error } = await sb.auth.signInAnonymously({
@@ -115,24 +240,140 @@ export class SupabaseGameService implements GameService {
     const user = data.user;
     if (!user) throw new ServiceError('AUTH_FAILED', 'Anonim oturum açılamadı.');
 
-    const profile: Player = {
-      id: user.id,
-      name: name.trim() || 'Oyuncu',
-      avatarKey,
-      isHost: false,
-      isReady: false,
-      isOnline: true,
-      score: 0,
-      abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
-      consecutiveCorrect: 0,
-      shieldsAvailable: 0,
-      blocksAvailable: 0,
-      isBlockedCurrentRound: false,
-      isBlockedNextRound: false,
-      lastBlockedPlayerId: null,
-    };
+    const profile = await this.loadProfile(user.id);
+    if (!profile) throw new ServiceError('PROFILE_NOT_FOUND', 'Yeni profil oluşturulamadı.');
     this.cachedPlayer = profile;
     return profile;
+  }
+
+  async signUpWithEmail(email: string, password: string, name: string): Promise<EmailSignUpResult> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+      options: { data: { name: name.trim().slice(0, 32) || 'Oyuncu', avatarKey: 'fox' } },
+    });
+    if (error) throw new ServiceError('AUTH_SIGNUP_FAILED', this.authErrorMessage(error.message));
+    if (!data.user) {
+      throw new ServiceError('AUTH_SIGNUP_FAILED', 'Kayıt tamamlanamadı. Bilgileri kontrol edip tekrar dene.');
+    }
+    if (!data.session) return { player: null, needsEmailConfirmation: true };
+    const player = await this.loadProfile(data.user.id);
+    if (!player) throw new ServiceError('PROFILE_NOT_FOUND', 'Hesap oluşturuldu ancak oyuncu profili bulunamadı.');
+    this.cachedPlayer = player;
+    return { player, needsEmailConfirmation: false };
+  }
+
+  async signInWithEmail(email: string, password: string): Promise<Player> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    });
+    if (error) throw new ServiceError('AUTH_LOGIN_FAILED', this.authErrorMessage(error.message));
+    if (!data.user) throw new ServiceError('AUTH_LOGIN_FAILED', 'Giriş yapılamadı. Bilgileri kontrol et.');
+    const player = await this.loadProfile(data.user.id);
+    if (!player) throw new ServiceError('PROFILE_NOT_FOUND', 'Oyuncu profili bulunamadı.');
+    this.cachedPlayer = player;
+    return player;
+  }
+
+  async signInWithGoogle(): Promise<Player> {
+    const sb = ensureSupabase();
+    const redirectTo = Platform.OS === 'web'
+      ? `${window.location.origin}/auth/callback`
+      : Linking.createURL('auth/callback');
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+        queryParams: { prompt: 'select_account' },
+      },
+    });
+    if (error) throw new ServiceError('GOOGLE_AUTH_FAILED', this.authErrorMessage(error.message));
+    if (!data.url) throw new ServiceError('GOOGLE_AUTH_FAILED', 'Google giriş bağlantısı oluşturulamadı.');
+
+    if (Platform.OS === 'web') {
+      window.location.assign(data.url);
+      return new Promise<Player>(() => {});
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    if (result.type === 'cancel' || result.type === 'dismiss') {
+      throw new ServiceError('AUTH_CANCELLED', 'Google girişi iptal edildi.');
+    }
+    if (result.type !== 'success' || !result.url) {
+      throw new ServiceError('GOOGLE_AUTH_FAILED', 'Google giriş akışı tamamlanamadı.');
+    }
+    const params = new URL(result.url).searchParams;
+    const oauthError = params.get('error_description') ?? params.get('error');
+    if (oauthError) throw new ServiceError('GOOGLE_AUTH_FAILED', this.authErrorMessage(oauthError));
+    const code = params.get('code');
+    if (!code) throw new ServiceError('GOOGLE_AUTH_FAILED', 'Google yanıtında oturum kodu bulunamadı.');
+    return this.exchangeOAuthCode(code);
+  }
+
+  async completeOAuthCallback(code: string): Promise<Player> {
+    return this.exchangeOAuthCode(code);
+  }
+
+  async sendPasswordResetEmail(email: string): Promise<void> {
+    const sb = ensureSupabase();
+    const redirectTo = Platform.OS === 'web'
+      ? `${window.location.origin}/auth/callback`
+      : Linking.createURL('auth/callback');
+    const { error } = await sb.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo });
+    if (error) throw new ServiceError('PASSWORD_RESET_FAILED', this.authErrorMessage(error.message));
+  }
+
+  async updatePassword(password: string): Promise<void> {
+    if (password.length < 6) {
+      throw new ServiceError('PASSWORD_INVALID', 'Şifre en az 6 karakter olmalıdır.');
+    }
+    const { error } = await ensureSupabase().auth.updateUser({ password });
+    if (error) throw new ServiceError('PASSWORD_UPDATE_FAILED', this.authErrorMessage(error.message));
+  }
+
+  private async exchangeOAuthCode(code: string): Promise<Player> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.auth.exchangeCodeForSession(code);
+    if (error) throw new ServiceError('GOOGLE_AUTH_FAILED', this.authErrorMessage(error.message));
+    if (!data.user) throw new ServiceError('GOOGLE_AUTH_FAILED', 'Google oturumu oluşturulamadı.');
+    const player = await this.loadProfile(data.user.id);
+    if (!player) throw new ServiceError('PROFILE_NOT_FOUND', 'Google hesabı için oyuncu profili bulunamadı.');
+    this.cachedPlayer = player;
+    return player;
+  }
+
+  async refreshSession(): Promise<void> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.auth.refreshSession();
+    if (error) throw new ServiceError('AUTH_REFRESH_FAILED', this.authErrorMessage(error.message));
+    this.cachedPlayer = data.user ? await this.loadProfile(data.user.id) : null;
+  }
+
+  private authErrorMessage(message: string): string {
+    const normalized = message.toLowerCase();
+    if (normalized.includes('access_denied') || normalized.includes('cancelled') || normalized.includes('canceled')) {
+      return 'Giriş işlemi iptal edildi.';
+    }
+    if (normalized.includes('invalid login credentials')) return 'E-posta veya şifre hatalı.';
+    if (normalized.includes('password') && (normalized.includes('short') || normalized.includes('least'))) {
+      return 'Şifre en az 6 karakter olmalıdır.';
+    }
+    if (normalized.includes('invalid email')) return 'Geçerli bir e-posta adresi gir.';
+    if (normalized.includes('already registered') || normalized.includes('already been registered')) {
+      return 'Bu e-posta zaten kayıtlı. Giriş yap veya hesabını kullandığın sağlayıcıyla aç; hesaplar yalnızca e-posta eşleşti diye birleştirilmez.';
+    }
+    if (normalized.includes('email not confirmed')) return 'E-posta adresini doğruladıktan sonra giriş yapabilirsin.';
+    if (normalized.includes('provider is not enabled') || normalized.includes('unsupported provider')) {
+      return 'Google girişi Supabase projesinde etkin değil.';
+    }
+    if (normalized.includes('network') || normalized.includes('fetch')) {
+      return 'Bağlantı kurulamadı. İnternet bağlantını kontrol edip tekrar dene.';
+    }
+    return `Kimlik doğrulama başarısız oldu: ${message}`;
   }
 
   getCurrentPlayer(): Player | null {
@@ -145,26 +386,17 @@ export class SupabaseGameService implements GameService {
     }
 
     const sb = ensureSupabase();
-    const { error: profileError } = await sb.rpc('update_player_profile_secure', {
-      p_name: name.trim().slice(0, 32) || 'Oyuncu',
-      p_avatar_key: avatarKey,
+    const { error: profileError } = await sb.rpc('update_profile_secure', {
+      p_display_name: name.trim().slice(0, 32) || 'Oyuncu',
+      p_avatar_key: /^https:\/\//i.test(avatarKey) ? 'fox' : avatarKey,
+      p_avatar_url: /^https:\/\//i.test(avatarKey) ? avatarKey : '',
     });
     if (profileError) {
       throw new ServiceError('PROFILE_UPDATE_FAILED', profileError.message);
     }
 
-    const nextPlayer = {
-      ...this.cachedPlayer,
-      name: name.trim().slice(0, 32) || 'Oyuncu',
-      avatarKey,
-    };
-    const { error: authError } = await sb.auth.updateUser({
-      data: { name: nextPlayer.name, avatarKey },
-    });
-    if (authError) {
-      throw new ServiceError('PROFILE_UPDATE_FAILED', authError.message);
-    }
-
+    const nextPlayer = await this.loadProfile(this.cachedPlayer.id);
+    if (!nextPlayer) throw new ServiceError('PROFILE_NOT_FOUND', 'Güncellenen profil alınamadı.');
     this.cachedPlayer = nextPlayer;
     if (this.currentRoomCode) {
       const roomState = await this.getRoomState(this.currentRoomCode);
@@ -201,13 +433,23 @@ export class SupabaseGameService implements GameService {
     const { data } = sb.storage
       .from('avatars')
       .getPublicUrl(`${this.cachedPlayer.id}/avatar.${extension}`);
-    return `${data.publicUrl}?v=${Date.now()}`;
+    const avatarUrl = data.publicUrl;
+    const { error: profileError } = await sb.rpc('update_profile_secure', {
+      p_display_name: this.cachedPlayer.name,
+      p_avatar_key: this.cachedPlayer.avatarKey,
+      p_avatar_url: avatarUrl,
+    });
+    if (profileError) throw new ServiceError('AVATAR_PROFILE_UPDATE_FAILED', profileError.message);
+    this.cachedPlayer = { ...this.cachedPlayer, avatarUrl };
+    return `${avatarUrl}?v=${Date.now()}`;
   }
 
   async signOut(): Promise<void> {
-    this.cachedPlayer = null;
     const sb = ensureSupabase();
-    await sb.auth.signOut();
+    const { error } = await sb.auth.signOut();
+    if (error) throw new ServiceError('SIGN_OUT_FAILED', error.message);
+    this.cachedPlayer = null;
+    this.emit({ type: 'auth_state', payload: { player: null, isAnonymous: false } });
   }
 
   async createRoom(config: {
@@ -219,7 +461,7 @@ export class SupabaseGameService implements GameService {
   }): Promise<{ code: string; playerId: string }> {
     const sb = ensureSupabase();
     if (!this.cachedPlayer) {
-      await this.signInAnonymously(config.hostName, config.avatarKey);
+      throw new ServiceError('AUTH_REQUIRED', 'Oda oluşturmak için önce giriş yapmalısın.');
     }
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
@@ -245,7 +487,7 @@ export class SupabaseGameService implements GameService {
       isReady: true,
     };
 
-    this.setupRealtimeSubscription(code);
+    await this.setupRealtimeSubscription(code);
     return { code, playerId: hostId };
   }
 
@@ -257,7 +499,7 @@ export class SupabaseGameService implements GameService {
     const sb = ensureSupabase();
     const cleanCode = code.trim().toUpperCase();
     if (!this.cachedPlayer) {
-      await this.signInAnonymously(name, avatarKey);
+      throw new ServiceError('AUTH_REQUIRED', 'Odaya katılmak için önce giriş yapmalısın.');
     }
 
     const { data, error } = await sb.rpc('join_room_secure', {
@@ -271,13 +513,14 @@ export class SupabaseGameService implements GameService {
     }
 
     const playerId = this.cachedPlayer!.id;
-    this.setupRealtimeSubscription(cleanCode);
+    await this.setupRealtimeSubscription(cleanCode);
     return { playerId };
   }
 
   async leaveRoom(code: string): Promise<void> {
     const sb = ensureSupabase();
-    await sb.rpc('leave_room_secure', { p_room_code: code.toUpperCase() });
+    const { error } = await sb.rpc('leave_room_secure', { p_room_code: code.toUpperCase() });
+    if (error) throw new ServiceError('LEAVE_ROOM_FAILED', error.message);
     if (this.currentChannel) {
       sb.removeChannel(this.currentChannel);
       this.currentChannel = null;
@@ -288,110 +531,83 @@ export class SupabaseGameService implements GameService {
 
   async getRoomState(code: string): Promise<GameState | null> {
     const sb = ensureSupabase();
-    const cleanCode = code.toUpperCase();
-
-    const { data: room, error: roomError } = await sb
-      .from('rooms')
-      .select('*')
-      .eq('code', cleanCode)
-      .maybeSingle();
-
-    if (roomError || !room) return null;
-
-    const { data: playerRows } = await sb
-      .from('room_players')
-      .select('*')
-      .eq('room_id', room.id);
-
-    const players: Record<PlayerId, Player> = {};
-    for (const r of playerRows ?? []) {
-      players[r.player_id] = {
-        id: r.player_id,
-        name: r.name,
-        avatarKey: r.avatar_key,
-        isHost: r.is_host,
-        isReady: r.is_ready,
-        isOnline: r.is_online,
-        score: r.score,
-        abilityUsedCounts: r.ability_uses ?? { block: 0, shield: 0, penalty: 0, counter: 0 },
-        consecutiveCorrect: r.consecutive_correct ?? 0,
-        shieldsAvailable: r.shields_available ?? 0,
-        blocksAvailable: r.blocks_available ?? 0,
-        isBlockedCurrentRound: r.is_blocked_current_round ?? false,
-        isBlockedNextRound: r.is_blocked_next_round ?? false,
-        lastBlockedPlayerId: r.last_blocked_player_id,
-      };
+    const { data, error } = await sb.rpc('get_room_state_secure', {
+      p_room_code: code.trim().toUpperCase(),
+    });
+    if (error) throw new ServiceError('ROOM_STATE_FAILED', error.message);
+    if (!data) return null;
+    const state = data as Record<string, unknown>;
+    if (
+      typeof state.phase !== 'string' ||
+      typeof state.currentRound !== 'number' ||
+      typeof state.config !== 'object' ||
+      state.config === null ||
+      typeof state.players !== 'object' ||
+      state.players === null
+    ) {
+      throw new ServiceError('ROOM_STATE_INVALID', 'Sunucudan geçersiz oda durumu alındı.');
     }
-
-    // Read round results if in reveal/scoreboard
-    const roundResults: Record<PlayerId, RoundResultRow> = {};
-    if (['reveal', 'scoreboard', 'game_over'].includes(room.phase)) {
-      const { data: resultRows } = await sb
-        .from('round_results')
-        .select('*')
-        .eq('room_id', room.id)
-        .eq('round_number', room.current_round);
-
-      for (const res of resultRows ?? []) {
-        roundResults[res.player_id] = {
-          playerId: res.player_id,
-          outcome: {
-            correct: res.answered_correctly,
-            zartaladın: res.zartaladın,
-            zartalandın: res.zartalandın,
-            victimsCount: res.victims_count ?? 0,
-            pointsEarned: res.points_delta,
-            labels: [],
-          },
-          labels: [],
-          pointsDelta: res.points_delta,
-          victimsCount: res.victims_count ?? 0,
-          deceivedByAuthorId: res.deceived_by_author_id,
-          pickedText: res.picked_text,
-          ownFakeText: res.own_fake_text,
-        };
-      }
-    }
-
+    const startedAt = decodeTimestamp(state.phaseStartedAt, 'başlangıç');
+    const deadlineAt = decodeTimestamp(state.phaseDeadlineAt, 'bitiş');
     return {
-      config: {
-        code: room.code,
-        hostId: room.host_id,
-        maxPlayers: 10,
-        minPlayers: 2,
-        totalRounds: room.total_rounds,
-        roundSeconds: room.round_seconds,
-        selectedCategoryIds: room.selected_categories,
-      },
-      players,
-      phase: room.phase,
-      currentRound: room.current_round,
-      currentQuestionId: room.current_question_id,
-      fakeAnswers: {},
-      choices: [],
-      picks: {},
-      answers: {},
-      abilityActions: [],
-      roundResults,
-      history: [],
+      ...state,
+      phaseStartedAt: startedAt ?? undefined,
+      phaseDeadlineAt: deadlineAt,
+    } as unknown as GameState;
+  }
+
+  async getCurrentQuestion(code: string): Promise<Question | null> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('get_current_question_secure', {
+      p_room_code: code.trim().toUpperCase(),
+    });
+    if (error) throw new ServiceError('QUESTION_LOAD_FAILED', error.message);
+    if (!data || typeof data !== 'object') return null;
+
+    const row = data as Record<string, unknown>;
+    if (
+      typeof row.id !== 'string' ||
+      typeof row.categoryId !== 'string' ||
+      !isCategoryId(row.categoryId) ||
+      typeof row.prompt !== 'string'
+    ) {
+      throw new ServiceError('QUESTION_INVALID', 'Sunucudan geçersiz soru bilgisi alındı.');
+    }
+    return {
+      id: row.id,
+      categoryId: row.categoryId,
+      prompt: row.prompt,
+      correctAnswer: typeof row.correctAnswer === 'string' ? row.correctAnswer : undefined,
+      difficulty: row.difficulty === 'easy' || row.difficulty === 'medium' || row.difficulty === 'hard'
+        ? row.difficulty
+        : undefined,
+      subcategory: typeof row.subcategory === 'string' ? row.subcategory : undefined,
+      explanation: typeof row.explanation === 'string' ? row.explanation : undefined,
+      sourceUrl: typeof row.sourceUrl === 'string' ? row.sourceUrl : undefined,
+      status: row.status === 'draft' || row.status === 'approved' || row.status === 'archived'
+        ? row.status
+        : undefined,
     };
+  }
+
+  async getRoomProgress(code: string): Promise<RoundProgress> {
+    const state = await this.getRoomState(code);
+    if (!state?.progress) {
+      throw new ServiceError('ROOM_PROGRESS_UNAVAILABLE', 'Oda ilerleme bilgisi alınamadı.');
+    }
+    return state.progress;
   }
 
   async listOpenRooms(): Promise<RoomSummary[]> {
     const sb = ensureSupabase();
-    const { data, error } = await sb
-      .from('rooms')
-      .select('code, host_id, phase, created_at')
-      .eq('phase', 'lobby')
-      .order('created_at', { ascending: false })
-      .limit(20);
+    const { data, error } = await sb.rpc('list_open_rooms_secure');
+    if (error) throw new ServiceError('ROOM_LIST_FAILED', error.message);
+    if (!data) return [];
 
-    if (error || !data) return [];
-
-    return data.map((r) => ({
+    return data.map((r: OpenRoomRow) => ({
       code: r.code,
-      hostName: 'Parti Odası',
-      playerCount: 1,
+      hostName: r.host_name,
+      playerCount: r.player_count,
       phase: r.phase,
       createdAt: new Date(r.created_at).getTime(),
     }));
@@ -408,23 +624,20 @@ export class SupabaseGameService implements GameService {
 
   async nudgePlayer(code: string, toId: string): Promise<Nudge> {
     const sb = ensureSupabase();
-    const meId = this.cachedPlayer?.id ?? '';
-    const { data: room } = await sb.from('rooms').select('id').eq('code', code.toUpperCase()).single();
-    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
-
-    const nudge: Nudge = {
-      fromId: meId,
-      toId,
-      at: Date.now(),
-    };
-
-    await sb.from('nudges').insert({
-      room_id: room.id,
-      from_id: meId,
-      to_id: toId,
+    const { data, error } = await sb.rpc('nudge_player_secure', {
+      p_room_code: code.toUpperCase(),
+      p_target_id: toId,
     });
-
-    return nudge;
+    if (error) throw new ServiceError('NUDGE_FAILED', error.message);
+    const nudge = data?.[0];
+    if (!nudge) throw new ServiceError('NUDGE_FAILED', 'Dürtme kaydı oluşturulamadı.');
+    return {
+      fromId: nudge.from_id,
+      toId: nudge.to_id,
+      at: new Date(nudge.created_at).getTime(),
+      roundNumber: nudge.round_number,
+      phase: nudge.phase,
+    };
   }
 
   async startGame(code: string): Promise<void> {
@@ -433,6 +646,14 @@ export class SupabaseGameService implements GameService {
       p_room_code: code.toUpperCase(),
     });
     if (error) throw new ServiceError('START_GAME_FAILED', error.message);
+  }
+
+  async markCurrentQuestionSeen(code: string): Promise<void> {
+    const sb = ensureSupabase();
+    const { error } = await sb.rpc('mark_current_question_seen_secure', {
+      p_room_code: code.toUpperCase(),
+    });
+    if (error) throw new ServiceError('QUESTION_SEEN_FAILED', error.message);
   }
 
   async submitFakeAnswer(code: string, fakeAnswer: string): Promise<void> {
@@ -449,7 +670,8 @@ export class SupabaseGameService implements GameService {
     const { data, error } = await sb.rpc('get_round_choices_secure', {
       p_room_code: code.toUpperCase(),
     });
-    if (error || !data) return [];
+    if (error) throw new ServiceError('ROUND_CHOICES_FAILED', error.message);
+    if (!data) return [];
     return data.map((d: { choice_index: number; choice_text: string; is_own_fake: boolean }) => ({
       choiceIndex: d.choice_index,
       text: d.choice_text,
@@ -476,12 +698,29 @@ export class SupabaseGameService implements GameService {
     if (error) throw new ServiceError('USE_ABILITY_FAILED', error.message);
   }
 
+  async confirmAbilitySelection(code: string): Promise<void> {
+    const sb = ensureSupabase();
+    const { error } = await sb.rpc('confirm_ability_selection_secure', {
+      p_room_code: code.toUpperCase(),
+    });
+    if (error) throw new ServiceError('ABILITY_CONFIRM_FAILED', error.message);
+  }
+
   async advancePhase(code: string): Promise<void> {
     const sb = ensureSupabase();
     const { error } = await sb.rpc('advance_round_secure', {
       p_room_code: code.toUpperCase(),
     });
     if (error) throw new ServiceError('ADVANCE_FAILED', error.message);
+  }
+
+  async advanceExpiredPhase(code: string): Promise<boolean> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('advance_expired_room_phase_secure', {
+      p_room_code: code.toUpperCase(),
+    });
+    if (error) throw new ServiceError('PHASE_TIMEOUT_FAILED', error.message);
+    return data === true;
   }
 
   async rematch(code: string): Promise<void> {
@@ -504,21 +743,23 @@ export class SupabaseGameService implements GameService {
 
   async getLeaderboard(): Promise<Player[]> {
     const sb = ensureSupabase();
-    const { data } = await sb
-      .from('room_players')
-      .select('player_id, name, avatar_key, score')
-      .order('score', { ascending: false })
-      .limit(20);
-
+    const { data, error } = await sb.rpc('get_leaderboard_secure');
+    if (error) throw new ServiceError('LEADERBOARD_FAILED', error.message);
     if (!data) return [];
-    return data.map((d) => ({
+    return data.map((d: LeaderboardRow) => ({
       id: d.player_id,
       name: d.name,
       avatarKey: d.avatar_key,
+      avatarUrl: d.avatar_url,
+      score: Number(d.score),
+      gamesPlayed: d.games_played,
+      gamesWon: d.games_won,
+      correctAnswers: d.correct_answers,
+      successfulTraps: d.successful_traps,
+      timesTrapped: d.times_trapped,
       isHost: false,
       isReady: false,
       isOnline: true,
-      score: d.score,
       abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
       consecutiveCorrect: 0,
       shieldsAvailable: 0,
@@ -530,14 +771,128 @@ export class SupabaseGameService implements GameService {
   }
 
   async getProfile(playerId: string): Promise<Player | null> {
-    if (this.cachedPlayer?.id === playerId) return this.cachedPlayer;
-    return null;
+    const profile = await this.loadProfile(playerId);
+    if (profile?.id === this.cachedPlayer?.id) this.cachedPlayer = profile;
+    return profile;
   }
 
-  private setupRealtimeSubscription(code: string) {
+  async getRelationshipStatus(playerId: string): Promise<RelationshipStatus> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('get_friendship_status_secure', {
+      p_other_id: playerId,
+    });
+    if (error) throw new ServiceError('RELATIONSHIP_LOAD_FAILED', error.message);
+    const allowed: RelationshipStatus[] = [
+      'none',
+      'outgoing_pending',
+      'incoming_pending',
+      'friends',
+      'blocked',
+    ];
+    if (typeof data !== 'string' || !allowed.includes(data as RelationshipStatus)) {
+      throw new ServiceError('RELATIONSHIP_INVALID', 'İlişki durumu tanınmıyor.');
+    }
+    return data as RelationshipStatus;
+  }
+
+  async sendFriendRequest(playerId: string): Promise<RelationshipStatus> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('send_friend_request_secure', {
+      p_recipient_id: playerId,
+    });
+    if (error) throw new ServiceError('FRIEND_REQUEST_FAILED', error.message);
+    return this.parseRelationshipStatus(data);
+  }
+
+  async respondFriendRequest(requestId: string, accept: boolean): Promise<RelationshipStatus> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('respond_friend_request_secure', {
+      p_request_id: requestId,
+      p_accept: accept,
+    });
+    if (error) throw new ServiceError('FRIEND_REQUEST_RESPONSE_FAILED', error.message);
+    return this.parseRelationshipStatus(data);
+  }
+
+  async cancelFriendRequest(requestId: string): Promise<void> {
+    const sb = ensureSupabase();
+    const { error } = await sb.rpc('cancel_friend_request_secure', {
+      p_request_id: requestId,
+    });
+    if (error) throw new ServiceError('FRIEND_REQUEST_CANCEL_FAILED', error.message);
+  }
+
+  async removeFriend(playerId: string): Promise<void> {
+    const sb = ensureSupabase();
+    const { error } = await sb.rpc('remove_friend_secure', { p_other_id: playerId });
+    if (error) throw new ServiceError('FRIEND_REMOVE_FAILED', error.message);
+  }
+
+  async blockUser(playerId: string): Promise<void> {
+    const sb = ensureSupabase();
+    const { error } = await sb.rpc('block_user_secure', { p_other_id: playerId });
+    if (error) throw new ServiceError('USER_BLOCK_FAILED', error.message);
+  }
+
+  async unblockUser(playerId: string): Promise<void> {
+    const sb = ensureSupabase();
+    const { error } = await sb.rpc('unblock_user_secure', { p_other_id: playerId });
+    if (error) throw new ServiceError('USER_UNBLOCK_FAILED', error.message);
+  }
+
+  async listFriends(): Promise<SocialPlayer[]> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('list_friends_secure');
+    if (error) throw new ServiceError('FRIENDS_LOAD_FAILED', error.message);
+    return (data ?? [])
+      .filter((row: SocialPlayerRow) => row.relationship_status === 'friends')
+      .map((row: SocialPlayerRow) => ({
+        id: row.user_id,
+        name: row.display_name,
+        avatarKey: row.avatar_key,
+        avatarUrl: row.avatar_url,
+        relationshipStatus: 'friends',
+      }));
+  }
+
+  async listFriendRequests(): Promise<FriendRequest[]> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('get_pending_friend_requests_secure');
+    if (error) throw new ServiceError('FRIEND_REQUESTS_LOAD_FAILED', error.message);
+    return (data ?? []).map((row: FriendRequestRow) => ({
+      requestId: row.request_id,
+      id: row.user_id,
+      name: row.display_name,
+      avatarKey: row.avatar_key,
+      relationshipStatus: 'incoming_pending',
+      createdAt: new Date(row.created_at).getTime(),
+    }));
+  }
+
+  private parseRelationshipStatus(value: unknown): RelationshipStatus {
+    const allowed: RelationshipStatus[] = [
+      'none',
+      'outgoing_pending',
+      'incoming_pending',
+      'friends',
+      'blocked',
+    ];
+    if (typeof value !== 'string' || !allowed.includes(value as RelationshipStatus)) {
+      throw new ServiceError('RELATIONSHIP_INVALID', 'İşlem sonucu tanınmayan ilişki durumu döndürdü.');
+    }
+    return value as RelationshipStatus;
+  }
+
+  private async setupRealtimeSubscription(code: string): Promise<void> {
     if (this.currentRoomCode === code && this.currentChannel) return;
 
     const sb = ensureSupabase();
+    const { data: room, error } = await sb
+      .from('rooms')
+      .select('id')
+      .eq('code', code)
+      .single();
+    if (error) throw new ServiceError('ROOM_SUBSCRIPTION_FAILED', error.message);
     if (this.currentChannel) {
       sb.removeChannel(this.currentChannel);
     }
@@ -550,7 +905,7 @@ export class SupabaseGameService implements GameService {
     channel
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'rooms' },
+        { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` },
         async () => {
           const state = await this.getRoomState(code);
           if (state) {
@@ -561,7 +916,7 @@ export class SupabaseGameService implements GameService {
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'room_players' },
+        { event: '*', schema: 'public', table: 'room_players', filter: `room_id=eq.${room.id}` },
         async () => {
           const state = await this.getRoomState(code);
           if (state) this.emit({ type: 'state', payload: state });
@@ -569,7 +924,7 @@ export class SupabaseGameService implements GameService {
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'round_results' },
+        { event: 'INSERT', schema: 'public', table: 'round_results', filter: `room_id=eq.${room.id}` },
         async () => {
           const state = await this.getRoomState(code);
           if (state) {
@@ -580,9 +935,15 @@ export class SupabaseGameService implements GameService {
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'nudges' },
+        { event: 'INSERT', schema: 'public', table: 'nudges', filter: `room_id=eq.${room.id}` },
         (payload) => {
-          const n = payload.new as { from_id: string; to_id: string; created_at: string };
+          const n = payload.new as {
+            from_id: string;
+            to_id: string;
+            created_at: string;
+            round_number: number;
+            phase: GameState['phase'];
+          };
           this.emit({
             type: 'nudge',
             payload: {
@@ -591,6 +952,8 @@ export class SupabaseGameService implements GameService {
                 fromId: n.from_id,
                 toId: n.to_id,
                 at: new Date(n.created_at).getTime(),
+                roundNumber: n.round_number,
+                phase: n.phase,
               },
             },
           });

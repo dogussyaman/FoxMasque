@@ -26,8 +26,8 @@ export function Screen({
       {/* Full-bleed edge-to-edge background */}
       {gradient ? (
         <LinearGradient
-          colors={[colors.zartoNight, '#1E1236', colors.zartoSurface, colors.zartoNight]}
-          locations={[0, 0.35, 0.75, 1]}
+          colors={[colors.bgDarkest, colors.bgDark, colors.bgDarkest]}
+          locations={[0, 0.55, 1]}
           style={StyleSheet.absoluteFill}
         />
       ) : (
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     right: -60,
     width: 260,
     height: 180,
-    backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    backgroundColor: 'rgba(161, 107, 255, 0.08)',
     borderRadius: radii['2xl'],
     transform: [{ rotate: '-18deg' }, { skewX: '-10deg' }],
   },
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     left: -80,
     width: 240,
     height: 160,
-    backgroundColor: 'rgba(255, 113, 59, 0.08)',
+    backgroundColor: 'rgba(255, 113, 61, 0.06)',
     borderRadius: radii['2xl'],
     transform: [{ rotate: '15deg' }],
   },

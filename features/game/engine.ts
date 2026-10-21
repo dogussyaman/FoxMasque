@@ -24,6 +24,10 @@ export interface ZartoRoundResolution {
   updatedPlayers: Record<PlayerId, Player>;
 }
 
+export function normalizeChoiceText(text: string): string {
+  return text.trim().normalize('NFKC').toLocaleLowerCase('tr-TR');
+}
+
 /**
  * Blend the true answer and player fake answers into a single shuffled choice list.
  */
@@ -41,7 +45,8 @@ export function blendChoices(
   const rawList: RawChoice[] = [];
 
   // 1. True answer
-  const trueAnswer = question.correctAnswer || question.options?.[question.correctIndex] || '';
+  const trueAnswer = question.correctAnswer?.trim();
+  if (!trueAnswer) throw new Error('Soru için doğrulanmış doğru cevap bulunamadı.');
   rawList.push({
     text: trueAnswer,
     authorId: null,
@@ -49,33 +54,19 @@ export function blendChoices(
   });
 
   // 2. Player fake answers
-  const seenTexts = new Set<string>([trueAnswer.toLowerCase().trim()]);
+  const seenTexts = new Set<string>([normalizeChoiceText(trueAnswer)]);
   for (const [playerId, fakeText] of Object.entries(fakeAnswers)) {
     const clean = fakeText.trim();
     if (!clean) continue;
     // Don't add if identical to true answer
-    if (seenTexts.has(clean.toLowerCase())) continue;
-    seenTexts.add(clean.toLowerCase());
+    const normalized = normalizeChoiceText(clean);
+    if (seenTexts.has(normalized)) continue;
+    seenTexts.add(normalized);
     rawList.push({
       text: clean,
       authorId: playerId,
       isCorrect: false,
     });
-  }
-
-  // 3. Fallback decoys if fewer than 4 choices
-  const decoys = question.defaultDecoys || question.options || [];
-  for (const decoy of decoys) {
-    if (rawList.length >= 4) break;
-    const clean = decoy.trim();
-    if (!seenTexts.has(clean.toLowerCase())) {
-      seenTexts.add(clean.toLowerCase());
-      rawList.push({
-        text: clean,
-        authorId: null,
-        isCorrect: false,
-      });
-    }
   }
 
   // Deterministic Fisher-Yates shuffle
@@ -111,18 +102,28 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
   // 1. Process defensive abilities (Shields, Counters)
   const shieldedPlayers = new Set<PlayerId>();
   const counters = new Set<PlayerId>();
-  const blocksByTarget = new Map<PlayerId, PlayerId>(); // defenderId -> attackerId
-  const penaltiesByTarget = new Map<PlayerId, PlayerId>(); // targetId -> attackerId
+  const blocksByTarget = new Map<PlayerId, PlayerId[]>();
+  const penaltiesByTarget = new Map<PlayerId, PlayerId[]>();
+  const abilityUsesByPlayer = new Map<PlayerId, Record<string, number>>();
 
   for (const action of abilityActions) {
+    const player = players.find((candidate) => candidate.id === action.playerId);
+    if (!player || player.isBlockedCurrentRound) continue;
+    const uses = abilityUsesByPlayer.get(action.playerId) ?? {};
+    uses[action.abilityId] = (uses[action.abilityId] ?? 0) + 1;
+    abilityUsesByPlayer.set(action.playerId, uses);
     if (action.abilityId === 'shield') {
       shieldedPlayers.add(action.playerId);
     } else if (action.abilityId === 'counter') {
       counters.add(action.playerId);
     } else if (action.abilityId === 'block' && action.targetId) {
-      blocksByTarget.set(action.targetId, action.playerId);
+      const attackers = blocksByTarget.get(action.targetId) ?? [];
+      attackers.push(action.playerId);
+      blocksByTarget.set(action.targetId, attackers);
     } else if (action.abilityId === 'penalty' && action.targetId) {
-      penaltiesByTarget.set(action.targetId, action.playerId);
+      const attackers = penaltiesByTarget.get(action.targetId) ?? [];
+      attackers.push(action.playerId);
+      penaltiesByTarget.set(action.targetId, attackers);
     }
   }
 
@@ -144,6 +145,8 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
   const rows: Record<PlayerId, RoundResultRow> = {};
   const rowsList: RoundResultRow[] = [];
   const updatedPlayers: Record<PlayerId, Player> = {};
+  const reflectedPenalties = new Map<PlayerId, number>();
+  const penaltiesByPlayer = new Map<PlayerId, number>();
 
   for (const p of players) {
     const isBlocked = !!p.isBlockedCurrentRound;
@@ -192,18 +195,24 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     let pointsDelta = outcome.pointsEarned;
 
     // Apply Penalty ability if targeted
-    if (penaltiesByTarget.has(p.id)) {
-      const attackerId = penaltiesByTarget.get(p.id)!;
+    const penaltyAttackers = penaltiesByTarget.get(p.id) ?? [];
+    if (penaltyAttackers.length > 0) {
       if (shieldedPlayers.has(p.id)) {
         // Shield absorbs penalty
       } else if (counters.has(p.id)) {
-        // Counter reflects penalty back to attacker!
-        if (rows[attackerId]) rows[attackerId].pointsDelta -= 30;
+        for (const attackerId of penaltyAttackers) {
+          reflectedPenalties.set(attackerId, (reflectedPenalties.get(attackerId) ?? 0) - 30);
+        }
       } else if (!answeredCorrectly) {
-        pointsDelta -= 30;
+        const penaltyDelta = -30 * penaltyAttackers.length;
+        pointsDelta += penaltyDelta;
+        penaltiesByPlayer.set(p.id, penaltyDelta);
       }
     }
 
+    const incomingPenalty = reflectedPenalties.get(p.id) ?? 0;
+    pointsDelta += incomingPenalty;
+    const penaltyDelta = (penaltiesByPlayer.get(p.id) ?? 0) + incomingPenalty;
     const row: RoundResultRow = {
       playerId: p.id,
       outcome,
@@ -214,6 +223,7 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
       pickedText: chosen?.text,
       ownFakeText: fakeAnswers[p.id],
       isBlocked: false,
+      penaltyDelta,
     };
 
     rows[p.id] = row;
@@ -236,13 +246,18 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     }
 
     // Consume shield if player used it this round
-    if (shieldedPlayers.has(p.id)) {
-      shieldsAvailable = Math.max(0, shieldsAvailable - 1);
+    const usedShield = abilityUsesByPlayer.get(p.id)?.shield ?? 0;
+    if (usedShield > 0) {
+      shieldsAvailable = Math.max(0, shieldsAvailable - usedShield);
     }
+    blocksAvailable = Math.max(
+      0,
+      blocksAvailable - (abilityUsesByPlayer.get(p.id)?.block ?? 0)
+    );
 
     // Next round block state
     let isBlockedNextRound = p.isBlockedNextRound;
-    if (blocksByTarget.has(p.id)) {
+    if ((blocksByTarget.get(p.id)?.length ?? 0) > 0) {
       if (shieldedPlayers.has(p.id)) {
         // Shield saved defender from block!
       } else {
@@ -250,16 +265,42 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
       }
     }
 
+    const abilityUsedCounts = { ...p.abilityUsedCounts };
+    for (const [abilityId, usedCount] of Object.entries(abilityUsesByPlayer.get(p.id) ?? {})) {
+      abilityUsedCounts[abilityId as keyof typeof abilityUsedCounts] += usedCount;
+    }
+
     updatedPlayers[p.id] = {
       ...p,
       score: Math.max(0, p.score + pointsDelta),
+      abilityUsedCounts,
       consecutiveCorrect,
       shieldsAvailable,
       blocksAvailable,
       isBlockedCurrentRound: false,
       isBlockedNextRound,
-      lastBlockedPlayerId: blocksByTarget.has(p.id) ? blocksByTarget.get(p.id) : p.lastBlockedPlayerId,
+      lastBlockedPlayerId: p.lastBlockedPlayerId,
     };
+  }
+
+  for (const [playerId, pointsDelta] of reflectedPenalties) {
+    const row = rows[playerId];
+    const player = players.find((candidate) => candidate.id === playerId);
+    if (!row || !player) continue;
+    row.pointsDelta += pointsDelta;
+    row.penaltyDelta = (row.penaltyDelta ?? 0) + pointsDelta;
+    updatedPlayers[playerId] = {
+      ...updatedPlayers[playerId],
+      score: Math.max(0, player.score + row.pointsDelta),
+    };
+  }
+
+  for (const [targetId, attackerIds] of blocksByTarget) {
+    for (const attackerId of attackerIds) {
+      if (updatedPlayers[attackerId]) {
+        updatedPlayers[attackerId].lastBlockedPlayerId = targetId;
+      }
+    }
   }
 
   return { rows, rowsList, updatedPlayers };

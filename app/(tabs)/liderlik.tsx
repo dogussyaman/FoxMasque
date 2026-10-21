@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
-import { Trophy, Crown, Medal, Flame } from 'lucide-react-native';
+import { useFocusEffect } from 'expo-router';
+import { Trophy, Crown, Medal, Flame, RefreshCw } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Badge, Avatar } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -15,22 +16,28 @@ export default function LiderlikScreen() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    service.getLeaderboard().then((lb) => {
-      if (mounted) {
-        setPlayers(lb);
-        setLoading(false);
-      }
-    });
-    return () => {
-      mounted = false;
-    };
+  const loadLeaderboard = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      setPlayers(await service.getLeaderboard());
+    } catch (error) {
+      setLoadError((error as Error).message || 'Liderlik tablosu yüklenemedi.');
+    } finally {
+      setLoading(false);
+    }
   }, [service]);
 
+  useFocusEffect(useCallback(() => {
+    void loadLeaderboard();
+  }, [loadLeaderboard]));
+
   const topThree = players.slice(0, 3);
-  const rest = players.slice(3);
+  const podiumVisible = topThree.length >= 3;
+  const listOffset = podiumVisible ? 3 : 0;
+  const rest = players.slice(listOffset);
 
   const onTabSelect = (tab: FilterType) => {
     trigger('light');
@@ -80,11 +87,11 @@ export default function LiderlikScreen() {
         </View>
 
         {/* Top 3 Podium */}
-        {topThree.length >= 3 && (
+        {podiumVisible && (
           <View style={styles.podiumContainer}>
             {/* 2nd place */}
             <View style={[styles.podiumCol, styles.secondPlace]}>
-              <Avatar avatarKey={topThree[1].avatarKey} size={50} />
+              <Avatar avatarKey={topThree[1].avatarUrl ?? topThree[1].avatarKey} size={50} />
               <View style={styles.silverBadge}>
                 <Text style={styles.rankNum}>2</Text>
               </View>
@@ -102,7 +109,7 @@ export default function LiderlikScreen() {
               <View style={styles.crownWrap}>
                 <Crown color={colors.yellow} size={24} fill={colors.yellow} />
               </View>
-              <Avatar avatarKey={topThree[0].avatarKey} size={62} ring />
+              <Avatar avatarKey={topThree[0].avatarUrl ?? topThree[0].avatarKey} size={62} ring />
               <View style={styles.goldBadge}>
                 <Text style={styles.rankNum}>1</Text>
               </View>
@@ -119,7 +126,7 @@ export default function LiderlikScreen() {
 
             {/* 3rd place */}
             <View style={[styles.podiumCol, styles.thirdPlace]}>
-              <Avatar avatarKey={topThree[2].avatarKey} size={46} />
+              <Avatar avatarKey={topThree[2].avatarUrl ?? topThree[2].avatarKey} size={46} />
               <View style={styles.bronzeBadge}>
                 <Text style={styles.rankNum}>3</Text>
               </View>
@@ -137,29 +144,56 @@ export default function LiderlikScreen() {
         {/* Remainder list */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>TÜM YARIŞMACILAR</Text>
-          <View style={styles.rankedListWrap}>
-            {rest.map((p, index) => {
-              const rank = index + 4;
-              const isMe = currentPlayer?.id === p.id;
-              return (
-                <Card
-                  key={p.id}
-                  variant={isMe ? 'accent' : 'surface'}
-                  style={[styles.playerRow, isMe && styles.meRow]}
-                >
-                  <Text style={styles.rankText}>#{rank}</Text>
-                  <Avatar avatarKey={p.avatarKey} size={40} ring={isMe} />
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={[styles.name, isMe && { color: colors.orange }]}>
-                      {p.name} {isMe ? '(Sen)' : ''}
-                    </Text>
-                    <Text style={styles.subtext}>Seviye {Math.floor(p.score / 150) + 1}</Text>
+          {loading ? (
+            <Card variant="surface" style={styles.emptyCard}>
+              <Text style={styles.emptyText}>Liderlik tablosu yükleniyor...</Text>
+            </Card>
+          ) : loadError ? (
+            <Card variant="surface" style={styles.emptyCard}>
+              <Text style={styles.errorText}>{loadError}</Text>
+              <Pressable onPress={() => void loadLeaderboard()} style={styles.retryButton}>
+                <RefreshCw color={colors.orange} size={16} />
+                <Text style={styles.retryText}>Yeniden dene</Text>
+              </Pressable>
+            </Card>
+          ) : players.length === 0 ? (
+            <Card variant="surface" style={styles.emptyCard}>
+              <Trophy color={colors.yellow} size={24} />
+              <Text style={styles.emptyTitle}>Henüz sıralama oluşmadı</Text>
+              <Text style={styles.emptyText}>
+                İlk maç tamamlandığında oyuncular ve puanları burada görünecek.
+              </Text>
+            </Card>
+          ) : rest.length > 0 ? (
+            <Card variant="surface" style={styles.rankedListCard}>
+              {rest.map((p, index) => {
+                const rank = index + listOffset + 1;
+                const isMe = currentPlayer?.id === p.id;
+                return (
+                  <View
+                    key={p.id}
+                    style={[
+                      styles.playerRow,
+                      index !== rest.length - 1 && styles.playerRowBorder,
+                    ]}
+                  >
+                    <Text style={styles.rankText}>#{rank}</Text>
+                    <Avatar avatarKey={p.avatarUrl ?? p.avatarKey} size={40} ring={isMe} />
+                    <View style={styles.playerDetails}>
+                      <Text
+                        style={[styles.name, isMe && { color: colors.orange }]}
+                        numberOfLines={1}
+                      >
+                        {p.name} {isMe ? '(Sen)' : ''}
+                      </Text>
+                      <Text style={styles.subtext}>Seviye {Math.floor(p.score / 150) + 1}</Text>
+                    </View>
+                    <Badge tone={isMe ? 'orange' : 'neutral'}>{p.score} P</Badge>
                   </View>
-                  <Badge tone={isMe ? 'orange' : 'neutral'} sticker>{p.score} P</Badge>
-                </Card>
-              );
-            })}
-          </View>
+                );
+              })}
+            </Card>
+          ) : null}
         </View>
       </ScrollView>
     </Screen>
@@ -214,6 +248,8 @@ const styles = StyleSheet.create({
     ...typography.small,
     color: colors.textSecondary,
     fontFamily: 'Poppins-Medium',
+    fontSize: 11,
+    textAlign: 'center',
   },
   filterTextActive: {
     color: '#FFF',
@@ -348,23 +384,67 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: spacing.xs,
   },
-  rankedListWrap: {
-    gap: 8,
+  rankedListCard: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyCard: {
+    minHeight: 112,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    padding: spacing.lg,
+  },
+  emptyTitle: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-SemiBold',
+    textAlign: 'center',
+  },
+  emptyText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.dangerSoft,
+    textAlign: 'center',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+  },
+  retryText: {
+    ...typography.caption,
+    color: colors.orange,
+    fontFamily: 'Poppins-SemiBold',
   },
   playerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.md,
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
   },
-  meRow: {
-    borderColor: colors.orange,
-    borderWidth: 1.5,
+  playerRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   rankText: {
     fontFamily: 'Poppins-Bold',
     fontSize: 13,
     color: colors.textMuted,
-    width: 30,
+    width: 32,
+    flexShrink: 0,
+  },
+  playerDetails: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 2,
   },
   name: {
     fontFamily: 'Poppins-Bold',

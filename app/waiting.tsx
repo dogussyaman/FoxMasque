@@ -21,11 +21,12 @@ import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
 import type { Player } from '@/types/game';
 
 export default function WaitingScreen() {
-  const { roomState, currentPlayer, roomCode, isLive } = useGameStore();
+  const { roomState, currentPlayer, roomCode, isLive, service } = useGameStore();
   const prototype = usePrototype();
   const { trigger } = useHaptics();
   const [testMode, setTestMode] = useState(!isLive);
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
+  const [nudgeError, setNudgeError] = useState<string | null>(null);
   const completedStageRef = useRef<string | null>(null);
 
   const playersList = roomState ? Object.values(roomState.players) : [];
@@ -36,7 +37,6 @@ export default function WaitingScreen() {
     ?? `${roomCode ?? 'demo'}:${roomState?.currentRound ?? 1}:${phase}`;
 
   useEffect(() => {
-    if (prototype.waitingStage) return;
     if (roomState?.phase === 'reveal') {
       trigger('success');
       router.replace('/result');
@@ -45,28 +45,63 @@ export default function WaitingScreen() {
     }
   }, [roomState?.phase, trigger, prototype.waitingStage]);
 
+  useEffect(() => {
+    const waitingPhase = prototype.waitingStage?.phase;
+    if (!waitingPhase || !roomState || roomState.phase === waitingPhase) return;
+    prototype.finishWaiting(prototype.waitingStage!.id);
+    if (roomState.phase === 'reveal') {
+      router.replace('/result');
+    } else if (roomState.phase === 'game_over' || roomState.phase === 'scoreboard') {
+      router.replace('/scoreboard');
+    } else if (roomState.phase === 'guess' || roomState.phase === 'fake_answer') {
+      router.replace('/question');
+    }
+  }, [roomState?.phase, prototype.waitingStage, prototype.finishWaiting]);
+
   const picks = roomState?.picks ?? {};
   const fakeAnswers = roomState?.fakeAnswers ?? {};
   const hasAnswered = (player: Player) => prototype.isAnswered(
     stageId,
     player.id,
-    testMode
+    isLive
+      ? roomState?.progress?.submissionStatus[player.id] ?? false
+      : testMode
       ? player.id === me?.id
       : isGuessPhase ? picks[player.id] !== undefined : !!fakeAnswers[player.id],
   );
-  const submittedCount = playersList.filter(hasAnswered).length;
-  const totalCount = playersList.length;
-  const allSubmitted = totalCount > 0 && submittedCount === totalCount;
+  const submittedCount = isLive
+    ? roomState?.progress?.submittedCount ?? 0
+    : playersList.filter(hasAnswered).length;
+  const totalCount = isLive
+    ? roomState?.progress?.totalCount ?? playersList.length
+    : playersList.length;
+  const allSubmitted = isLive
+    ? roomState?.progress?.completed ?? false
+    : totalCount > 0 && submittedCount === totalCount;
 
   useEffect(() => {
-    if (!allSubmitted || completedStageRef.current === stageId) return;
+    if (isLive || !allSubmitted || completedStageRef.current === stageId) return;
     completedStageRef.current = stageId;
     const timer = setTimeout(() => {
       prototype.finishWaiting(stageId);
       router.replace(isGuessPhase ? '/result' : '/question');
     }, 800);
     return () => clearTimeout(timer);
-  }, [allSubmitted, stageId, isGuessPhase, prototype.finishWaiting]);
+  }, [allSubmitted, stageId, isGuessPhase, prototype.finishWaiting, isLive]);
+
+  const nudgePlayer = async (player: Player) => {
+    if (!roomCode) return;
+    trigger('light');
+    setNudgeError(null);
+    try {
+      await service.nudgePlayer(roomCode, player.id);
+      if (!isLive) {
+        prototype.nudge(stageId, player.id, me?.name ?? 'Sen', player.name);
+      }
+    } catch (error) {
+      setNudgeError((error as Error).message);
+    }
+  };
 
   return (
     <Screen gradient diagonalSlice>
@@ -124,7 +159,7 @@ export default function WaitingScreen() {
                   ]}
                 >
                   <Pressable onPress={() => setProfilePlayer(player)} style={styles.playerIdentity}>
-                    <Avatar avatarKey={player.avatarKey} size={42} ring={isSelf} />
+                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} size={42} ring={isSelf} />
                     <View style={styles.playerIdentityText}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
@@ -152,10 +187,7 @@ export default function WaitingScreen() {
                       {!isSelf ? (
                         <Pressable
                           disabled={!prototype.canNudge(stageId, player.id)}
-                          onPress={() => {
-                            trigger('light');
-                            prototype.nudge(stageId, player.id, me?.name ?? 'Sen', player.name);
-                          }}
+                          onPress={() => void nudgePlayer(player)}
                           style={[
                             styles.nudgeBtn,
                             !prototype.canNudge(stageId, player.id) && styles.nudgeBtnUsed,
@@ -229,7 +261,7 @@ export default function WaitingScreen() {
       <StickyActionBar>
         <View style={styles.waitingNotice}>
           <Text style={styles.waitingNoticeText}>
-            {allSubmitted ? 'Herkes tamamladı! Sonraki aşama açılıyor…' : 'Cevaplar geldikçe otomatik devam edeceğiz.'}
+            {nudgeError ?? (allSubmitted ? 'Herkes tamamladı! Sonraki aşama açılıyor…' : 'Cevaplar geldikçe otomatik devam edeceğiz.')}
           </Text>
         </View>
       </StickyActionBar>

@@ -12,6 +12,12 @@ export interface Player {
   isReady: boolean;
   isOnline: boolean;
   score: number;
+  avatarUrl?: string | null;
+  gamesPlayed?: number;
+  gamesWon?: number;
+  correctAnswers?: number;
+  successfulTraps?: number;
+  timesTrapped?: number;
   abilityUsedCounts: Record<AbilityId, number>;
   consecutiveCorrect: number;
   shieldsAvailable: number;
@@ -88,6 +94,7 @@ export interface RoundResultRow {
   pickedText?: string;
   ownFakeText?: string;
   isBlocked?: boolean;
+  penaltyDelta?: number;
 }
 
 export interface GameState {
@@ -103,10 +110,23 @@ export interface GameState {
   abilityActions: AbilityAction[];
   roundResults: Record<PlayerId, RoundResultRow>;
   history: RoundResultRow[][];
+  phaseStartedAt?: number;
+  phaseDeadlineAt?: number | null;
+  stateVersion?: number;
+  progress?: RoundProgress;
+}
+
+export interface RoundProgress {
+  submittedCount: number;
+  totalCount: number;
+  completed: boolean;
+  submissionStatus: Record<PlayerId, boolean>;
 }
 
 export interface Nudge {
   fromId: PlayerId;
   toId: PlayerId;
   at: number;
+  roundNumber?: number;
+  phase?: RoomPhase;
 }

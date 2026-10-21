@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import type { ReactNode } from 'react';
 
 type WaitingPhase = 'fake_answer' | 'guess';
-type Relationship = 'none' | 'requested' | 'friend' | 'blocked';
 
 interface PrototypeToast {
   message: string;
@@ -25,10 +24,6 @@ interface PrototypeValue {
   finishWaiting: (stageId: string) => void;
   canNudge: (stageId: string, playerId: string) => boolean;
   nudge: (stageId: string, playerId: string, senderName: string, targetName: string) => void;
-  relationship: (playerId: string) => Relationship;
-  sendFriendRequest: (playerId: string) => void;
-  acceptFriendRequest: (playerId: string) => void;
-  toggleBlocked: (playerId: string) => void;
 }
 
 const PrototypeContext = createContext<PrototypeValue | null>(null);
@@ -39,7 +34,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
   const [waitingStage, setWaitingStage] = useState<PrototypeValue['waitingStage']>(null);
   const [usedNudges, setUsedNudges] = useState<Record<string, true>>({});
   const usedNudgesRef = useRef<Record<string, true>>({});
-  const [relationships, setRelationships] = useState<Record<string, Relationship>>({});
   const [toast, setToast] = useState<PrototypeToast | null>(null);
 
   const getReady = useCallback(
@@ -98,31 +92,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
       setToast((current) => current?.timestamp === timestamp ? null : current);
     }, 3200);
   }, [usedNudges]);
-  const relationship = useCallback(
-    (playerId: string) => relationships[playerId] ?? 'none',
-    [relationships],
-  );
-  const sendFriendRequest = useCallback((playerId: string) => {
-    setRelationships((current) =>
-      current[playerId] === 'none' || current[playerId] === undefined
-        ? { ...current, [playerId]: 'requested' }
-        : current,
-    );
-  }, []);
-  const acceptFriendRequest = useCallback((playerId: string) => {
-    setRelationships((current) =>
-      current[playerId] === 'requested'
-        ? { ...current, [playerId]: 'friend' }
-        : current,
-    );
-  }, []);
-  const toggleBlocked = useCallback((playerId: string) => {
-    setRelationships((current) => ({
-      ...current,
-      [playerId]: current[playerId] === 'blocked' ? 'none' : 'blocked',
-    }));
-  }, []);
-
   const value = useMemo<PrototypeValue>(() => ({
     readyOverrides,
     answerOverrides,
@@ -138,10 +107,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
     finishWaiting,
     canNudge,
     nudge,
-    relationship,
-    sendFriendRequest,
-    acceptFriendRequest,
-    toggleBlocked,
   }), [
     readyOverrides,
     answerOverrides,
@@ -157,10 +122,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
     finishWaiting,
     canNudge,
     nudge,
-    relationship,
-    sendFriendRequest,
-    acceptFriendRequest,
-    toggleBlocked,
   ]);
 
   return <PrototypeContext.Provider value={value}>{children}</PrototypeContext.Provider>;

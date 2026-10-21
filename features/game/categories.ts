@@ -39,14 +39,7 @@ export const CATEGORY_GROUPS = [
     categories: [
       { id: 'genel-kultur', name: 'Genel Kültür', emoji: '🧠', questionCategoryId: 'genel-kultur' },
       { id: 'cografya', name: 'Coğrafya', emoji: '🌍', questionCategoryId: 'cografya' },
-      { id: 'disney', name: 'Disney', emoji: '🏰', questionCategoryId: 'film-ve-dizi' },
-      { id: 'bulmaca', name: 'Bulmaca', emoji: '🧩', questionCategoryId: 'genel-kultur' },
-      { id: 'atasozleri-deyimler', name: 'Atasözleri ve Deyimler', emoji: '💬', questionCategoryId: 'genel-kultur' },
-      { id: 'hukuk', name: 'Hukuk', emoji: '⚖️', questionCategoryId: 'genel-kultur' },
       { id: 'hayvanlar-alemi', name: 'Hayvanlar Alemi', emoji: '🦁', questionCategoryId: 'hayvanlar-alem' },
-      { id: 'ilkler', name: 'İlkler', emoji: '🥇', questionCategoryId: 'genel-kultur' },
-      { id: 'edebiyat', name: 'Edebiyat', emoji: '📚', questionCategoryId: 'genel-kultur' },
-      { id: 'sosyal-medya-2026', name: 'Sosyal Medya 2026', emoji: '📱', questionCategoryId: 'genel-kultur' },
     ],
   },
   {
@@ -55,22 +48,7 @@ export const CATEGORY_GROUPS = [
     emoji: '🎬',
     gradient: ['#B45309', '#F59E0B'],
     categories: [
-      { id: 'film-ve-diziler', name: 'Film ve Diziler', emoji: '🍿', questionCategoryId: 'film-ve-dizi' },
-      { id: 'yuzuklerin-efendisi', name: 'Yüzüklerin Efendisi', emoji: '💍', questionCategoryId: 'film-ve-dizi' },
-      { id: 'game-of-thrones', name: 'Game of Thrones', emoji: '🐉', questionCategoryId: 'film-ve-dizi' },
-      { id: 'how-i-met-your-mother', name: 'How I Met Your Mother?', emoji: '☂️', questionCategoryId: 'film-ve-dizi' },
-    ],
-  },
-  {
-    id: 'muzik',
-    name: 'Müzik',
-    emoji: '🎵',
-    gradient: ['#BE185D', '#EC4899'],
-    categories: [
-      { id: 'muzik', name: 'Müzik', emoji: '🎵', questionCategoryId: 'genel-kultur' },
-      { id: 'karaoke', name: 'Karaoke', emoji: '🎤', questionCategoryId: 'genel-kultur' },
-      { id: '70ler-muzik', name: "70'ler Müzik", emoji: '🪩', questionCategoryId: 'genel-kultur' },
-      { id: '90lar-turkce-pop', name: "90'lar Türkçe Pop", emoji: '📼', questionCategoryId: 'genel-kultur' },
+      { id: 'film-ve-dizi', name: 'Film ve Diziler', emoji: '🍿', questionCategoryId: 'film-ve-dizi' },
     ],
   },
   {
@@ -79,34 +57,8 @@ export const CATEGORY_GROUPS = [
     emoji: '🏛️',
     gradient: ['#9A3412', '#EA580C'],
     categories: [
-      { id: 'cumhuriyet-tarihi', name: 'Cumhuriyet Tarihi', emoji: '🇹🇷', questionCategoryId: 'genel-kultur' },
-      { id: 'tarih', name: 'Tarih', emoji: '🏛️', questionCategoryId: 'dunya-tarihi' },
-      { id: 'kesifler-tarihi', name: 'Keşifler Tarihi', emoji: '🧭', questionCategoryId: 'dunya-tarihi' },
-      { id: 'tarihi-sahsiyetler', name: 'Tarihi Şahsiyetler', emoji: '👑', questionCategoryId: 'osmanli-donemi' },
-    ],
-  },
-  {
-    id: 'kultur-sanat',
-    name: 'Kültür & Sanat',
-    emoji: '🎨',
-    gradient: ['#047857', '#10B981'],
-    categories: [
-      { id: 'kultur-sanat', name: 'Kültür Sanat', emoji: '🎨', questionCategoryId: 'genel-kultur' },
-      { id: 'tiyatro', name: 'Tiyatro', emoji: '🎭', questionCategoryId: 'genel-kultur' },
-      { id: 'muzeler-seckisi', name: 'Müzeler Seçkisi', emoji: '🖼️', questionCategoryId: 'osmanli-donemi' },
-      { id: 'dans', name: 'Dans', emoji: '💃', questionCategoryId: 'genel-kultur' },
-    ],
-  },
-  {
-    id: 'oyun',
-    name: 'Oyun',
-    emoji: '🎮',
-    gradient: ['#1D4ED8', '#3B82F6'],
-    categories: [
-      { id: 'oyun', name: 'Oyun', emoji: '🎮', questionCategoryId: 'genel-kultur' },
-      { id: 'valorant', name: 'Valorant', emoji: '🎯', questionCategoryId: 'genel-kultur' },
-      { id: 'league-of-legends', name: 'League of Legends', emoji: '🛡️', questionCategoryId: 'genel-kultur' },
-      { id: 'tahta-oyunlari', name: 'Tahta Oyunları', emoji: '♟️', questionCategoryId: 'genel-kultur' },
+      { id: 'dunya-tarihi', name: 'Tarih', emoji: '🏛️', questionCategoryId: 'dunya-tarihi' },
+      { id: 'osmanli-donemi', name: 'Osmanlı Dönemi', emoji: '⚔️', questionCategoryId: 'osmanli-donemi' },
     ],
   },
 ] as const satisfies readonly CategoryGroup[];
@@ -176,4 +128,8 @@ export const CATEGORIES: readonly Category[] = [
 
 export function getCategory(id: CategoryId): Category {
   return CATEGORIES.find((c) => c.id === id) ?? CATEGORIES[0];
+}
+
+export function isCategoryId(id: string): id is CategoryId {
+  return CATEGORIES.some((category) => category.id === id);
 }

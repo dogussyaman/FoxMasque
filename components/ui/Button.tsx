@@ -38,11 +38,10 @@ const VARIANTS: Record<
     shadow: shadows.glowOrange,
   },
   secondary: {
-    bg: colors.bgSurface,
+    bg: colors.bgSurfaceAlt,
     fg: colors.textPrimary,
-    border: 'rgba(255, 247, 240, 0.22)',
-    bottomBorder: 'rgba(255, 247, 240, 0.32)',
-    shadow: shadows.card,
+    border: colors.borderStrong,
+    bottomBorder: 'rgba(255, 247, 255, 0.20)',
   },
   ghost: {
     bg: 'transparent',
@@ -98,17 +97,17 @@ export function Button({
     <Pressable
       onPress={handlePress}
       disabled={disabled || loading}
-      style={({ pressed }) => [
+      style={({ pressed, hovered }) => [
         styles.base,
         v.shadow,
         {
           height,
-          backgroundColor: v.bg,
-          borderColor: v.border,
+          backgroundColor: hovered && variant === 'orange' ? colors.orangeDeep : v.bg,
+          borderColor: hovered && variant === 'secondary' ? colors.purple : v.border,
           borderBottomColor: v.bottomBorder,
           borderBottomWidth: disabled ? 1 : 3.5,
           transform: [{ translateY: pressed ? 2.5 : 0 }, { scale: pressed ? 0.97 : 1 }],
-          opacity: disabled ? 0.45 : pressed ? 0.92 : 1,
+          opacity: disabled ? 0.45 : pressed ? 0.92 : hovered ? 0.98 : 1,
         },
         fullWidth && { width: '100%' },
         style,

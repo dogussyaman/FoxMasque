@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, Pressable, Image } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Sparkles, ArrowRight, Shield, Zap, Target, Flame } from 'lucide-react-native';
 import { Screen, Button, Avatar, Card, StickyActionBar } from '@/components/ui';
@@ -16,6 +16,8 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState<AvatarKey>('fox');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleNext = () => {
     trigger('light');
@@ -24,10 +26,18 @@ export default function OnboardingScreen() {
 
   const handleFinish = async () => {
     trigger('medium');
-    const finalName = name.trim() || 'Parti Ustası';
-    const player = await service.signInAnonymously(finalName, selectedAvatar);
-    setCurrentPlayer(player);
-    router.replace('/(tabs)');
+    setBusy(true);
+    setError(null);
+    try {
+      const finalName = name.trim() || 'Parti Ustası';
+      const player = await service.signInAnonymously(finalName, selectedAvatar);
+      setCurrentPlayer(player);
+      router.replace('/(tabs)');
+    } catch (authError) {
+      setError((authError as Error).message || 'Misafir oturumu başlatılamadı.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -52,7 +62,7 @@ export default function OnboardingScreen() {
 
               <View style={styles.kickerPill}>
                 <Flame color={colors.orange} size={14} />
-                <Text style={styles.kickerText}>FOXMASQUE'A HOŞ GELDİN!</Text>
+                <Text style={styles.kickerText}>FOXMASQUE&apos;A HOŞ GELDİN!</Text>
               </View>
 
               <Text style={styles.title}>Parti & Blöf Zamanı!</Text>
@@ -152,6 +162,7 @@ export default function OnboardingScreen() {
 
           </ScrollView>
         )}
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <StickyActionBar>
           {step === 1 ? (
             <Button
@@ -167,7 +178,8 @@ export default function OnboardingScreen() {
               onPress={handleFinish}
               variant="orange"
               fullWidth
-              icon={<Sparkles color="#FFF" size={20} />}
+              disabled={busy}
+              icon={busy ? <ActivityIndicator color="#FFF" /> : <Sparkles color="#FFF" size={20} />}
             />
           )}
         </StickyActionBar>
@@ -319,4 +331,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: spacing.lg,
   },
+  error: { ...typography.caption, color: colors.dangerSoft, textAlign: 'center', paddingHorizontal: spacing.md },
 });

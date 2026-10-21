@@ -54,8 +54,7 @@ export default function CategorySelectScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.subtitle}>
-          Oyun odasında hangi alandan soruların geleceğini belirle. Oynamak istediğin tek kategoriyi seç.
-          {'\n'}Alt kategoriler, en yakın mevcut soru havuzunu kullanır.
+          Oyun odasında hangi soru havuzundan oynayacağını belirle. Yalnızca mevcut soruları bulunan kategoriler listelenir.
         </Text>
 
         {CATEGORY_GROUPS.map((group) => (
@@ -131,11 +130,6 @@ export default function CategorySelectScreen() {
             <View key={q.id} style={styles.questionItem}>
               <Text style={styles.questionIndex}>Örnek {idx + 1}</Text>
               <Text style={styles.questionPrompt}>{q.prompt}</Text>
-              <View style={styles.optionsWrap}>
-                <View style={styles.optBadgeCorrect}>
-                  <Text style={styles.optTextCorrect}>Gerçek Cevap: {q.options[q.correctIndex]}</Text>
-                </View>
-              </View>
             </View>
           ))}
         </View>
@@ -342,22 +336,5 @@ const styles = StyleSheet.create({
     ...typography.bodyMedium,
     color: colors.textPrimary,
     marginVertical: 4,
-  },
-  optionsWrap: {
-    flexDirection: 'row',
-    marginTop: 4,
-  },
-  optBadgeCorrect: {
-    backgroundColor: 'rgba(198, 243, 107, 0.2)',
-    borderRadius: radii.md,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: colors.lime,
-  },
-  optTextCorrect: {
-    color: colors.lime,
-    fontFamily: 'Poppins-Bold',
-    fontSize: 11,
   },
 });

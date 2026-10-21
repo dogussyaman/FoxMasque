@@ -1,15 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
-import { AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState, Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const key =
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-export const supabaseConfigured = Boolean(url && anon && url.startsWith('http'));
+export const supabaseConfigured = Boolean(url && key && url.startsWith('http'));
 
 // Client is created lazily so the demo app can run without valid credentials.
 export const supabase = supabaseConfigured
-  ? createClient(url as string, anon as string, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  ? createClient(url as string, key as string, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        flowType: 'pkce',
+        ...(Platform.OS === 'web' ? {} : { storage: AsyncStorage }),
+      },
     })
   : null;
 
@@ -20,11 +32,16 @@ export function ensureSupabase() {
   return supabase;
 }
 
-// Listen to AppState to pause/resume realtime (optional, network-friendly).
+// Keep Supabase's refresh timer aligned with native app foreground state.
 if (supabase) {
+  if (AppState.currentState === 'active') {
+    void supabase.auth.startAutoRefresh();
+  }
   AppState.addEventListener('change', (state) => {
     if (state === 'active') {
-      // Realtime channels auto-reconnect; nothing to force here.
+      void supabase.auth.startAutoRefresh();
+    } else {
+      void supabase.auth.stopAutoRefresh();
     }
   });
 }

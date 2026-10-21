@@ -1,19 +1,22 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { AppState } from 'react-native';
 import { createGameService, supabaseConfigured } from '@/services';
-import type { GameService, ServiceEvent } from '@/services/types';
-import type { ConnectionState } from '@/services/types';
-import type { GameState, Player } from '@/types/game';
+import type { ConnectionState, GameService, ServiceEvent } from '@/services/types';
+import type { GameState, Nudge, Player } from '@/types/game';
+
+export type AuthStatus = 'loading' | 'signed_in' | 'signed_out';
 
 interface GameStoreValue {
   service: GameService;
   isLive: boolean;
+  authStatus: AuthStatus;
+  isAnonymous: boolean;
   currentPlayer: Player | null;
   connection: ConnectionState;
   roomCode: string | null;
   roomState: GameState | null;
-  lastNudge: { fromId: string; toId: string; at: number } | null;
+  lastNudge: Nudge | null;
   error: string | null;
   init: () => Promise<void>;
   setCurrentPlayer: (p: Player | null) => void;
@@ -26,11 +29,12 @@ interface GameStoreValue {
 const GameStoreContext = createContext<GameStoreValue | null>(null);
 
 export function GameStoreProvider({ children }: { children: ReactNode }) {
-  const serviceRef = useRef<GameService>(createGameService());
-  const service = serviceRef.current;
+  const [service] = useState<GameService>(() => createGameService());
   const isLive = supabaseConfigured;
 
   const [currentPlayer, setPlayer] = useState<Player | null>(null);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>(isLive ? 'loading' : 'signed_in');
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [roomState, setRoomState] = useState<GameState | null>(null);
@@ -48,6 +52,13 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
         case 'state': {
           const snap = event.payload as GameState | null;
           if (snap) setRoomState(snap);
+          break;
+        }
+        case 'auth_state': {
+          const payload = event.payload as { player: Player | null; isAnonymous: boolean };
+          setPlayer(payload.player);
+          setIsAnonymous(payload.isAnonymous);
+          setAuthStatus(payload.player ? 'signed_in' : 'signed_out');
           break;
         }
         case 'phase_changed': {
@@ -78,43 +89,57 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       if (nextAppState === 'active' && roomCode) {
         service.getRoomState(roomCode).then((snap) => {
           if (snap) setRoomState(snap);
-        }).catch(() => {});
+        }).catch((e) => setError((e as Error).message));
       }
     });
     return () => subscription.remove();
+  }, [roomCode, service]);
+
+  const init = useCallback(async () => {
+    try {
+      await service.connect();
+      setConnection(service.getConnectionState());
+      const player = service.getCurrentPlayer();
+      setPlayer(player);
+      setAuthStatus(isLive && !player ? 'signed_out' : 'signed_in');
+    } catch (e) {
+      setError((e as Error).message);
+      setConnection('error');
+      setAuthStatus(isLive ? 'signed_out' : 'signed_in');
+    }
+  }, [service, isLive]);
+
+  const setCurrentPlayer = useCallback((player: Player | null) => {
+    setPlayer(player);
+    setAuthStatus(player ? 'signed_in' : (isLive ? 'signed_out' : 'signed_in'));
+  }, [isLive]);
+
+  const refreshRoom = useCallback(async () => {
+    if (!roomCode) return;
+    const snap = await service.getRoomState(roomCode);
+    setRoomState(snap);
   }, [roomCode, service]);
 
   const value = useMemo<GameStoreValue>(
     () => ({
       service,
       isLive,
+      authStatus,
+      isAnonymous,
       currentPlayer,
       connection,
       roomCode,
       roomState,
       lastNudge,
       error,
-      init: async () => {
-        try {
-          await service.connect();
-          setConnection(service.getConnectionState());
-          setPlayer(service.getCurrentPlayer());
-        } catch (e) {
-          setError((e as Error).message);
-          setConnection('error');
-        }
-      },
-      setCurrentPlayer: setPlayer,
+      init,
+      setCurrentPlayer,
       setRoomCode,
       setRoomState,
       setError,
-      refreshRoom: async () => {
-        if (!roomCode) return;
-        const snap = await service.getRoomState(roomCode);
-        setRoomState(snap);
-      },
+      refreshRoom,
     }),
-    [service, isLive, currentPlayer, connection, roomCode, roomState, lastNudge, error]
+    [service, isLive, authStatus, isAnonymous, currentPlayer, connection, roomCode, roomState, lastNudge, error, init, setCurrentPlayer, refreshRoom]
   );
 
   return <GameStoreContext.Provider value={value}>{children}</GameStoreContext.Provider>;

@@ -27,6 +27,7 @@ import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 import { categoryOptionImages } from '@/assets/categories/options';
+import { QUESTIONS } from '@/features/game/questions';
 
 const ROUND_OPTIONS = [3, 5, 7, 10];
 const TIME_OPTIONS = [10, 15, 20, 30];
@@ -68,6 +69,19 @@ export default function CreateRoomScreen() {
     if (selectedCats.length === 0) {
       trigger('warning');
       setError('Lütfen en az 1 kategori seçin.');
+      return;
+    }
+    const supportedQuestionCategories = new Set(
+      CATEGORY_OPTIONS
+        .filter((category) => selectedCats.includes(category.id))
+        .map((category) => category.questionCategoryId)
+    );
+    const availableQuestionCount = new Set(
+      QUESTIONS.filter((question) => supportedQuestionCategories.has(question.categoryId))
+        .map((question) => question.id)
+    ).size;
+    if (availableQuestionCount < rounds) {
+      setError(`Seçtiğin kategorilerde ${rounds} tur için yeterli farklı soru yok.`);
       return;
     }
     trigger('medium');

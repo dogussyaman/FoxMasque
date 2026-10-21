@@ -1,6 +1,6 @@
 import type { CategoryId } from '../features/game/categories';
 import { pickQuestions, QUESTIONS } from '../features/game/questions';
-import { freshAbilityState } from '../features/game/abilities';
+import { canUseAbility } from '../features/game/abilities';
 import { blendChoices, resolveZartoRound } from '../features/game/engine';
 import type {
   AbilityAction,
@@ -19,6 +19,9 @@ import type {
   ConnectionState,
   GameService,
   RoomSummary,
+  FriendRequest,
+  RelationshipStatus,
+  SocialPlayer,
   ServiceEvent,
   ServiceEventHandler,
 } from './types';
@@ -46,6 +49,9 @@ interface DemoRoom {
   nudges: Nudge[];
   createdAt: number;
   questionQueue: string[];
+  phaseStartedAt: number;
+  phaseDeadlineAt: number | null;
+  abilityReadyRound: Record<string, number>;
 }
 
 export class DemoGameService implements GameService {
@@ -56,6 +62,9 @@ export class DemoGameService implements GameService {
   private rooms = new Map<string, DemoRoom>();
   private currentPlayer: Player | null = null;
   private leaderboard: Player[] = [];
+  private relationships = new Map<string, RelationshipStatus>();
+  private friendRequests = new Map<string, FriendRequest>();
+  private seenQuestionIdsByPlayer = new Map<string, Set<string>>();
 
   async connect(): Promise<void> {
     this.connection = 'online';
@@ -99,6 +108,32 @@ export class DemoGameService implements GameService {
     this.currentPlayer = player;
     return player;
   }
+
+  async signUpWithEmail(): Promise<never> {
+    throw new ServiceError('AUTH_UNAVAILABLE', 'E-posta üyeliği için Supabase yapılandırılmalıdır.');
+  }
+
+  async signInWithEmail(): Promise<never> {
+    throw new ServiceError('AUTH_UNAVAILABLE', 'E-posta girişi için Supabase yapılandırılmalıdır.');
+  }
+
+  async signInWithGoogle(): Promise<never> {
+    throw new ServiceError('AUTH_UNAVAILABLE', 'Google girişi için Supabase yapılandırılmalıdır.');
+  }
+
+  async completeOAuthCallback(): Promise<never> {
+    throw new ServiceError('AUTH_UNAVAILABLE', 'Google girişi için Supabase yapılandırılmalıdır.');
+  }
+
+  async sendPasswordResetEmail(): Promise<never> {
+    throw new ServiceError('AUTH_UNAVAILABLE', 'Şifre yenileme için Supabase yapılandırılmalıdır.');
+  }
+
+  async updatePassword(): Promise<never> {
+    throw new ServiceError('AUTH_UNAVAILABLE', 'Şifre yenileme için Supabase yapılandırılmalıdır.');
+  }
+
+  async refreshSession(): Promise<void> {}
 
   getCurrentPlayer(): Player | null {
     return this.currentPlayer;
@@ -179,6 +214,9 @@ export class DemoGameService implements GameService {
       nudges: [],
       createdAt: Date.now(),
       questionQueue: [],
+      phaseStartedAt: Date.now(),
+      phaseDeadlineAt: null,
+      abilityReadyRound: {},
     };
     this.rooms.set(code, room);
     this.currentPlayer = hostPlayer;
@@ -244,10 +282,36 @@ export class DemoGameService implements GameService {
   async nudgePlayer(code: string, toId: string): Promise<Nudge> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    const fromId = this.currentPlayer?.id;
+    const target = room.players[toId];
+    if (!fromId || !target || fromId === toId) {
+      throw new ServiceError('NUDGE_TARGET_INVALID', 'Geçerli bir oda oyuncusu seçmelisin.');
+    }
+    if (!['lobby', 'fake_answer', 'guess'].includes(room.phase)) {
+      throw new ServiceError('NUDGE_PHASE_INVALID', 'Bu aşamada dürtme gönderilemez.');
+    }
+    const alreadyDone = room.phase === 'lobby'
+      ? target.isReady
+      : room.phase === 'fake_answer'
+        ? room.fakeAnswers[toId] !== undefined
+        : room.picks[toId] !== undefined;
+    if (target.isBlockedCurrentRound || alreadyDone) {
+      throw new ServiceError('NUDGE_PLAYER_DONE', 'Bu oyuncu aşamayı zaten tamamladı.');
+    }
+    if (room.nudges.some((nudge) =>
+      nudge.fromId === fromId &&
+      nudge.toId === toId &&
+      nudge.roundNumber === room.currentRound &&
+      nudge.phase === room.phase
+    )) {
+      throw new ServiceError('NUDGE_ALREADY_SENT', 'Bu oyuncuyu bu aşamada zaten dürttün.');
+    }
     const nudge: Nudge = {
-      fromId: this.currentPlayer?.id ?? '',
+      fromId,
       toId,
       at: Date.now(),
+      roundNumber: room.currentRound,
+      phase: room.phase,
     };
     room.nudges.push(nudge);
     this.emit({ type: 'nudge', payload: { code, nudge } });
@@ -261,23 +325,105 @@ export class DemoGameService implements GameService {
     if (readyCount < 2) throw new ServiceError('NOT_ENOUGH_READY', 'En az 2 oyuncu hazır olmalı.');
 
     this.prepareRoundQuestions(room);
-    room.phase = 'ability_select';
+    this.setPhase(room, 'ability_select', room.config.roundSeconds);
     room.currentRound = 1;
     room.currentQuestionId = room.questionQueue[0] ?? QUESTIONS[0].id;
     this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
+  async markCurrentQuestionSeen(code: string): Promise<void> {
+    const room = this.rooms.get(code);
+    const playerId = this.currentPlayer?.id;
+    if (!room || !playerId || !room.players[playerId] || !room.currentQuestionId
+      || !['ability_select', 'fake_answer', 'guess'].includes(room.phase)) {
+      throw new ServiceError('QUESTION_SEEN_FAILED', 'Görüntülenen aktif soru bulunamadı.');
+    }
+    const question = QUESTIONS.find((item) => item.id === room.currentQuestionId);
+    if (!question) throw new ServiceError('QUESTION_NOT_FOUND', 'Aktif soru bulunamadı.');
+    const key = `${playerId}:${question.categoryId}`;
+    const seen = this.seenQuestionIdsByPlayer.get(key) ?? new Set<string>();
+    seen.add(question.id);
+    this.seenQuestionIdsByPlayer.set(key, seen);
+  }
+
+  async getCurrentQuestion(code: string) {
+    const room = this.rooms.get(code);
+    if (!room?.currentQuestionId) return null;
+    return QUESTIONS.find((question) => question.id === room.currentQuestionId) ?? null;
+  }
+
   private prepareRoundQuestions(room: DemoRoom) {
-    const qs = pickQuestions(room.config.selectedCategoryIds, room.config.totalRounds, room.currentRound);
+    const playerId = this.currentPlayer?.id;
+    const seenQuestionIds = playerId
+      ? room.config.selectedCategoryIds.flatMap((categoryId) =>
+          [...(this.seenQuestionIdsByPlayer.get(`${playerId}:${categoryId}`) ?? [])]
+        )
+      : [];
+    const qs = pickQuestions(
+      room.config.selectedCategoryIds,
+      room.config.totalRounds,
+      room.currentRound,
+      seenQuestionIds
+    );
     room.questionQueue = qs.map((q) => q.id);
   }
 
   async useAbility(code: string, action: AbilityAction): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    const player = this.currentPlayer;
+    if (!player || action.playerId !== player.id || room.phase !== 'ability_select') {
+      throw new ServiceError('ABILITY_UNAVAILABLE', 'Yetenek bu aşamada kullanılamaz.');
+    }
+    if (room.abilityActions.some((used) =>
+      used.playerId === action.playerId && used.abilityId === action.abilityId
+    )) {
+      throw new ServiceError('ABILITY_ALREADY_USED', 'Bu yeteneği bu tur zaten kullandın.');
+    }
+    const allowance = canUseAbility(
+      {
+        playerId: player.id,
+        usedCounts: player.abilityUsedCounts,
+        shieldsAvailable: player.shieldsAvailable,
+        blocksAvailable: player.blocksAvailable,
+        isBlockedCurrentRound: player.isBlockedCurrentRound,
+        isBlockedNextRound: player.isBlockedNextRound,
+        lastBlockedPlayerId: player.lastBlockedPlayerId,
+      },
+      action.abilityId,
+      action.targetId
+    );
+    if (!allowance.allowed) throw new ServiceError('ABILITY_UNAVAILABLE', allowance.reason ?? 'Yetenek kullanılamıyor.');
+    if (action.abilityId === 'block' || action.abilityId === 'penalty') {
+      if (!action.targetId || !room.players[action.targetId] || action.targetId === player.id) {
+        throw new ServiceError('ABILITY_TARGET_INVALID', 'Geçerli bir rakip seçmelisin.');
+      }
+    } else if (action.targetId) {
+      throw new ServiceError('ABILITY_TARGET_INVALID', 'Bu yetenek hedef kabul etmiyor.');
+    }
     room.abilityActions.push(action);
     this.emit({ type: 'ability_used', payload: { code, action } });
+    this.emit({ type: 'state', payload: this.snapshot(code) });
+  }
+
+  async confirmAbilitySelection(code: string): Promise<void> {
+    const room = this.rooms.get(code);
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    const playerId = this.currentPlayer?.id;
+    if (!playerId || !room.players[playerId] || room.phase !== 'ability_select') {
+      throw new ServiceError('ABILITY_PHASE_INVALID', 'Yetenek seçimi aşaması aktif değil.');
+    }
+    room.abilityReadyRound[playerId] = room.currentRound;
+    for (const player of Object.values(room.players)) {
+      if (player.id !== playerId) room.abilityReadyRound[player.id] = room.currentRound;
+    }
+    if (Object.values(room.players).every((player) =>
+      player.isBlockedCurrentRound || room.abilityReadyRound[player.id] === room.currentRound
+    )) {
+      this.setPhase(room, 'fake_answer', room.config.roundSeconds);
+    }
+    this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
@@ -285,29 +431,39 @@ export class DemoGameService implements GameService {
   async submitFakeAnswer(code: string, fakeAnswer: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (room.phase !== 'fake_answer') throw new ServiceError('WRONG_PHASE', 'Sahte cevap aşaması aktif değil.');
     const meId = this.currentPlayer?.id ?? 'me';
     const clean = fakeAnswer.trim();
-    if (clean) {
-      room.fakeAnswers[meId] = clean;
-    } else {
-      delete room.fakeAnswers[meId];
+    if (!clean || clean.length > 120) {
+      throw new ServiceError('INVALID_FAKE_ANSWER', 'Cevap 1-120 karakter arasında olmalıdır.');
     }
+    if (room.fakeAnswers[meId] !== undefined) {
+      if (room.fakeAnswers[meId] !== clean) {
+        throw new ServiceError('ANSWER_ALREADY_SUBMITTED', 'Bu tur cevabın zaten gönderildi.');
+      }
+      return;
+    }
+    room.fakeAnswers[meId] = clean;
 
     // Auto-populate clever bot fake answers
     const question = QUESTIONS.find((q) => q.id === room.currentQuestionId) || QUESTIONS[0];
-    const decoys = question.defaultDecoys || question.options || ['Tahmin A', 'Tahmin B', 'Tahmin C'];
+    const botAnswers = [
+      'Bence bu cevap farklı olmalı',
+      'Kaynağa göre başka bir yanıt',
+      'Yaklaşık bir tahmin',
+    ];
 
     let decoyIdx = 0;
     for (const p of Object.values(room.players)) {
       if (p.id !== meId && !room.fakeAnswers[p.id]) {
-        room.fakeAnswers[p.id] = decoys[decoyIdx % decoys.length] || `İnandırıcı Yanıt ${decoyIdx + 1}`;
+        room.fakeAnswers[p.id] = `${botAnswers[decoyIdx % botAnswers.length]} (${decoyIdx + 1})`;
         decoyIdx++;
       }
     }
 
     // Blend all fake answers + true answer
     room.choices = blendChoices(question, room.fakeAnswers, room.currentRound * 17);
-    room.phase = 'guess';
+    this.setPhase(room, 'guess', room.config.roundSeconds);
 
     this.emit({ type: 'fake_submitted', payload: { code } });
     this.emit({ type: 'phase_changed', payload: { code, phase: 'guess' } });
@@ -329,7 +485,18 @@ export class DemoGameService implements GameService {
   async submitPick(code: string, choiceIndex: number): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (room.phase !== 'guess') throw new ServiceError('WRONG_PHASE', 'Tahmin aşaması aktif değil.');
     const meId = this.currentPlayer?.id ?? 'me';
+    const choice = room.choices.find((item) => item.choiceIndex === choiceIndex);
+    if (!choice || choice.authorId === meId) {
+      throw new ServiceError('INVALID_PICK', 'Bu seçenek geçerli değil.');
+    }
+    if (room.picks[meId] !== undefined) {
+      if (room.picks[meId] !== choiceIndex) {
+        throw new ServiceError('PICK_ALREADY_SUBMITTED', 'Bu tur tahminin zaten gönderildi.');
+      }
+      return;
+    }
     room.picks[meId] = choiceIndex;
 
     // Bots make random picks (never picking their own fake answer)
@@ -373,7 +540,7 @@ export class DemoGameService implements GameService {
 
     room.roundResults = rows;
     room.players = updatedPlayers;
-    room.phase = 'reveal';
+    this.setPhase(room, 'reveal');
 
     this.emit({ type: 'round_resolved', payload: { code, rows } });
     this.emit({ type: 'phase_changed', payload: { code, phase: 'reveal' } });
@@ -385,18 +552,18 @@ export class DemoGameService implements GameService {
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
 
     if (room.phase === 'ability_select') {
-      room.phase = 'fake_answer';
+      this.setPhase(room, 'fake_answer', room.config.roundSeconds);
     } else if (room.phase === 'fake_answer') {
-      room.phase = 'guess';
+      this.setPhase(room, 'guess', room.config.roundSeconds);
     } else if (room.phase === 'reveal') {
-      room.phase = 'scoreboard';
+      this.setPhase(room, 'scoreboard');
     } else if (room.phase === 'scoreboard') {
       if (room.currentRound >= room.config.totalRounds) {
-        room.phase = 'game_over';
+        this.setPhase(room, 'game_over');
         this.emit({ type: 'game_over', payload: { code } });
       } else {
         room.currentRound += 1;
-        room.phase = 'ability_select';
+        this.setPhase(room, 'ability_select', room.config.roundSeconds);
         room.fakeAnswers = {};
         room.choices = [];
         room.picks = {};
@@ -414,7 +581,7 @@ export class DemoGameService implements GameService {
   async rematch(code: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
-    room.phase = 'lobby';
+    this.setPhase(room, 'lobby');
     room.currentRound = 1;
     room.fakeAnswers = {};
     room.choices = [];
@@ -427,6 +594,7 @@ export class DemoGameService implements GameService {
         ...room.players[id],
         score: 0,
         isReady: room.players[id].isHost,
+        abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
         consecutiveCorrect: 0,
         shieldsAvailable: 0,
         blocksAvailable: 0,
@@ -457,9 +625,149 @@ export class DemoGameService implements GameService {
     return lb.find((p) => p.id === playerId) ?? null;
   }
 
+  async advanceExpiredPhase(code: string): Promise<boolean> {
+    const room = this.rooms.get(code);
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (room.phaseDeadlineAt === null || room.phaseDeadlineAt > Date.now()) return false;
+    if (room.phase === 'ability_select') {
+      this.setPhase(room, 'fake_answer', room.config.roundSeconds);
+    } else if (room.phase === 'fake_answer') {
+      for (const player of Object.values(room.players)) {
+        if (!player.isBlockedCurrentRound && room.fakeAnswers[player.id] === undefined) {
+          room.fakeAnswers[player.id] = '';
+        }
+      }
+      const question = QUESTIONS.find((item) => item.id === room.currentQuestionId) ?? QUESTIONS[0];
+      room.choices = blendChoices(question, room.fakeAnswers, room.currentRound * 17);
+      this.setPhase(room, 'guess', room.config.roundSeconds);
+    } else if (room.phase === 'guess') {
+      for (const player of Object.values(room.players)) {
+        if (player.isBlockedCurrentRound || room.picks[player.id] !== undefined) continue;
+        const choice = room.choices.find((item) => item.authorId !== player.id);
+        if (choice) room.picks[player.id] = choice.choiceIndex;
+      }
+      this.resolveRoundAuthoritatively(code);
+    } else {
+      return false;
+    }
+    this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
+    this.emit({ type: 'state', payload: this.snapshot(code) });
+    return true;
+  }
+
+  async getRoomProgress(code: string) {
+    const state = this.snapshot(code);
+    if (!state) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    return state.progress!;
+  }
+
+  private relationshipKey(playerId: string): string {
+    return `${this.currentPlayer?.id ?? ''}:${playerId}`;
+  }
+
+  async getRelationshipStatus(playerId: string): Promise<RelationshipStatus> {
+    return this.relationships.get(this.relationshipKey(playerId)) ?? 'none';
+  }
+
+  async sendFriendRequest(playerId: string): Promise<RelationshipStatus> {
+    if (!this.currentPlayer || playerId === this.currentPlayer.id) {
+      throw new ServiceError('INVALID_FRIEND_REQUEST', 'Kendine arkadaşlık isteği gönderemezsin.');
+    }
+    const key = this.relationshipKey(playerId);
+    const status = this.relationships.get(key) ?? 'none';
+    if (status === 'blocked') throw new ServiceError('USER_BLOCKED', 'Engellenen kullanıcıya istek gönderilemez.');
+    if (status === 'friends' || status === 'outgoing_pending') return status;
+    if (status === 'incoming_pending') {
+      this.relationships.set(key, 'friends');
+      this.relationships.set(`${playerId}:${this.currentPlayer.id}`, 'friends');
+      return 'friends';
+    }
+    const profile = await this.getProfile(playerId);
+    if (!profile) throw new ServiceError('PROFILE_NOT_FOUND', 'Oyuncu bulunamadı.');
+    const request: FriendRequest = {
+      requestId: `request-${Date.now()}`,
+      id: playerId,
+      name: profile.name,
+      avatarKey: profile.avatarKey,
+      relationshipStatus: 'incoming_pending',
+      createdAt: Date.now(),
+    };
+    this.friendRequests.set(request.requestId, request);
+    this.relationships.set(key, 'outgoing_pending');
+    this.relationships.set(`${playerId}:${this.currentPlayer.id}`, 'incoming_pending');
+    return 'outgoing_pending';
+  }
+
+  async respondFriendRequest(requestId: string, accept: boolean): Promise<RelationshipStatus> {
+    const request = this.friendRequests.get(requestId);
+    if (!request) throw new ServiceError('REQUEST_NOT_FOUND', 'Arkadaşlık isteği bulunamadı.');
+    const key = this.relationshipKey(request.id);
+    this.friendRequests.delete(requestId);
+    const status: RelationshipStatus = accept ? 'friends' : 'none';
+    this.relationships.set(key, status);
+    if (this.currentPlayer) {
+      this.relationships.set(`${request.id}:${this.currentPlayer.id}`, status);
+    }
+    return status;
+  }
+
+  async cancelFriendRequest(requestId: string): Promise<void> {
+    const request = this.friendRequests.get(requestId);
+    if (!request) throw new ServiceError('REQUEST_NOT_FOUND', 'Arkadaşlık isteği bulunamadı.');
+    this.friendRequests.delete(requestId);
+    this.relationships.set(this.relationshipKey(request.id), 'none');
+  }
+
+  async removeFriend(playerId: string): Promise<void> {
+    this.relationships.set(this.relationshipKey(playerId), 'none');
+    if (this.currentPlayer) this.relationships.set(`${playerId}:${this.currentPlayer.id}`, 'none');
+  }
+
+  async blockUser(playerId: string): Promise<void> {
+    this.relationships.set(this.relationshipKey(playerId), 'blocked');
+    if (this.currentPlayer) this.relationships.set(`${playerId}:${this.currentPlayer.id}`, 'blocked');
+  }
+
+  async unblockUser(playerId: string): Promise<void> {
+    this.relationships.set(this.relationshipKey(playerId), 'none');
+    if (this.currentPlayer) this.relationships.set(`${playerId}:${this.currentPlayer.id}`, 'none');
+  }
+
+  async listFriends(): Promise<SocialPlayer[]> {
+    const friends: SocialPlayer[] = [];
+    for (const player of await this.getLeaderboard()) {
+      if (await this.getRelationshipStatus(player.id) === 'friends') {
+        friends.push({
+          id: player.id,
+          name: player.name,
+          avatarKey: player.avatarKey,
+          relationshipStatus: 'friends',
+        });
+      }
+    }
+    return friends;
+  }
+
+  async listFriendRequests(): Promise<FriendRequest[]> {
+    return [...this.friendRequests.values()];
+  }
+
   private snapshot(code: string): GameState | null {
     const room = this.rooms.get(code);
     if (!room) return null;
+    const participants = Object.values(room.players).filter((player) => player.isOnline);
+    const submissionStatus: Record<string, boolean> = {};
+    for (const player of participants) {
+      const done = room.phase === 'lobby'
+        ? player.isReady
+        : room.phase === 'fake_answer'
+          ? room.fakeAnswers[player.id] !== undefined
+          : room.phase === 'guess'
+            ? room.picks[player.id] !== undefined
+            : room.roundResults[player.id] !== undefined;
+      submissionStatus[player.id] = done;
+    }
+    const submittedCount = Object.values(submissionStatus).filter(Boolean).length;
     return {
       config: room.config,
       players: room.players,
@@ -473,8 +781,22 @@ export class DemoGameService implements GameService {
       abilityActions: room.abilityActions,
       roundResults: room.roundResults,
       history: [],
+      phaseStartedAt: room.phaseStartedAt,
+      phaseDeadlineAt: room.phaseDeadlineAt,
+      progress: {
+        submittedCount,
+        totalCount: participants.length,
+        completed: participants.length > 0 && submittedCount >= participants.length,
+        submissionStatus,
+      },
     };
   }
-}
 
-void freshAbilityState;
+  private setPhase(room: DemoRoom, phase: RoomPhase, deadlineSeconds?: number) {
+    room.phase = phase;
+    room.phaseStartedAt = Date.now();
+    room.phaseDeadlineAt = deadlineSeconds === undefined
+      ? null
+      : room.phaseStartedAt + deadlineSeconds * 1000;
+  }
+}

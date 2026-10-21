@@ -1,22 +1,24 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
-import { Shield, Sparkles, ChevronRight, Check, Zap } from 'lucide-react-native';
-import { Screen, Button, Card, Badge, Avatar, StaggerRow, StickyActionBar } from '@/components/ui';
+import { Sparkles, Check, Clock } from 'lucide-react-native';
+import { Screen, Button, Badge, Avatar, StaggerRow, StickyActionBar } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { ABILITIES, type AbilityId, canUseAbility, remainingUses } from '@/features/game/abilities';
-import type { Player } from '@/types/game';
 
 export default function AbilitySelectScreen() {
-  const { roomCode, roomState, currentPlayer, service } = useGameStore();
+  const { roomCode, roomState, currentPlayer, service, refreshRoom } = useGameStore();
   const { trigger } = useHaptics();
 
   const [selectedAbility, setSelectedAbility] = useState<AbilityId | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  const expirationRequested = useRef<number | null>(null);
 
   // Transition to question screen once room enters 'fake_answer' or 'question' phase
   useEffect(() => {
@@ -25,9 +27,40 @@ export default function AbilitySelectScreen() {
     }
   }, [roomState?.phase]);
 
+  useEffect(() => {
+    const deadline = roomState?.phaseDeadlineAt;
+    if (deadline === null || deadline === undefined) return;
+    expirationRequested.current = null;
+    const updateCountdown = () => {
+      setSecondsLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    };
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [roomState?.phaseDeadlineAt]);
+
+  useEffect(() => {
+    const deadline = roomState?.phaseDeadlineAt;
+    if (
+      roomState?.phase !== 'ability_select' ||
+      deadline === null ||
+      deadline === undefined ||
+      Date.now() < deadline ||
+      !roomCode ||
+      expirationRequested.current === deadline
+    ) return;
+    expirationRequested.current = deadline;
+    service.advanceExpiredPhase(roomCode)
+      .then(() => refreshRoom())
+      .catch((e) => setError((e as Error).message));
+  }, [roomState?.phase, roomState?.phaseDeadlineAt, secondsLeft, roomCode, service, refreshRoom]);
+
   const playersList = roomState ? Object.values(roomState.players) : [];
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
   const opponents = playersList.filter((p) => p.id !== me?.id);
+  const defaultTargetId = opponents.find((player) =>
+    player.id !== me?.lastBlockedPlayerId
+  )?.id;
 
   const abilityState = {
     playerId: me?.id ?? '',
@@ -40,7 +73,11 @@ export default function AbilitySelectScreen() {
   };
 
   const handleSelectAbility = (id: AbilityId) => {
-    const check = canUseAbility(abilityState, id, targetId || undefined);
+    const check = canUseAbility(
+      abilityState,
+      id,
+      targetId ?? (id === 'block' || id === 'penalty' ? defaultTargetId : undefined)
+    );
     if (!check.allowed) {
       trigger('heavy');
       return;
@@ -54,8 +91,8 @@ export default function AbilitySelectScreen() {
       const ab = ABILITIES.find((a) => a.id === id);
       if (!ab?.targetRequired) {
         setTargetId(null);
-      } else if (opponents.length > 0 && !targetId) {
-        setTargetId(opponents[0].id);
+      } else if (defaultTargetId && !targetId) {
+        setTargetId(defaultTargetId);
       }
     }
   };
@@ -64,6 +101,7 @@ export default function AbilitySelectScreen() {
     if (!roomCode || !me) return;
     trigger('medium');
     setLoading(true);
+    setError(null);
     try {
       if (selectedAbility) {
         await service.useAbility(roomCode, {
@@ -73,11 +111,9 @@ export default function AbilitySelectScreen() {
         });
       }
       setConfirmed(true);
-
-      // Advance phase to 'fake_answer'
-      await service.advancePhase(roomCode);
-    } catch {
-      router.replace('/question');
+      await service.confirmAbilitySelection(roomCode);
+    } catch (e) {
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -86,8 +122,16 @@ export default function AbilitySelectScreen() {
   const handleSkip = async () => {
     if (!roomCode) return;
     trigger('light');
-    setConfirmed(true);
-    await service.advancePhase(roomCode);
+    setLoading(true);
+    setError(null);
+    try {
+      setConfirmed(true);
+      await service.confirmAbilitySelection(roomCode);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const currentAbilityObj = ABILITIES.find((a) => a.id === selectedAbility);
@@ -104,6 +148,13 @@ export default function AbilitySelectScreen() {
         <Text style={styles.subtitle}>
           Bu tur için gizli bir hamle seç ya da hakkını sonraki turlara sakla.
         </Text>
+        {roomState?.phaseDeadlineAt ? (
+          <View style={styles.timer}>
+            <Clock color={colors.yellow} size={14} />
+            <Text style={styles.timerText}>{secondsLeft}s</Text>
+          </View>
+        ) : null}
+        {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
 
       <ScrollView
@@ -113,7 +164,11 @@ export default function AbilitySelectScreen() {
       >
         <View style={styles.abilitiesList}>
           {ABILITIES.map((ab, idx) => {
-            const check = canUseAbility(abilityState, ab.id, targetId || undefined);
+            const check = canUseAbility(
+              abilityState,
+              ab.id,
+              targetId ?? (ab.targetRequired ? defaultTargetId : undefined)
+            );
             const left = remainingUses(abilityState, ab.id);
             const isSelected = selectedAbility === ab.id;
 
@@ -121,7 +176,7 @@ export default function AbilitySelectScreen() {
               <StaggerRow key={ab.id} index={idx} delay={70}>
                 <Pressable
                   onPress={() => handleSelectAbility(ab.id)}
-                  disabled={!check.allowed || confirmed}
+                  disabled={!check.allowed || confirmed || loading}
                   style={({ pressed }) => [
                     styles.abilityCard,
                     isSelected && styles.abilityCardSelected,
@@ -166,7 +221,7 @@ export default function AbilitySelectScreen() {
                     }}
                     style={[styles.targetChip, isTarget && styles.targetChipActive]}
                   >
-                    <Avatar avatarKey={opp.avatarKey} size={36} ring={isTarget} />
+                    <Avatar avatarKey={opp.avatarUrl ?? opp.avatarKey} size={36} ring={isTarget} />
                     <Text style={[styles.targetName, isTarget && styles.targetNameActive]}>
                       {opp.name}
                     </Text>
@@ -180,6 +235,9 @@ export default function AbilitySelectScreen() {
 
       </ScrollView>
       <StickyActionBar>
+        {confirmed ? (
+          <Text style={styles.confirmedText}>Hamlen kaydedildi. Diğer oyuncular bekleniyor.</Text>
+        ) : null}
         <Button
           label={
             selectedAbility
@@ -189,6 +247,7 @@ export default function AbilitySelectScreen() {
           onPress={selectedAbility ? handleConfirm : handleSkip}
           variant={selectedAbility ? 'orange' : 'secondary'}
           loading={loading}
+          disabled={confirmed}
           fullWidth
           icon={<Sparkles color="#FFF" size={20} />}
         />
@@ -226,6 +285,27 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
     fontSize: 13,
+  },
+  timer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: spacing.sm,
+  },
+  timerText: {
+    ...typography.caption,
+    color: colors.yellow,
+  },
+  error: {
+    ...typography.caption,
+    color: colors.danger,
+    marginTop: spacing.sm,
+  },
+  confirmedText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
   },
   scroll: {
     paddingBottom: spacing.md,

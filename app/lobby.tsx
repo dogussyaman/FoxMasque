@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -47,12 +47,12 @@ export default function LobbyScreen() {
   const prototype = usePrototype();
   const { trigger } = useHaptics();
 
-  const [nudgeBanner, setNudgeBanner] = useState<string | null>(null);
+  const [dismissedNudgeAt, setDismissedNudgeAt] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [testMode, setTestMode] = useState(!isLive);
-  const [lobbySessionId] = useState(() => Date.now());
+  const lobbySessionId = useId();
 
   useEffect(() => {
     prototype.clearReadyOverrides();
@@ -71,15 +71,19 @@ export default function LobbyScreen() {
     }
   }, [roomState?.phase]);
 
+  const isIncomingNudge = !!lastNudge && lastNudge.toId === currentPlayer?.id;
+  const nudgeBanner = isIncomingNudge && lastNudge?.at !== dismissedNudgeAt
+    ? 'Biri seni dürttü! Lütfen hazır ol!'
+    : null;
+
   // Handle incoming nudges
   useEffect(() => {
-    if (lastNudge && currentPlayer && lastNudge.toId === currentPlayer.id) {
-      trigger('heavy');
-      setNudgeBanner('Biri seni dürttü! Lütfen hazır ol!');
-      const timer = setTimeout(() => setNudgeBanner(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [lastNudge, currentPlayer, trigger]);
+    if (!isIncomingNudge || !lastNudge) return;
+    trigger('heavy');
+    const nudgeAt = lastNudge.at;
+    const timer = setTimeout(() => setDismissedNudgeAt(nudgeAt), 4000);
+    return () => clearTimeout(timer);
+  }, [isIncomingNudge, lastNudge?.at, trigger]);
 
   const playersList = roomState ? Object.values(roomState.players) : [];
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
@@ -104,9 +108,17 @@ export default function LobbyScreen() {
   };
 
   const lobbyStageId = `${roomCode ?? 'demo'}:lobby:${lobbySessionId}`;
-  const nudgePlayer = (targetId: string, targetName: string) => {
+  const nudgePlayer = async (targetId: string, targetName: string) => {
     trigger('light');
-    prototype.nudge(lobbyStageId, targetId, me?.name ?? 'Sen', targetName);
+    if (!roomCode) return;
+    try {
+      await service.nudgePlayer(roomCode, targetId);
+      if (!isLive) {
+        prototype.nudge(lobbyStageId, targetId, me?.name ?? 'Sen', targetName);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   const handleShare = async () => {
@@ -216,7 +228,7 @@ export default function LobbyScreen() {
                   style={[styles.playerCard, isSelf && styles.playerCardSelf]}
                 >
                   <Pressable onPress={() => setProfilePlayer(player)} style={styles.playerIdentity}>
-                    <Avatar avatarKey={player.avatarKey} size={46} online={player.isOnline} ring={isSelf} />
+                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} size={46} online={player.isOnline} ring={isSelf} />
                     <View style={styles.playerIdentityText}>
                       <View style={styles.nameWrap}>
                         <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>
@@ -249,17 +261,17 @@ export default function LobbyScreen() {
                       </View>
                       {!isSelf && (
                         <Pressable
-                          disabled={!prototype.canNudge(lobbyStageId, player.id)}
-                          onPress={() => nudgePlayer(player.id, player.name)}
+                          disabled={!isLive && !prototype.canNudge(lobbyStageId, player.id)}
+                          onPress={() => void nudgePlayer(player.id, player.name)}
                           style={[
                             styles.nudgeBtn,
-                            !prototype.canNudge(lobbyStageId, player.id) && styles.nudgeBtnUsed,
+                            !isLive && !prototype.canNudge(lobbyStageId, player.id) && styles.nudgeBtnUsed,
                           ]}
                           accessibilityRole="button"
                           accessibilityLabel={`${player.name} oyuncusunu dürt`}
                         >
                           <Vibrate
-                            color={prototype.canNudge(lobbyStageId, player.id) ? colors.orange : colors.textMuted}
+                            color={isLive || prototype.canNudge(lobbyStageId, player.id) ? colors.orange : colors.textMuted}
                             size={19}
                             strokeWidth={2.2}
                           />

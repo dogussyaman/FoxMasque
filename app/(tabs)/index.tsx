@@ -17,8 +17,6 @@ import {
   Zap,
   Gamepad2,
   ChevronRight,
-  Shield,
-  Smile,
   Flame,
   CheckCircle2,
   ShieldAlert,
@@ -39,10 +37,7 @@ const QUICK_SCORING_RULES = [
     label: 'Doğru Bil',
     icon: CheckCircle2,
     color: colors.lime,
-    gradient: ['rgba(198, 243, 107, 0.18)', 'rgba(37, 20, 66, 0.75)'] as const,
-    borderColor: 'rgba(198, 243, 107, 0.38)',
-    iconBg: 'rgba(198, 243, 107, 0.2)',
-    glow: colors.lime,
+    iconBg: colors.successSurface,
   },
   {
     key: 'trap',
@@ -50,10 +45,7 @@ const QUICK_SCORING_RULES = [
     label: 'Tuzağa Düşürme',
     icon: Zap,
     color: colors.orange,
-    gradient: ['rgba(255, 113, 59, 0.2)', 'rgba(37, 20, 66, 0.75)'] as const,
-    borderColor: 'rgba(255, 113, 59, 0.38)',
-    iconBg: 'rgba(255, 113, 59, 0.2)',
-    glow: colors.orange,
+    iconBg: colors.orangeSurface,
   },
   {
     key: 'victim',
@@ -61,22 +53,23 @@ const QUICK_SCORING_RULES = [
     label: 'Tuzağa Düşme',
     icon: ShieldAlert,
     color: colors.dangerSoft,
-    gradient: ['rgba(239, 68, 68, 0.18)', 'rgba(37, 20, 66, 0.75)'] as const,
-    borderColor: 'rgba(239, 68, 68, 0.38)',
-    iconBg: 'rgba(239, 68, 68, 0.2)',
-    glow: colors.danger,
+    iconBg: colors.dangerSurface,
   },
 ];
 
 export default function HomeScreen() {
-  const { init, isLive, service, connection, currentPlayer } = useGameStore();
+  const { init, isLive, service, currentPlayer, authStatus } = useGameStore();
   const { trigger } = useHaptics();
   const [leaderPreview, setLeaderPreview] = useState<
     { id: string; name: string; avatarKey: string; score: number }[]
   >([]);
 
   useEffect(() => {
-    init();
+    void init();
+  }, [init]);
+
+  useEffect(() => {
+    if (isLive && authStatus !== 'signed_in') return;
     service.getLeaderboard().then((lb) => {
       setLeaderPreview(
         lb
@@ -88,8 +81,12 @@ export default function HomeScreen() {
             score: p.score,
           }))
       );
-    });
-  }, [init, service]);
+    }).catch((error) => console.error('Liderlik listesi yüklenemedi:', error));
+  }, [authStatus, isLive, service]);
+
+  useEffect(() => {
+    if (isLive && authStatus === 'signed_out') router.replace('/auth');
+  }, [isLive, authStatus]);
 
   const goCreate = () => {
     trigger('light');
@@ -128,7 +125,7 @@ export default function HomeScreen() {
             onPress={() => router.push('/(tabs)/profil')}
           >
             <Avatar
-              avatarKey={currentPlayer?.avatarKey || 'fox'}
+              avatarKey={currentPlayer?.avatarUrl ?? currentPlayer?.avatarKey ?? 'fox'}
               size={38}
               ring
             />
@@ -138,7 +135,7 @@ export default function HomeScreen() {
         {/* Hero Area: Asymmetric Card with 3D Fox Mascot */}
         <View style={styles.heroContainer}>
           <LinearGradient
-            colors={[colors.zartoSurface, '#35185D', '#20103B']}
+            colors={[colors.bgSurfaceAlt, colors.bgSurface]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.heroCard}
@@ -180,6 +177,7 @@ export default function HomeScreen() {
                 label="Oda Oluştur"
                 onPress={goCreate}
                 variant="orange"
+                size="md"
                 icon={<Plus color="#FFF" size={20} strokeWidth={2.5} />}
                 style={styles.primaryCta}
               />
@@ -187,6 +185,7 @@ export default function HomeScreen() {
                 label="Odaya Katıl"
                 onPress={goJoin}
                 variant="secondary"
+                size="md"
                 icon={<LogIn color={colors.textPrimary} size={18} />}
                 style={styles.secondaryCta}
               />
@@ -205,18 +204,11 @@ export default function HomeScreen() {
                 style={({ pressed }) => [
                   styles.miniRuleCard,
                   {
-                    borderColor: rule.borderColor,
-                    shadowColor: rule.glow,
                     transform: [{ scale: pressed ? 0.96 : 1 }],
                   },
                 ]}
               >
-                <LinearGradient
-                  colors={rule.gradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0.8, y: 1 }}
-                  style={styles.miniRuleCardGradient}
-                >
+                <View style={styles.miniRuleCardContent}>
                   <View style={styles.miniRuleHeader}>
                     <View style={[styles.miniRuleIconCircle, { backgroundColor: rule.iconBg }]}>
                       <Icon size={12} color={rule.color} strokeWidth={2.6} />
@@ -225,10 +217,10 @@ export default function HomeScreen() {
                       {rule.score}
                     </Text>
                   </View>
-                  <Text style={styles.miniRuleLabel} numberOfLines={1}>
+                  <Text style={styles.miniRuleLabel} numberOfLines={2}>
                     {rule.label}
                   </Text>
-                </LinearGradient>
+                </View>
               </Pressable>
             );
           })}
@@ -267,7 +259,7 @@ export default function HomeScreen() {
                   imageStyle={styles.catCardImage}
                 >
                   <LinearGradient
-                    colors={['rgba(15, 9, 27, 0.15)', 'rgba(15, 9, 27, 0.82)']}
+                    colors={[colors.categoryOverlayTop, colors.categoryOverlayBottom]}
                     style={StyleSheet.absoluteFill}
                     pointerEvents="none"
                   />
@@ -288,12 +280,12 @@ export default function HomeScreen() {
         {/* How to Play - FOXMASQUE Guide Cards */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nasıl Oynanır?</Text>
-          <Card variant="surface">
+          <Card variant="surface" style={styles.howToCard}>
             <View style={styles.howToRow}>
-              <View style={[styles.howToBadge, { backgroundColor: 'rgba(139, 92, 246, 0.2)' }]}>
+              <View style={[styles.howToBadge, { backgroundColor: colors.purpleSurface }]}>
                 <Gamepad2 color={colors.purpleSoft} size={22} />
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.howToText}>
                 <Text style={styles.howToTitle}>1. Odaya Gir & Soru Gelir</Text>
                 <Text style={styles.howToDesc}>
                   2-10 arkadaşınla odaya katıl. Kategori sorusu aynı anda herkese açılır.
@@ -304,10 +296,10 @@ export default function HomeScreen() {
             <View style={styles.divider} />
 
             <View style={styles.howToRow}>
-              <View style={[styles.howToBadge, { backgroundColor: 'rgba(255, 113, 59, 0.2)' }]}>
+              <View style={[styles.howToBadge, { backgroundColor: colors.orangeSurface }]}>
                 <Zap color={colors.orange} size={22} />
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.howToText}>
                 <Text style={styles.howToTitle}>2. Sahte Cevap Yaz & Şıkları Karıştır</Text>
                 <Text style={styles.howToDesc}>
                   Herkes inandırıcı bir yalan uydurur. Gerçek cevap ve sahteler harmanlanır!
@@ -318,10 +310,10 @@ export default function HomeScreen() {
             <View style={styles.divider} />
 
             <View style={styles.howToRow}>
-              <View style={[styles.howToBadge, { backgroundColor: 'rgba(198, 243, 107, 0.2)' }]}>
+              <View style={[styles.howToBadge, { backgroundColor: colors.successSurface }]}>
                 <Sparkles color={colors.lime} size={22} />
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.howToText}>
                 <Text style={styles.howToTitle}>3. Tuzağa Düşür & Tuzağa Düşme!</Text>
                 <Text style={styles.howToDesc}>
                   Doğru cevaba +100 puan; sahtene kanan her rakip için +50 puan kap! Başkasının sahtesine kanarsan -40 puan.
@@ -344,7 +336,7 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          <Card variant="default">
+          <Card variant="default" style={styles.leaderCard}>
             {leaderPreview.length === 0 ? (
               <Text style={styles.emptyText}>Henüz kayıtlı skor bulunmuyor.</Text>
             ) : (
@@ -361,6 +353,7 @@ export default function HomeScreen() {
                       styles.rankCircle,
                       i === 0 && styles.rankCircleFirst,
                       i === 1 && styles.rankCircleSecond,
+                      i === 2 && styles.rankCircleThird,
                     ]}
                   >
                     <Text
@@ -376,7 +369,7 @@ export default function HomeScreen() {
                   <Text style={styles.leaderName} numberOfLines={1}>
                     {p.name}
                   </Text>
-                  <Badge tone={i === 0 ? 'yellow' : 'purple'}>
+                  <Badge tone={i === 0 ? 'yellow' : i < 3 ? 'neutral' : 'purple'}>
                     {p.score} P
                   </Badge>
                 </View>
@@ -411,7 +404,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radii.sm,
     borderWidth: 1.5,
-    borderColor: '#A78BFA',
+    borderColor: colors.purpleSoft,
     transform: [{ rotate: '-2deg' }],
   },
   logoText: {
@@ -429,7 +422,7 @@ const styles = StyleSheet.create({
   heroCard: {
     borderRadius: radii['2xl'],
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 113, 59, 0.35)',
+    borderColor: colors.borderAccent,
     padding: spacing.xl,
     overflow: 'hidden',
     ...shadows.card,
@@ -440,7 +433,7 @@ const styles = StyleSheet.create({
     right: -30,
     width: 140,
     height: 220,
-    backgroundColor: 'rgba(255, 113, 59, 0.12)',
+    backgroundColor: colors.orangeSurface,
     transform: [{ rotate: '-24deg' }],
   },
   heroContentRow: {
@@ -449,14 +442,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   heroLeftCol: {
-    flex: 1.2,
+    flex: 1.25,
     paddingRight: 6,
+    minWidth: 0,
   },
   kickerPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255, 113, 59, 0.2)',
+    backgroundColor: colors.orangeSurface,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: radii.sm,
@@ -484,13 +478,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   mascotWrap: {
-    flex: 0.9,
+    flex: 0.75,
     alignItems: 'center',
     justifyContent: 'center',
   },
   mascotImage: {
-    width: 130,
-    height: 130,
+    width: 104,
+    height: 104,
     borderRadius: radii.lg,
   },
   ctaRow: {
@@ -499,10 +493,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   primaryCta: {
-    flex: 1.2,
+    flex: 1.15,
+    paddingHorizontal: spacing.sm,
   },
   secondaryCta: {
     flex: 1,
+    paddingHorizontal: spacing.sm,
   },
   miniRulesRow: {
     flexDirection: 'row',
@@ -515,14 +511,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     backgroundColor: colors.bgCard,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 3,
+    borderColor: colors.border,
   },
-  miniRuleCardGradient: {
-    paddingVertical: 9,
-    paddingHorizontal: 6,
+  miniRuleCardContent: {
+    minHeight: 62,
+    paddingVertical: 8,
+    paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -547,8 +541,10 @@ const styles = StyleSheet.create({
   miniRuleLabel: {
     fontFamily: 'Poppins-SemiBold',
     fontSize: 11,
+    lineHeight: 14,
     color: colors.textPrimary,
     letterSpacing: 0.1,
+    textAlign: 'center',
   },
   section: {
     marginTop: spacing['2xl'],
@@ -590,8 +586,8 @@ const styles = StyleSheet.create({
     height: 104,
     borderRadius: radii.xl,
     overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
     backgroundColor: colors.bgCard,
     ...shadows.card,
   },
@@ -607,9 +603,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: colors.imageIconSurface,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -621,14 +617,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 16,
     color: '#FFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.85)',
+    textShadowColor: colors.overlay,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   howToRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  howToCard: {
+    padding: spacing.lg,
+  },
+  howToText: {
+    flex: 1,
+    minWidth: 0,
+    paddingTop: 1,
   },
   howToBadge: {
     width: 44,
@@ -640,19 +644,24 @@ const styles = StyleSheet.create({
   howToTitle: {
     fontFamily: 'Poppins-Bold',
     fontSize: 14,
+    lineHeight: 20,
     color: colors.textPrimary,
   },
   howToDesc: {
     fontFamily: 'Poppins-Regular',
     fontSize: 12,
-    lineHeight: 17,
+    lineHeight: 18,
     color: colors.textSecondary,
     marginTop: 2,
   },
   divider: {
     height: 1,
     backgroundColor: colors.border,
-    marginVertical: 12,
+    marginVertical: spacing.md,
+  },
+  leaderCard: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
   },
   leaderRow: {
     flexDirection: 'row',
@@ -673,12 +682,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rankCircleFirst: {
-    backgroundColor: 'rgba(255, 209, 102, 0.25)',
+    backgroundColor: colors.goldSurface,
     borderWidth: 1,
     borderColor: colors.yellow,
   },
   rankCircleSecond: {
-    backgroundColor: 'rgba(214, 206, 229, 0.2)',
+    backgroundColor: colors.silverSurface,
+  },
+  rankCircleThird: {
+    backgroundColor: colors.bgSurfaceAlt,
   },
   rankText: {
     fontFamily: 'Poppins-Bold',
@@ -690,6 +702,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textPrimary,
     flex: 1,
+    minWidth: 0,
   },
   emptyText: {
     fontFamily: 'Poppins-Regular',

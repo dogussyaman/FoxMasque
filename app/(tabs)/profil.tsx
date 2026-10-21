@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput } from 'react-native';
+import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus } from 'lucide-react-native';
+import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, Badge } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -11,7 +12,7 @@ import { soundService } from '@/services/soundService';
 import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
 
 export default function ProfilScreen() {
-  const { currentPlayer, setCurrentPlayer, isLive, connection, service } = useGameStore();
+  const { currentPlayer, setCurrentPlayer, isLive, isAnonymous, connection, service } = useGameStore();
   const { trigger } = useHaptics();
   const { enabled: soundEnabled, setEnabled: setSoundEnabled } = useSound();
 
@@ -21,6 +22,7 @@ export default function ProfilScreen() {
   const [selectedAvatar, setSelectedAvatar] = useState(currentPlayer?.avatarKey ?? 'fox');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (!currentPlayer) return;
@@ -97,6 +99,20 @@ export default function ProfilScreen() {
     }
   };
 
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    setProfileError(null);
+    try {
+      await service.signOut();
+      setCurrentPlayer(null);
+      router.replace('/auth');
+    } catch (error) {
+      setProfileError((error as Error).message);
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
   return (
     <Screen gradient diagonalSlice padded={false} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -113,7 +129,7 @@ export default function ProfilScreen() {
         {/* Profile Card */}
         <Card variant="surface" glow="orange" style={styles.profileCard}>
           <View style={styles.avatarRow}>
-            <Avatar avatarKey={selectedAvatar} size={68} ring />
+            <Avatar avatarKey={currentPlayer?.avatarUrl ?? selectedAvatar} size={68} ring />
             <View style={{ flex: 1 }}>
               {editingName ? (
                 <View style={styles.editRow}>
@@ -276,6 +292,22 @@ export default function ProfilScreen() {
             <Text style={styles.aboutSub}>2–10 Oyuncu • Gerçek Zamanlı Realtime Motoru</Text>
           </Card>
         </View>
+        {isLive ? (
+          <View style={styles.section}>
+            <Text style={styles.accountType}>
+              {isAnonymous ? 'Misafir oturumu' : 'Supabase hesabı'}
+            </Text>
+            {profileError ? <Text style={styles.profileError}>{profileError}</Text> : null}
+            <Button
+              label={signingOut ? 'Çıkış yapılıyor...' : 'Çıkış yap'}
+              variant="danger"
+              fullWidth
+              disabled={signingOut}
+              onPress={() => void handleSignOut()}
+              icon={<LogOut color="#FFF" size={18} />}
+            />
+          </View>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -286,6 +318,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 4,
     paddingBottom: 100,
+  },
+  accountType: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
   },
   profileCard: {
     marginTop: spacing.xs,

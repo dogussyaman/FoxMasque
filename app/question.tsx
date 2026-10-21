@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -36,12 +36,23 @@ import { soundService } from '@/services/soundService';
 import { usePrototype } from '@/features/prototype/PrototypeProvider';
 
 export default function QuestionScreen() {
-  const { roomCode, roomState, currentPlayer, service } = useGameStore();
+  const { roomCode, roomState, currentPlayer, service, refreshRoom, isLive } = useGameStore();
   const prototype = usePrototype();
   const { trigger } = useHaptics();
 
   const totalTime = roomState?.config.roundSeconds ?? 20;
   const [secondsLeft, setSecondsLeft] = useState(totalTime);
+  const [deadlineCountdown, setDeadlineCountdown] = useState<{
+    deadline: number;
+    secondsLeft: number;
+  } | null>(null);
+  const deadline = roomState?.phaseDeadlineAt;
+  const displayedSecondsLeft =
+    isLive && deadline !== null && deadline !== undefined
+      ? deadlineCountdown?.deadline === deadline
+        ? deadlineCountdown.secondsLeft
+        : totalTime
+      : secondsLeft;
   const [fakeAnswerText, setFakeAnswerText] = useState('');
   const [fakeSubmitted, setFakeSubmitted] = useState(false);
   const [choices, setChoices] = useState<RoundChoice[]>([]);
@@ -49,16 +60,66 @@ export default function QuestionScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
 
   const clockPlayedFake = useRef(false);
   const clockPlayedGuess = useRef(false);
   const prevIsGuessPhase = useRef(false);
   const isFirstMount = useRef(true);
+  const expirationRequested = useRef<string | null>(null);
+  const acknowledgedQuestion = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isLive || deadline === null || deadline === undefined) return;
+    const timer = setInterval(() => {
+      setDeadlineCountdown({
+        deadline,
+        secondsLeft: Math.max(0, Math.ceil((deadline - Date.now()) / 1000)),
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isLive, deadline]);
 
   // Active question
   const currentQId = roomState?.currentQuestionId || QUESTIONS[0].id;
-  const question: Question = QUESTIONS.find((q) => q.id === currentQId) || QUESTIONS[0];
+  const localQuestion = QUESTIONS.find((q) => q.id === currentQId);
+  const question: Question = loadedQuestion?.id === currentQId
+    ? loadedQuestion
+    : localQuestion || QUESTIONS[0];
   const category = getCategory(question.categoryId);
+  const currentRoomRound = roomState?.currentRound;
+  const currentRoomPhase = roomState?.phase;
+
+  useEffect(() => {
+    if (!roomCode || currentRoomRound === undefined || !currentRoomPhase || currentRoomPhase === 'lobby') return;
+    let cancelled = false;
+    void service.getCurrentQuestion(roomCode).then((nextQuestion) => {
+      if (!cancelled && nextQuestion?.id === currentQId) setLoadedQuestion(nextQuestion);
+    }).catch((cause: unknown) => {
+      if (!cancelled) {
+        setError(cause instanceof Error ? cause.message : 'Soru yüklenemedi.');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentQId, currentRoomPhase, currentRoomRound, roomCode, service]);
+
+  useEffect(() => {
+    if (!roomCode || currentRoomRound === undefined || question.id !== currentQId
+      || !currentRoomPhase || !['ability_select', 'fake_answer', 'guess'].includes(currentRoomPhase)) {
+      return;
+    }
+    const questionKey = `${roomCode}:${currentRoomRound}:${currentQId}`;
+    if (acknowledgedQuestion.current === questionKey) return;
+
+    acknowledgedQuestion.current = questionKey;
+    setError(null);
+    void service.markCurrentQuestionSeen(roomCode).catch((cause: unknown) => {
+      acknowledgedQuestion.current = null;
+      setError(cause instanceof Error ? cause.message : 'Soru geçmişi kaydedilemedi.');
+    });
+  }, [currentQId, currentRoomPhase, currentRoomRound, question.id, roomCode, service]);
 
   const playersList = roomState ? Object.values(roomState.players) : [];
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
@@ -81,6 +142,7 @@ export default function QuestionScreen() {
     setChoices([]);
     setSelectedChoiceIndex(null);
     setSecondsLeft(totalTime);
+    expirationRequested.current = null;
     soundService.stop('clock');
   }, [currentQId, totalTime]);
 
@@ -107,7 +169,7 @@ export default function QuestionScreen() {
       soundService.stop('clock');
       return;
     }
-    if (secondsLeft < 10 && secondsLeft > 0) {
+    if (displayedSecondsLeft < 10 && displayedSecondsLeft > 0) {
       if (!isGuessPhase) {
         if (!fakeSubmitted && !submitting && !clockPlayedFake.current) {
           clockPlayedFake.current = true;
@@ -120,7 +182,7 @@ export default function QuestionScreen() {
         }
       }
     }
-  }, [secondsLeft, isGuessPhase, fakeSubmitted, submitting, isPaused]);
+  }, [displayedSecondsLeft, isGuessPhase, fakeSubmitted, submitting, isPaused]);
 
   // Listen for phase transitions to result / scoreboard
   useEffect(() => {
@@ -133,9 +195,21 @@ export default function QuestionScreen() {
     } else if (roomState?.phase === 'guess' && roomCode) {
       service.getRoundChoices(roomCode).then((list) => {
         if (list.length > 0) setChoices(list);
-      }).catch(() => {});
+      }).catch((e) => setError((e as Error).message));
     }
   }, [roomState?.phase, roomCode, service]);
+
+  const handleTimeExpire = useCallback(() => {
+    soundService.stop('clock');
+    const stage = `${roomCode ?? ''}:${roomState?.currentRound ?? 0}:${roomState?.phase ?? ''}:${roomState?.phaseDeadlineAt ?? ''}`;
+    if (submitting || !roomCode || expirationRequested.current === stage) return;
+    expirationRequested.current = stage;
+    setSubmitting(true);
+    service.advanceExpiredPhase(roomCode)
+      .then(() => refreshRoom())
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setSubmitting(false));
+  }, [roomCode, roomState?.currentRound, roomState?.phase, roomState?.phaseDeadlineAt, submitting, service, refreshRoom]);
 
   // Countdown timer (pauses when isPaused is true)
   useEffect(() => {
@@ -143,7 +217,7 @@ export default function QuestionScreen() {
       soundService.stop('clock');
       return;
     }
-    if (secondsLeft <= 0) {
+    if (displayedSecondsLeft <= 0) {
       soundService.stop('clock');
       handleTimeExpire();
       return;
@@ -156,7 +230,7 @@ export default function QuestionScreen() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [secondsLeft, isGuessPhase, isPaused]);
+  }, [displayedSecondsLeft, isGuessPhase, isPaused, handleTimeExpire, trigger]);
 
   const handleTogglePause = () => {
     soundService.play('click');
@@ -166,7 +240,7 @@ export default function QuestionScreen() {
       if (next) {
         soundService.stop('clock');
       } else {
-        if (secondsLeft < 10 && secondsLeft > 0) {
+        if (displayedSecondsLeft < 10 && displayedSecondsLeft > 0) {
           clockPlayedFake.current = false;
           clockPlayedGuess.current = false;
         }
@@ -181,25 +255,12 @@ export default function QuestionScreen() {
     if (roomCode) {
       try {
         await service.leaveRoom(roomCode);
-      } catch {}
-    }
-    router.replace('/create-room');
-  };
-
-  const handleTimeExpire = () => {
-    soundService.stop('clock');
-    if (submitting) return;
-    if (!isGuessPhase) {
-      if (fakeSubmitted) return;
-      // Auto-submit empty fake answer if user didn't write anything
-      submitFake(fakeAnswerText.trim());
-    } else {
-      // Auto-submit first non-own choice
-      const validChoice = choices.find((c) => !c.isOwnFake) || choices[0];
-      if (validChoice) {
-        submitPick(validChoice.choiceIndex);
+      } catch (e) {
+        setError((e as Error).message);
+        return;
       }
     }
+    router.replace('/create-room');
   };
 
   const handleFakeSubmit = () => {
@@ -255,7 +316,7 @@ export default function QuestionScreen() {
     }
   };
 
-  const progressFraction = Math.max(0, secondsLeft / totalTime);
+  const progressFraction = Math.max(0, displayedSecondsLeft / totalTime);
 
   if (isBlocked) {
     return (
@@ -291,39 +352,41 @@ export default function QuestionScreen() {
             </Badge>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {secondsLeft <= 4 ? (
+              {displayedSecondsLeft <= 4 ? (
                 <PulseView minScale={0.92} maxScale={1.08} duration={600}>
                   <View style={[styles.timerWrap, styles.timerWrapUrgent]}>
                     <Clock color={colors.danger} size={15} />
                     <Text style={[styles.timerText, { color: colors.dangerSoft }]}>
-                      {secondsLeft}s
+                      {displayedSecondsLeft}s
                     </Text>
                   </View>
                 </PulseView>
               ) : (
                 <View style={styles.timerWrap}>
                   <Clock color={colors.yellow} size={15} />
-                  <Text style={styles.timerText}>{secondsLeft}s</Text>
+                  <Text style={styles.timerText}>{displayedSecondsLeft}s</Text>
                 </View>
               )}
 
-              <Pressable
-                onPress={handleTogglePause}
-                style={({ pressed }) => [
-                  styles.pauseBtn,
-                  { transform: [{ scale: pressed ? 0.94 : 1 }] },
-                ]}
-                hitSlop={8}
-              >
-                <Pause color={colors.textPrimary} size={15} />
-              </Pressable>
+              {!isLive ? (
+                <Pressable
+                  onPress={handleTogglePause}
+                  style={({ pressed }) => [
+                    styles.pauseBtn,
+                    { transform: [{ scale: pressed ? 0.94 : 1 }] },
+                  ]}
+                  hitSlop={8}
+                >
+                  <Pause color={colors.textPrimary} size={15} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
 
           <View style={styles.progressWrap}>
             <ProgressBar
               progress={progressFraction}
-              color={secondsLeft <= 4 ? colors.danger : colors.orange}
+              color={displayedSecondsLeft <= 4 ? colors.danger : colors.orange}
             />
           </View>
         </View>
@@ -391,7 +454,7 @@ export default function QuestionScreen() {
                     <CheckCircle2 color={colors.lime} size={32} />
                     <Text style={styles.submittedTitle}>Cevabın Havuzda Kilitlendi!</Text>
                     <Text style={styles.submittedText}>
-                      "{fakeAnswerText}" cevabın gerçek cevapla karıştırılıyor. Diğer oyuncular bekleniyor...
+                      “{fakeAnswerText}” cevabın gerçek cevapla karıştırılıyor. Diğer oyuncular bekleniyor...
                     </Text>
                   </Card>
                 </PopView>
@@ -552,7 +615,7 @@ export default function QuestionScreen() {
               <View style={styles.pauseInfoDivider} />
               <View style={styles.pauseInfoItem}>
                 <Text style={styles.pauseInfoLabel}>Kalan Süre</Text>
-                <Text style={styles.pauseInfoValue}>{secondsLeft} sn</Text>
+                <Text style={styles.pauseInfoValue}>{displayedSecondsLeft} sn</Text>
               </View>
             </View>
 

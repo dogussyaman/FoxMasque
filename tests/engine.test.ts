@@ -6,6 +6,7 @@ import {
 } from '../features/game/outcomes';
 import {
   blendChoices,
+  normalizeChoiceText,
   resolveZartoRound,
   applyRoundToPlayers,
 } from '../features/game/engine';
@@ -13,6 +14,7 @@ import {
   canUseAbility,
   freshAbilityState,
 } from '../features/game/abilities';
+import { pickQuestions, questionsForCategory } from '../features/game/questions';
 import type { Player, RoundChoice } from '../types/game';
 import type { Question } from '../features/game/questions';
 
@@ -20,10 +22,7 @@ const sampleQuestion: Question = {
   id: 'test-q1',
   categoryId: 'genel-kultur',
   prompt: 'Türkiye Cumhuriyeti hangi yıl ilan edildi?',
-  options: ['1920', '1923', '1925', '1930'],
-  correctIndex: 1,
   correctAnswer: '1923',
-  defaultDecoys: ['1920', '1925', '1930'],
   explanation: '29 Ekim 1923',
 };
 
@@ -47,16 +46,67 @@ function createPlayer(id: string, name: string, score = 0): Player {
 }
 
 describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
+  test('Normalizes Turkish casing and compatibility characters without stripping punctuation', () => {
+    assert.equal(normalizeChoiceText('  İSTANBUL  '), normalizeChoiceText('İstanbul'));
+    assert.equal(normalizeChoiceText('Ａ'), normalizeChoiceText('A'));
+    assert.notEqual(normalizeChoiceText('1.000'), normalizeChoiceText('1000'));
+  });
+
+  describe('Question selection history', () => {
+    test('Returns distinct unseen questions and allows another player to see the same question', () => {
+      const firstPlayer = pickQuestions(['genel-kultur'], 2, 1);
+      const secondPlayer = pickQuestions(['genel-kultur'], 2, 1);
+
+      assert.equal(new Set(firstPlayer.map((question) => question.id)).size, 2);
+      assert.deepEqual(
+        firstPlayer.map((question) => question.id),
+        secondPlayer.map((question) => question.id)
+      );
+    });
+
+    test('Skips a player’s previously seen questions on later games', () => {
+      const firstGame = pickQuestions(['genel-kultur'], 2, 1);
+      const nextGame = pickQuestions(
+        ['genel-kultur'],
+        2,
+        2,
+        firstGame.map((question) => question.id)
+      );
+
+      assert.equal(new Set(nextGame.map((question) => question.id)).size, 2);
+      assert.ok(nextGame.every((question) =>
+        !firstGame.some((seenQuestion) => seenQuestion.id === question.id)
+      ));
+    });
+
+    test('Fails rather than repeating when the unseen category pool is exhausted', () => {
+      const categoryQuestions = questionsForCategory('genel-kultur');
+      assert.throws(
+        () => pickQuestions(
+          ['genel-kultur'],
+          1,
+          1,
+          categoryQuestions.map((question) => question.id)
+        ),
+        /daha önce görülmemiş/
+      );
+    });
+  });
+
   describe('1. Blend Choices (True Answer + Fake Answers)', () => {
     test('Blends true answer and player fake answers, deduplicates and keeps author tags', () => {
       const fakeAnswers = {
-        p1: '1920', // identical to a decoy
+        p1: '1920',
         p2: '1881', // novel fake
         p3: '1938', // novel fake
       };
 
       const choices = blendChoices(sampleQuestion, fakeAnswers, 123);
-      assert.ok(choices.length >= 4, 'Should contain at least 4 choices');
+      assert.equal(choices.length, 4, 'Should contain only the correct answer and submitted fakes');
+      assert.deepEqual(
+        new Set(choices.map((choice) => choice.text)),
+        new Set(['1923', '1920', '1881', '1938'])
+      );
 
       // Must contain real answer
       const real = choices.find((c) => c.text === '1923');
@@ -74,6 +124,25 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.ok(p3Choice);
       assert.equal(p3Choice.authorId, 'p3');
       assert.equal(p3Choice.isCorrect, false);
+    });
+
+    test('Does not add question distractors when no players submitted fake answers', () => {
+      const choices = blendChoices(sampleQuestion, {});
+      assert.equal(choices.length, 1);
+      assert.equal(choices[0].text, '1923');
+      assert.equal(choices[0].isCorrect, true);
+    });
+
+    test('Rejects a question without a verified correct answer', () => {
+      const questionWithoutAnswer: Question = {
+        id: 'test-q2',
+        categoryId: 'genel-kultur',
+        prompt: 'Cevabı eksik soru',
+      };
+      assert.throws(
+        () => blendChoices(questionWithoutAnswer, {}),
+        /doğrulanmış doğru cevap/
+      );
     });
   });
 
@@ -266,12 +335,15 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       const p1 = createPlayer('p1', 'Attacker', 0);
       const p2 = createPlayer('p2', 'Defender', 0);
       const p3 = createPlayer('p3', 'ShieldedDefender', 0);
+      const p4 = createPlayer('p4', 'SecondAttacker', 0);
+      p1.blocksAvailable = 1;
+      p4.blocksAvailable = 1;
       p3.shieldsAvailable = 1;
 
       const choices: RoundChoice[] = [
         { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
       ];
-      const picks = { p1: 0, p2: 0, p3: 0 };
+      const picks = { p1: 0, p2: 0, p3: 0, p4: 0 };
 
       const res = resolveZartoRound({
         question: sampleQuestion,
@@ -280,17 +352,103 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         picks,
         abilityActions: [
           { playerId: 'p1', abilityId: 'block', targetId: 'p2' },
-          { playerId: 'p1', abilityId: 'block', targetId: 'p3' },
+          { playerId: 'p4', abilityId: 'block', targetId: 'p3' },
           { playerId: 'p3', abilityId: 'shield' }, // p3 activates shield!
         ],
       });
 
       // p2 was not shielded -> blocked for next round!
       assert.equal(res.updatedPlayers['p2'].isBlockedNextRound, true);
+      assert.equal(res.updatedPlayers['p1'].blocksAvailable, 0);
 
       // p3 had active shield -> protected! Not blocked!
       assert.equal(res.updatedPlayers['p3'].isBlockedNextRound, false);
       assert.equal(res.updatedPlayers['p3'].shieldsAvailable, 0); // shield consumed
+    });
+
+    test('Penalty applies on a wrong pick and counter reflects it to the attacker', () => {
+      const attacker = createPlayer('attacker', 'Attacker', 100);
+      const target = createPlayer('target', 'Target', 100);
+      const choices: RoundChoice[] = [
+        { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+        { choiceIndex: 1, text: 'Yanlış', authorId: null, isCorrect: false },
+      ];
+      const picks = { attacker: 0, target: 1 };
+      const penalty = resolveZartoRound({
+        question: sampleQuestion,
+        players: [attacker, target],
+        choices,
+        picks,
+        abilityActions: [{ playerId: 'attacker', abilityId: 'penalty', targetId: 'target' }],
+      });
+      assert.equal(penalty.rows.target.pointsDelta, -30);
+      assert.equal(penalty.rows.target.penaltyDelta, -30);
+      assert.equal(penalty.updatedPlayers.target.score, 70);
+
+      const counter = resolveZartoRound({
+        question: sampleQuestion,
+        players: [attacker, target],
+        choices,
+        picks,
+        abilityActions: [
+          { playerId: 'attacker', abilityId: 'penalty', targetId: 'target' },
+          { playerId: 'target', abilityId: 'counter' },
+        ],
+      });
+      assert.equal(counter.rows.target.pointsDelta, 0);
+      assert.equal(counter.rows.attacker.pointsDelta, 70);
+      assert.equal(counter.rows.attacker.penaltyDelta, -30);
+      assert.equal(counter.updatedPlayers.attacker.score, 170);
+      assert.equal(counter.updatedPlayers.target.score, 100);
+    });
+
+    test('Shield absorbs a penalty without changing the target score', () => {
+      const attacker = createPlayer('attacker', 'Attacker', 100);
+      const target = createPlayer('target', 'Target', 100);
+      target.shieldsAvailable = 1;
+      const result = resolveZartoRound({
+        question: sampleQuestion,
+        players: [attacker, target],
+        choices: [
+          { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+          { choiceIndex: 1, text: 'Yanlış', authorId: 'attacker', isCorrect: false },
+        ],
+        picks: { attacker: 0, target: 1 },
+        abilityActions: [
+          { playerId: 'attacker', abilityId: 'penalty', targetId: 'target' },
+          { playerId: 'target', abilityId: 'shield' },
+        ],
+      });
+
+      assert.equal(result.rows.target.pointsDelta, -40);
+      assert.equal(result.rows.target.penaltyDelta, 0);
+      assert.equal(result.updatedPlayers.target.score, 60);
+      assert.equal(result.updatedPlayers.target.shieldsAvailable, 0);
+    });
+
+    test('Multiple penalties stack on an incorrect answer', () => {
+      const target = createPlayer('target', 'Target', 200);
+      const result = resolveZartoRound({
+        question: sampleQuestion,
+        players: [
+          createPlayer('attacker-1', 'Attacker 1', 100),
+          createPlayer('attacker-2', 'Attacker 2', 100),
+          target,
+        ],
+        picks: { 'attacker-1': 0, 'attacker-2': 0, target: 1 },
+        choices: [
+          { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+          { choiceIndex: 1, text: 'Yanlış', authorId: 'attacker-1', isCorrect: false },
+        ],
+        abilityActions: [
+          { playerId: 'attacker-1', abilityId: 'penalty', targetId: 'target' },
+          { playerId: 'attacker-2', abilityId: 'penalty', targetId: 'target' },
+        ],
+      });
+
+      assert.equal(result.rows.target.pointsDelta, -100);
+      assert.equal(result.rows.target.penaltyDelta, -60);
+      assert.equal(result.updatedPlayers.target.score, 100);
     });
 
     test('Blocked player skips round: receives 0 points and cannot answer', () => {
