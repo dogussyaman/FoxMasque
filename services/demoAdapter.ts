@@ -24,6 +24,7 @@ import type {
   ConnectionState,
   GameService,
   RoomSummary,
+  RoomAccessPreflight,
   FriendRequest,
   RelationshipStatus,
   SocialPlayer,
@@ -243,10 +244,13 @@ export class DemoGameService implements GameService {
     return { code, playerId: hostId };
   }
 
-  async joinRoom(code: string, name: string, avatarKey: string, password?: string): Promise<{ playerId: string }> {
+  async joinRoom(code: string, name: string, avatarKey: string, password?: string, inviteToken?: string): Promise<{ playerId: string }> {
     const cleanCode = code.trim().toUpperCase();
     const room = this.rooms.get(cleanCode);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (inviteToken) {
+      throw new ServiceError('INVITE_UNAVAILABLE', 'Bu davet canlı oyun odasına ait; demo modunda kullanılamaz.');
+    }
     const existingPlayerId = this.currentPlayer?.id;
     const isExistingMember = !!existingPlayerId && !!room.players[existingPlayerId];
     if (room.password && !isExistingMember && room.password !== password) {
@@ -268,6 +272,32 @@ export class DemoGameService implements GameService {
     this.emit({ type: 'player_joined', payload: { code, player: room.players[me.id] } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
     return { playerId: me.id };
+  }
+
+  async checkRoomAccess(code: string): Promise<RoomAccessPreflight> {
+    const room = this.rooms.get(code.trim().toUpperCase());
+    if (!room) {
+      throw new ServiceError('ROOM_UNAVAILABLE', 'Oda bulunamadı veya yeni katılıma açık değil.');
+    }
+    if (room.phase !== 'lobby') {
+      throw new ServiceError('GAME_ALREADY_STARTED', 'Oyun başladı; yeni oyuncu kabul edilmiyor.');
+    }
+    if (Object.keys(room.players).length >= room.config.maxPlayers) {
+      throw new ServiceError('ROOM_FULL', 'Oda dolu.');
+    }
+    const existingMember = !!this.currentPlayer && !!room.players[this.currentPlayer.id];
+    return room.password && !existingMember ? 'password_required' : 'open';
+  }
+
+  async createRoomInvite(code: string): Promise<string> {
+    const room = this.rooms.get(code.trim().toUpperCase());
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    throw new ServiceError(
+      'INVITE_UNAVAILABLE',
+      room.password
+        ? 'Demo modunda kilitli oda için güvenli davet bağlantısı kullanılamıyor.'
+        : 'Demo modunda uygulama dışı davet bağlantısı oluşturulamıyor.'
+    );
   }
 
   async leaveRoom(code: string): Promise<void> {
@@ -326,6 +356,10 @@ export class DemoGameService implements GameService {
       return Promise.resolve(null);
     }
     return Promise.resolve(this.snapshot(code));
+  }
+
+  restoreRoom(code: string): Promise<GameState | null> {
+    return this.getRoomState(code.trim().toUpperCase());
   }
 
   listOpenRooms(): Promise<RoomSummary[]> {

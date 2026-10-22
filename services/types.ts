@@ -20,6 +20,8 @@ export interface RoomSummary {
   createdAt: number;
 }
 
+export type RoomAccessPreflight = 'open' | 'password_required';
+
 export type ConnectionState = 'connecting' | 'online' | 'reconnecting' | 'offline' | 'error';
 export type RelationshipStatus =
   | 'none'
@@ -104,10 +106,19 @@ export interface GameService {
     isPrivate?: boolean;
     password?: string;
   }): Promise<{ code: string; playerId: string }>;
-  joinRoom(code: string, name: string, avatarKey: string, password?: string): Promise<{ playerId: string }>;
+  joinRoom(
+    code: string,
+    name: string,
+    avatarKey: string,
+    password?: string,
+    inviteToken?: string
+  ): Promise<{ playerId: string }>;
+  checkRoomAccess(code: string): Promise<RoomAccessPreflight>;
+  createRoomInvite(code: string): Promise<string>;
   leaveRoom(code: string): Promise<void>;
   setRoomPaused(code: string, paused: boolean): Promise<void>;
   getRoomState(code: string): Promise<GameState | null>;
+  restoreRoom(code: string, subscribe?: boolean): Promise<GameState | null>;
   getCurrentQuestion(code: string): Promise<Question | null>;
   listOpenRooms(): Promise<RoomSummary[]>;
 

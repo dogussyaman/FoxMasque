@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -24,6 +25,7 @@ import {
 import { Screen, Button, Card, Badge, Avatar, MascotFloat, PulseView } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
+import { getRoomRecoveryRoute } from '@/services/roomRecovery';
 import { useHaptics } from '@/hooks/useHaptics';
 import { CATEGORY_OPTIONS } from '@/features/game/categories';
 import { mascotImages } from '@/assets/illustrations';
@@ -58,8 +60,23 @@ const QUICK_SCORING_RULES = [
 ];
 
 export default function HomeScreen() {
-  const { init, isLive, service, currentPlayer, authStatus } = useGameStore();
+  const {
+    init,
+    isLive,
+    service,
+    currentPlayer,
+    authStatus,
+    recoveryStatus,
+    recoveryCode,
+    recoveryRoom,
+    continueSavedRoom,
+    dismissRecoveryOffer,
+    error,
+    setError,
+  } = useGameStore();
   const { trigger } = useHaptics();
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const [leaderPreview, setLeaderPreview] = useState<
     { id: string; name: string; avatarKey: string; score: number }[]
   >([]);
@@ -88,6 +105,20 @@ export default function HomeScreen() {
     if (isLive && authStatus === 'signed_out') router.replace('/auth');
   }, [isLive, authStatus]);
 
+  const handleContinueGame = async () => {
+    if (recovering) return;
+    setRecovering(true);
+    setRecoveryError(null);
+    try {
+      const state = await continueSavedRoom();
+      router.replace(getRoomRecoveryRoute(state, currentPlayer?.id ?? ''));
+    } catch (cause) {
+      setRecoveryError(cause instanceof Error ? cause.message : 'Oyuna devam edilemedi.');
+    } finally {
+      setRecovering(false);
+    }
+  };
+
   const goCreate = () => {
     trigger('light');
     router.push('/create-room');
@@ -99,6 +130,48 @@ export default function HomeScreen() {
 
   return (
     <Screen gradient diagonalSlice padded={false} edges={['top']}>
+      <Modal
+        visible={recoveryStatus === 'available' && !!recoveryCode}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissRecoveryOffer}
+      >
+        <View style={styles.recoveryOverlay}>
+          <View style={styles.recoveryCard}>
+            <Text style={styles.recoveryTitle}>Devam eden bir oyunun var</Text>
+            <Text style={styles.recoveryText}>
+              Oda {recoveryCode}
+              {recoveryRoom
+                ? ` · Tur ${recoveryRoom.currentRound}/${recoveryRoom.config.totalRounds}`
+                : ' · Sunucu durumu alınamadı; yeniden deneyebilirsin'}
+            </Text>
+            {recoveryError ? <Text style={styles.recoveryError}>{recoveryError}</Text> : null}
+            <Button
+              label="Kaldığın Yerden Devam Et"
+              onPress={() => void handleContinueGame()}
+              variant="orange"
+              loading={recovering}
+              fullWidth
+            />
+            <Pressable
+              onPress={dismissRecoveryOffer}
+              disabled={recovering}
+              style={styles.recoverySkip}
+            >
+              <Text style={styles.recoverySkipText}>Şimdilik Geç</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      {error ? (
+        <Pressable
+          onPress={() => setError(null)}
+          style={styles.storeError}
+          accessibilityRole="alert"
+        >
+          <Text style={styles.storeErrorText}>{error}</Text>
+        </Pressable>
+      ) : null}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -378,6 +451,59 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  recoveryOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+  },
+  storeError: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.dangerSurface,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  storeErrorText: {
+    ...typography.caption,
+    color: colors.dangerSoft,
+    textAlign: 'center',
+  },
+  recoveryCard: {
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radii.xl,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  recoveryTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    textAlign: 'center',
+  },
+  recoveryText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  recoveryError: {
+    ...typography.caption,
+    color: colors.dangerSoft,
+    textAlign: 'center',
+  },
+  recoverySkip: {
+    alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  recoverySkipText: {
+    ...typography.bodyMedium,
+    color: colors.textSecondary,
+  },
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 4,

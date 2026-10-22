@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,8 +7,10 @@ import {
   Pressable,
   Share,
   Image,
+  Platform,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as Linking from 'expo-linking';
 import {
   ChevronLeft,
   Share2,
@@ -43,7 +45,16 @@ import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
 import type { Player } from '@/types/game';
 
 export default function LobbyScreen() {
-  const { roomCode, roomState, currentPlayer, service, lastNudge, isLive } = useGameStore();
+  const {
+    roomCode,
+    roomState,
+    currentPlayer,
+    service,
+    lastNudge,
+    isLive,
+    setRoomCode,
+    setRoomState,
+  } = useGameStore();
   const prototype = usePrototype();
   const { trigger } = useHaptics();
 
@@ -53,6 +64,7 @@ export default function LobbyScreen() {
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [testMode, setTestMode] = useState(!isLive);
   const lobbySessionId = useId();
+  const sharingInvite = useRef(false);
 
   useEffect(() => {
     prototype.clearReadyOverrides();
@@ -122,13 +134,30 @@ export default function LobbyScreen() {
   };
 
   const handleShare = async () => {
+    if (sharingInvite.current) return;
+    sharingInvite.current = true;
     trigger('light');
-    if (!roomCode) return;
+    if (!roomCode) {
+      sharingInvite.current = false;
+      return;
+    }
     try {
+      const inviteToken = service.kind === 'supabase'
+        ? await service.createRoomInvite(roomCode)
+        : undefined;
+      const queryParams: Record<string, string> = { code: roomCode };
+      if (inviteToken) queryParams.invite = inviteToken;
+      const inviteUrl = Platform.OS === 'web'
+        ? `${window.location.origin}/join-room?${new URLSearchParams(queryParams).toString()}`
+        : Linking.createURL('join-room', { queryParams });
       await Share.share({
-        message: `Kızılkuyruk parti oyununa davetlisin! Oda kodumuz: ${roomCode}. Hemen katıl ve blöfünü konuştur!`,
+        message: `Kızılkuyruk partisine davetlisin! Tek dokunuşla katıl: ${inviteUrl}`,
       });
-    } catch {}
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Davet bağlantısı paylaşılamadı.');
+    } finally {
+      sharingInvite.current = false;
+    }
   };
 
   const handleStartGame = async () => {
@@ -148,7 +177,12 @@ export default function LobbyScreen() {
     if (roomCode) {
       try {
         await service.leaveRoom(roomCode);
-      } catch {}
+        setRoomCode(null);
+        setRoomState(null);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Odadan ayrılamadın.');
+        return;
+      }
     }
     router.replace('/create-room');
   };

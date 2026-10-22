@@ -18,7 +18,8 @@ client. Never place a `service_role` key or Google OAuth client secret in an
 - For a brand-new, empty Supabase project, run `supabase/schema.sql` once in
   the SQL Editor. It contains the schema and functions assembled from the
   migrations, including the profile trigger needed by Supabase Auth, current
-  round-block behavior, and synchronized room pause support. Then run
+  round-block behavior, synchronized room pause support, room-join preflight,
+  and hashed room-invite functions. Then run
   `supabase/migrations/20261030000001_private_room_access.sql` once to enable
   password-protected rooms, followed by
   `supabase/migrations/20261031000001_player_discovery_weekly_leaderboard.sql`.
@@ -40,7 +41,9 @@ client. Never place a `service_role` key or Google OAuth client secret in an
   answer submission, then `20261102000001_apply_block_during_current_round.sql`
   so blocks take effect in the round where they are selected, followed by
   `20261103000001_room_pause_controls.sql` for host-controlled room pauses.
-  Do not edit or re-run the combined schema to install these updates.
+  Then apply `20261104000001_room_join_preflight.sql` and
+  `20261105000001_room_invite_tokens.sql`. Do not edit or re-run the combined
+  schema to install these updates.
 
 The combined schema includes the current-round block behavior. Existing
 installations should apply `20261102000001_apply_block_during_current_round.sql`
@@ -49,6 +52,27 @@ definitions, clears any queued next-round block flags, and makes an expired
 guess phase resolve without awarding points to players who did not choose.
 Apply `20261103000001_room_pause_controls.sql` after it to let the host pause
 the live room for everyone while preserving the remaining phase time.
+Existing databases should apply `20261104000001_room_join_preflight.sql` and
+`20261105000001_room_invite_tokens.sql` after the prior migrations. A preflight
+response only controls which form is shown; the join RPC rechecks room access,
+capacity, phase, membership, and password/invite authorization transactionally.
+
+The app saves only a versioned room code and authenticated player ID locally.
+The saved reference is not game state or access authorization: startup loads the
+current Supabase session, verifies membership, and fetches current state before
+offering a return to the game. Intentional leave and completed matches clear the
+reference. Supabase remains authoritative for submissions, timers, phases, and
+scores.
+
+Room-share links use the existing `foxmasque` scheme on native and the current
+HTTPS origin on web. Private-room share links contain a random 256-bit,
+room-scoped bearer invite; only its SHA-256 hash is stored in Supabase. Invites
+expire after 24 hours, allow up to 10 new memberships each, and are capped at 20
+active invites per room. They do not contain or replace the room password.
+Custom-scheme links work only where the app is installed; a production web host
+is required for the web fallback. iOS Universal Links/Android App Links still
+need domain association files and platform account configuration. No QR-code
+generator dependency exists in this project, so QR presentation is not included.
 
 The private-room migration installs `pgcrypto` in the Supabase `extensions`
 schema. Room passwords are stored only as salted bcrypt hashes, and private

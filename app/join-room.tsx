@@ -10,7 +10,7 @@ import {
   Platform,
   Image,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, LogIn, Users, KeyRound, Sparkles, Eye, EyeOff } from 'lucide-react-native';
 import { Screen, Button, Card, Avatar, Badge, StickyActionBar, Input } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
@@ -21,22 +21,58 @@ import type { RoomSummary } from '@/services/types';
 import { mascotImages } from '@/assets/illustrations';
 
 export default function JoinRoomScreen() {
-  const { service, currentPlayer, setCurrentPlayer, setRoomCode, setRoomState } = useGameStore();
+  const {
+    service,
+    currentPlayer,
+    authStatus,
+    setCurrentPlayer,
+    setRoomCode,
+    setRoomState,
+  } = useGameStore();
+  const params = useLocalSearchParams<{ code?: string | string[]; invite?: string | string[] }>();
   const { trigger } = useHaptics();
 
-  const [code, setCode] = useState('');
+  const initialCode = typeof params.code === 'string' ? params.code.trim().toUpperCase() : '';
+  const initialInvite = typeof params.invite === 'string' ? params.invite : '';
+  const invalidInitialLink = (params.code !== undefined && !/^[A-Z0-9]{5,6}$/.test(initialCode))
+    ? 'Davet bağlantısındaki oda kodu geçersiz.'
+    : (initialInvite && !/^[A-Za-z0-9_-]{43}$/.test(initialInvite))
+      ? 'Davet bağlantısı geçersiz.'
+      : null;
+  const [code, setCode] = useState(/^[A-Z0-9]{5,6}$/.test(initialCode) ? initialCode : '');
   const [roomPassword, setRoomPassword] = useState('');
+  const [requiresPassword, setRequiresPassword] = useState(false);
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
+  const [inviteToken, setInviteToken] = useState(
+    /^[A-Za-z0-9_-]{43}$/.test(initialInvite) ? initialInvite : ''
+  );
   const [showRoomPassword, setShowRoomPassword] = useState(false);
-  const [name, setName] = useState(currentPlayer?.name ?? 'Oyuncu');
-  const [avatarKey, setAvatarKey] = useState(currentPlayer?.avatarKey ?? 'fox');
+  const [nameOverride, setNameOverride] = useState<string | null>(null);
+  const [avatarOverride, setAvatarOverride] = useState<string | null>(null);
+  const name = nameOverride ?? currentPlayer?.name ?? 'Oyuncu';
+  const avatarKey = avatarOverride ?? currentPlayer?.avatarKey ?? 'fox';
   const [openRooms, setOpenRooms] = useState<RoomSummary[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(invalidInitialLink);
   const [isFocused, setIsFocused] = useState(false);
   const submitting = useRef(false);
 
   useEffect(() => {
+    if (authStatus === 'signed_out') {
+      router.replace({
+        pathname: '/auth',
+        params: {
+          returnTo: '/join-room',
+          code: typeof params.code === 'string' ? params.code : undefined,
+          invite: typeof params.invite === 'string' ? params.invite : undefined,
+        },
+      });
+    }
+  }, [authStatus, params.code, params.invite]);
+
+  useEffect(() => {
+    if (authStatus !== 'signed_in') return;
     let active = true;
     service.listOpenRooms()
       .then((rooms) => {
@@ -51,7 +87,7 @@ export default function JoinRoomScreen() {
     return () => {
       active = false;
     };
-  }, [service]);
+  }, [authStatus, service]);
 
   const handleJoin = async (targetCode?: string) => {
     if (submitting.current) return;
@@ -61,15 +97,29 @@ export default function JoinRoomScreen() {
       return;
     }
     submitting.current = true;
+    setCode(finalCode);
     trigger('medium');
     setLoading(true);
     setError(null);
     try {
+      const hasInvite = !!inviteToken && finalCode === code;
+      const passwordConfirmed = requiresPassword && finalCode === code;
+      if (!hasInvite && !passwordConfirmed) {
+        const access = await service.checkRoomAccess(finalCode);
+        if (access === 'password_required') {
+          setCode(finalCode);
+          setRequiresPassword(true);
+          setRoomPassword('');
+          setLoading(false);
+          return;
+        }
+      }
       const res = await service.joinRoom(
         finalCode,
         name.trim() || 'Oyuncu',
         avatarKey,
-        roomPassword || undefined
+        passwordConfirmed ? roomPassword || undefined : undefined,
+        hasInvite ? inviteToken : undefined
       );
       setRoomCode(finalCode);
       const state = await service.getRoomState(finalCode);
@@ -79,7 +129,26 @@ export default function JoinRoomScreen() {
       }
       router.replace('/lobby');
     } catch (e) {
-      setError((e as Error).message || 'Odaya katılırken bir hata oluştu.');
+      const cause = e as { code?: string; message?: string };
+      if (requiresPassword && finalCode === code && cause.code === 'ROOM_ACCESS_DENIED') {
+        setRoomPassword('');
+        setError('Oda şifresi yanlış. Yeniden dene.');
+      } else if (cause.code === 'ROOM_UNAVAILABLE') {
+        setRequiresPassword(false);
+        setRoomPassword('');
+        setError('Oda bulunamadı veya yeni katılıma açık değil. Oda kodunu kontrol et.');
+      } else if (cause.code === 'ROOM_FULL') {
+        setError('Oda dolu. Başka bir odayı deneyebilirsin.');
+      } else if (cause.code === 'GAME_ALREADY_STARTED') {
+        setError('Oyun başladı; yeni oyuncu kabul edilmiyor.');
+      } else if (cause.code === 'INVITE_INVALID') {
+        setInviteToken('');
+        setError('Davet bağlantısı geçersiz, süresi dolmuş veya kullanılmış.');
+      } else if (cause.code === 'INVITE_UNAVAILABLE') {
+        setError('Bu davet bağlantısı canlı oyun modunda kullanılabilir.');
+      } else {
+        setError(cause.message || 'Odaya katılırken bir hata oluştu.');
+      }
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -116,7 +185,7 @@ export default function JoinRoomScreen() {
             <View style={{ flex: 1, paddingLeft: 10 }}>
               <Text style={styles.mascotTitle}>Partiye Katılmaya Hazır mısın?</Text>
               <Text style={styles.mascotDesc}>
-                Arkadaşının verdiği 5 haneli oda kodunu yaz ve lobiye ışınlan!
+                Arkadaşının verdiği 5-6 karakterli oda kodunu yaz ve lobiye ışınlan!
               </Text>
             </View>
           </View>
@@ -131,7 +200,7 @@ export default function JoinRoomScreen() {
           >
             <View style={styles.codeHeaderRow}>
               <KeyRound color={colors.orange} size={18} />
-              <Text style={styles.sectionLabel}>5 Haneli Oda Kodu</Text>
+              <Text style={styles.sectionLabel}>Oda Kodu</Text>
             </View>
 
             <TextInput
@@ -139,6 +208,9 @@ export default function JoinRoomScreen() {
               onChangeText={(txt) => {
                 setError(null);
                 setCode(txt.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+                setRequiresPassword(false);
+                setRoomPassword('');
+                setInviteToken('');
               }}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
@@ -152,78 +224,89 @@ export default function JoinRoomScreen() {
             />
           </Card>
 
-          <Card variant="surface" style={styles.sectionCard}>
-            <View style={styles.codeHeaderRow}>
-              <KeyRound color={colors.purpleSoft} size={18} />
-              <Text style={styles.sectionLabel}>Oda Şifresi</Text>
-            </View>
-            <Text style={styles.roomPasswordHint}>Kilitli odalarda gereklidir; açık odalarda boş bırak.</Text>
-            <View style={styles.roomPasswordRow}>
-              <TextInput
-                value={roomPassword}
-                onChangeText={(value) => {
-                  setError(null);
-                  setRoomPassword(value);
-                }}
-                placeholder="Oda şifresi"
+          {requiresPassword ? (
+            <Card variant="surface" style={styles.sectionCard}>
+              <View style={styles.codeHeaderRow}>
+                <KeyRound color={colors.purpleSoft} size={18} />
+                <Text style={styles.sectionLabel}>Oda Şifresi</Text>
+              </View>
+              <View style={styles.roomPasswordRow}>
+                <TextInput
+                  value={roomPassword}
+                  onChangeText={(value) => {
+                    setError(null);
+                    setRoomPassword(value);
+                  }}
+                  placeholder="Oda şifresi"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.roomPasswordInput}
+                  secureTextEntry={!showRoomPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={72}
+                  accessibilityLabel="Oda şifresi"
+                />
+                <Pressable
+                  onPress={() => setShowRoomPassword((visible) => !visible)}
+                  accessibilityRole="button"
+                  accessibilityLabel={showRoomPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                  style={styles.passwordVisibilityButton}
+                >
+                  {showRoomPassword
+                    ? <EyeOff color={colors.textSecondary} size={20} />
+                    : <Eye color={colors.textSecondary} size={20} />}
+                </Pressable>
+              </View>
+            </Card>
+          ) : null}
+
+          <Pressable
+            onPress={() => setShowProfileEditor((visible) => !visible)}
+            style={styles.profileEditToggle}
+            accessibilityRole="button"
+          >
+            <Text style={styles.profileEditText}>
+              {name} olarak katıl · {showProfileEditor ? 'Profili gizle' : 'Profili düzenle'}
+            </Text>
+          </Pressable>
+          {showProfileEditor ? (
+            <Card variant="surface" style={styles.sectionCard}>
+              <Text style={styles.sectionLabel}>Lobiye Giriş İsmin</Text>
+              <Input
+                value={name}
+                onChangeText={setNameOverride}
+                placeholder="Takma Adın"
                 placeholderTextColor={colors.textMuted}
-                style={styles.roomPasswordInput}
-                secureTextEntry={!showRoomPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                maxLength={72}
-                accessibilityLabel="Oda şifresi"
+                style={styles.nameInput}
+                maxLength={16}
+                variant="surface"
+                focusedBorderColor={colors.orange}
               />
-              <Pressable
-                onPress={() => setShowRoomPassword((visible) => !visible)}
-                accessibilityRole="button"
-                accessibilityLabel={showRoomPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
-                style={styles.passwordVisibilityButton}
+
+              <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>Avatarını Seç</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.avatarScroll}
               >
-                {showRoomPassword
-                  ? <EyeOff color={colors.textSecondary} size={20} />
-                  : <Eye color={colors.textSecondary} size={20} />}
-              </Pressable>
-            </View>
-          </Card>
-
-          {/* Profile Card */}
-          <Card variant="surface" style={styles.sectionCard}>
-            <Text style={styles.sectionLabel}>Lobiye Giriş İsmin</Text>
-            <Input
-              value={name}
-              onChangeText={setName}
-              placeholder="Takma Adın"
-              placeholderTextColor={colors.textMuted}
-              style={styles.nameInput}
-              maxLength={16}
-              variant="surface"
-              focusedBorderColor={colors.orange}
-            />
-
-            <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>Avatarını Seç</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.avatarScroll}
-            >
-              {[...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS].map((key) => {
-                const active = avatarKey === key;
-                return (
-                  <Pressable
-                    key={key}
-                    onPress={() => {
-                      trigger('light');
-                      setAvatarKey(key);
-                    }}
-                    style={[styles.avatarBox, active && styles.avatarBoxActive]}
-                  >
-                    <Avatar avatarKey={key} size={42} />
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </Card>
+                {[...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS].map((key) => {
+                  const active = avatarKey === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() => {
+                        trigger('light');
+                        setAvatarOverride(key);
+                      }}
+                      style={[styles.avatarBox, active && styles.avatarBoxActive]}
+                    >
+                      <Avatar avatarKey={key} size={42} />
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </Card>
+          ) : null}
 
           {/* Open Rooms Section */}
           {loadingRooms ? (
@@ -262,7 +345,7 @@ export default function JoinRoomScreen() {
             </View>
           ) : null}
           <Button
-            label="Lobiye Katıl"
+            label={requiresPassword ? 'Şifreyle Katıl' : 'Lobiye Katıl'}
             onPress={() => handleJoin()}
             variant="orange"
             loading={loading}
@@ -327,6 +410,15 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     marginBottom: spacing.md,
+  },
+  profileEditToggle: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  profileEditText: {
+    ...typography.caption,
+    color: colors.textSecondary,
   },
   sectionCardFocused: {
     borderColor: colors.orange,

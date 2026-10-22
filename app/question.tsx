@@ -35,7 +35,16 @@ import { usePrototype } from '@/features/prototype/PrototypeProvider';
 import { useSound } from '@/hooks/useSound';
 
 export default function QuestionScreen() {
-  const { roomCode, roomState, currentPlayer, service, refreshRoom, isLive } = useGameStore();
+  const {
+    roomCode,
+    roomState,
+    currentPlayer,
+    service,
+    refreshRoom,
+    isLive,
+    setRoomCode,
+    setRoomState,
+  } = useGameStore();
   const prototype = usePrototype();
   const { trigger } = useHaptics();
   const { enabled: soundEnabled, ready: soundPreferenceReady } = useSound();
@@ -54,7 +63,7 @@ export default function QuestionScreen() {
         ? Math.max(0, Math.ceil((deadline - pausedAt) / 1000))
         : deadlineCountdown?.deadline === deadline
           ? deadlineCountdown.secondsLeft
-          : Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+          : totalTime
       : secondsLeft;
   const [fakeAnswerText, setFakeAnswerText] = useState('');
   const [fakeSubmitted, setFakeSubmitted] = useState(false);
@@ -82,13 +91,20 @@ export default function QuestionScreen() {
 
   useEffect(() => {
     if (!isLive || deadline === null || deadline === undefined) return;
-    const timer = setInterval(() => {
+    const updateCountdown = () => {
       setDeadlineCountdown({
         deadline,
         secondsLeft: Math.max(0, Math.ceil((deadline - (pausedAt ?? Date.now())) / 1000)),
       });
+    };
+    const initialUpdate = setTimeout(updateCountdown, 0);
+    const timer = setInterval(() => {
+      updateCountdown();
     }, 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initialUpdate);
+      clearInterval(timer);
+    };
   }, [isLive, deadline, pausedAt]);
 
   // Active question
@@ -134,6 +150,14 @@ export default function QuestionScreen() {
   const playersList = roomState ? Object.values(roomState.players) : [];
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
   const isBlocked = !!me?.isBlockedCurrentRound;
+  const hasSubmittedFake = fakeSubmitted || (
+    roomState?.phase === 'fake_answer'
+    && currentPlayer !== null
+    && roomState.progress?.submissionStatus[currentPlayer.id] === true
+  );
+  const hasSubmittedPick = roomState?.phase === 'guess'
+    && currentPlayer !== null
+    && roomState.progress?.submissionStatus[currentPlayer.id] === true;
 
   // Determine sub-phase: 'fake_answer' or 'guess'
   const isGuessPhase = roomState?.phase === 'guess' || choices.length > 0;
@@ -158,10 +182,21 @@ export default function QuestionScreen() {
     setSecondsLeft(totalTime);
     expirationRequested.current = null;
     soundService.stop('clock');
-  }, [currentQId, totalTime]);
+  }, [currentQId, currentRoomRound, totalTime]);
+
+  useEffect(() => {
+    if (
+      currentPlayer
+      && roomState?.phase === 'guess'
+      && roomState.progress?.submissionStatus[currentPlayer.id] === true
+    ) {
+      router.replace('/waiting');
+    }
+  }, [currentPlayer?.id, roomState?.phase, roomState?.progress]);
 
   // Transition from fake_answer to guess phase: stop previous clock & reset timer
   useEffect(() => {
+    let resetTimer: ReturnType<typeof setTimeout> | undefined;
     if (prevIsGuessPhase.current !== isGuessPhase) {
       clockRequestId.current += 1;
       soundService.stop('clock');
@@ -169,9 +204,14 @@ export default function QuestionScreen() {
       clockAttemptedFake.current = false;
       clockPlayedGuess.current = false;
       clockAttemptedGuess.current = false;
-      if (isGuessPhase) setSecondsLeft(totalTime);
+      if (isGuessPhase) {
+        resetTimer = setTimeout(() => setSecondsLeft(totalTime), 0);
+      }
     }
     prevIsGuessPhase.current = isGuessPhase;
+    return () => {
+      if (resetTimer) clearTimeout(resetTimer);
+    };
   }, [isGuessPhase, totalTime]);
 
   // Stop clock sound when unmounting
@@ -200,14 +240,14 @@ export default function QuestionScreen() {
       soundService.stop('clock');
       return;
     }
-    if (fakeSubmitted || submitting) {
+    if (hasSubmittedFake || submitting) {
       clockRequestId.current += 1;
       soundService.stop('clock');
       return;
     }
     if (displayedSecondsLeft < 10 && displayedSecondsLeft > 0) {
       if (!isGuessPhase) {
-        if (!fakeSubmitted && !submitting && !clockAttemptedFake.current) {
+        if (!hasSubmittedFake && !submitting && !clockAttemptedFake.current) {
           clockAttemptedFake.current = true;
           const requestId = clockRequestId.current;
           void soundService.play('clock').then((started) => {
@@ -228,7 +268,7 @@ export default function QuestionScreen() {
         }
       }
     }
-  }, [displayedSecondsLeft, isGuessPhase, isBlocked, fakeSubmitted, submitting, isGamePaused, soundEnabled, soundPreferenceReady]);
+  }, [displayedSecondsLeft, isGuessPhase, isBlocked, hasSubmittedFake, submitting, isGamePaused, soundEnabled, soundPreferenceReady]);
 
   // Listen for phase transitions to result / scoreboard
   useEffect(() => {
@@ -301,6 +341,8 @@ export default function QuestionScreen() {
     if (roomCode) {
       try {
         await service.leaveRoom(roomCode);
+        setRoomCode(null);
+        setRoomState(null);
       } catch (e) {
         setError((e as Error).message);
         setLeavingGame(false);
@@ -364,6 +406,15 @@ export default function QuestionScreen() {
       pickSubmissionInProgress.current = false;
       setSubmitting(false);
     }
+  };
+
+  const handleChoiceSelect = (choice: RoundChoice) => {
+    if (choice.isOwnFake || hasSubmittedPick || pickCommitted.current) return;
+    soundService.play('click');
+    trigger('light');
+    pickCommitted.current = true;
+    setSelectedChoiceIndex(choice.choiceIndex);
+    void submitPick(choice.choiceIndex);
   };
 
   const blockerName = playersList.find((player) => player.id === me?.blockedByPlayerId)?.name;
@@ -478,7 +529,7 @@ export default function QuestionScreen() {
                     </Text>
                   </View>
                 </View>
-              ) : !fakeSubmitted ? (
+              ) : !hasSubmittedFake ? (
                 <>
                   <View style={styles.cunningBanner}>
                     <View style={{ flex: 1 }}>
@@ -514,7 +565,7 @@ export default function QuestionScreen() {
                     <CheckCircle2 color={colors.lime} size={32} />
                     <Text style={styles.submittedTitle}>Cevabın Havuzda Kilitlendi!</Text>
                     <Text style={styles.submittedText}>
-                      “{fakeAnswerText}” cevabın gerçek cevapla karıştırılıyor. Diğer oyuncular bekleniyor...
+                      Cevabın sunucuya kaydedildi ve bu tur yeniden gönderilmeyecek. Diğer oyuncular bekleniyor...
                     </Text>
                   </Card>
                 </PopView>
@@ -550,16 +601,8 @@ export default function QuestionScreen() {
                   return (
                     <StaggerRow key={choice.choiceIndex} index={idx} delay={90}>
                       <Pressable
-                        onPress={() => {
-                          if (!isOwn && !pickCommitted.current) {
-                            soundService.play('click');
-                            trigger('light');
-                            pickCommitted.current = true;
-                            setSelectedChoiceIndex(choice.choiceIndex);
-                            void submitPick(choice.choiceIndex);
-                          }
-                        }}
-                        disabled={isOwn || submitting || pickCommitted.current}
+                        onPress={() => handleChoiceSelect(choice)}
+                        disabled={isOwn || hasSubmittedPick || submitting || selectedChoiceIndex !== null}
                         style={({ pressed }) => [
                           styles.choiceCard,
                           isSelected && styles.choiceCardSelected,
@@ -634,7 +677,7 @@ export default function QuestionScreen() {
               icon={<CheckCircle2 color="#FFF" size={20} />}
             />
           </StickyActionBar>
-        ) : !fakeSubmitted && !isBlocked ? (
+        ) : !hasSubmittedFake && !isBlocked ? (
           <StickyActionBar>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <Button

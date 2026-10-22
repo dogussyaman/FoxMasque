@@ -10,6 +10,7 @@ import type {
   LeaderboardScope,
   RelationshipStatus,
   RoomSummary,
+  RoomAccessPreflight,
   SocialPlayer,
   ServiceEvent,
   ServiceEventHandler,
@@ -130,6 +131,7 @@ export class SupabaseGameService implements GameService {
   private cachedPlayer: Player | null = null;
   private currentChannel: RealtimeChannel | null = null;
   private currentRoomCode: string | null = null;
+  private stateSyncSequence = 0;
   private authSubscription: { unsubscribe: () => void } | null = null;
 
   async connect(): Promise<void> {
@@ -508,7 +510,8 @@ export class SupabaseGameService implements GameService {
     code: string,
     name: string,
     avatarKey: string,
-    password?: string
+    password?: string,
+    inviteToken?: string
   ): Promise<{ playerId: string }> {
     const sb = ensureSupabase();
     const cleanCode = code.trim().toUpperCase();
@@ -516,12 +519,19 @@ export class SupabaseGameService implements GameService {
       throw new ServiceError('AUTH_REQUIRED', 'Odaya katılmak için önce giriş yapmalısın.');
     }
 
-    const { data, error } = await sb.rpc('join_room_secure', {
-      p_code: cleanCode,
-      p_name: name.trim() || 'Oyuncu',
-      p_avatar_key: avatarKey,
-      p_password: password || null,
-    });
+    const { data, error } = inviteToken
+      ? await sb.rpc('join_room_invite_secure', {
+          p_code: cleanCode,
+          p_name: name.trim() || 'Oyuncu',
+          p_avatar_key: avatarKey,
+          p_invite_token: inviteToken,
+        })
+      : await sb.rpc('join_room_secure', {
+          p_code: cleanCode,
+          p_name: name.trim() || 'Oyuncu',
+          p_avatar_key: avatarKey,
+          p_password: password || null,
+        });
 
     if (error) {
       const message = error.message.toLowerCase();
@@ -531,11 +541,17 @@ export class SupabaseGameService implements GameService {
       if (message.includes('oyun çoktan başladı')) {
         throw new ServiceError('GAME_ALREADY_STARTED', 'Oyun çoktan başladı.');
       }
+      if (inviteToken) {
+        throw new ServiceError('INVITE_INVALID', 'Davet bağlantısı geçersiz, süresi dolmuş veya kullanılamıyor.');
+      }
       throw new ServiceError('JOIN_ROOM_FAILED', error.message);
     }
 
     const joined = Array.isArray(data) ? data[0] : data;
     if (!joined || typeof joined !== 'object' || !('player_id' in joined)) {
+      if (inviteToken) {
+        throw new ServiceError('INVITE_INVALID', 'Davet bağlantısı geçersiz, süresi dolmuş veya kullanılamıyor.');
+      }
       throw new ServiceError(
         'ROOM_ACCESS_DENIED',
         'Oda kodu veya şifre hatalı ya da katılım geçici olarak sınırlandı.'
@@ -544,6 +560,34 @@ export class SupabaseGameService implements GameService {
     const playerId = this.cachedPlayer!.id;
     await this.setupRealtimeSubscription(cleanCode);
     return { playerId };
+  }
+
+  async checkRoomAccess(code: string): Promise<RoomAccessPreflight> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('room_join_preflight_secure', {
+      p_code: code.trim().toUpperCase(),
+    });
+    if (error) throw new ServiceError('ROOM_PREFLIGHT_FAILED', error.message);
+    if (data === 'open' || data === 'password_required') return data;
+    if (data === 'full') {
+      throw new ServiceError('ROOM_FULL', 'Oda dolu. Başka bir odayı deneyebilirsin.');
+    }
+    if (data === 'closed') {
+      throw new ServiceError('GAME_ALREADY_STARTED', 'Oyun başladı; yeni oyuncu kabul edilmiyor.');
+    }
+    throw new ServiceError('ROOM_UNAVAILABLE', 'Oda bulunamadı veya yeni katılıma açık değil.');
+  }
+
+  async createRoomInvite(code: string): Promise<string> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('create_room_invite_secure', {
+      p_room_code: code.trim().toUpperCase(),
+    });
+    if (error) throw new ServiceError('INVITE_CREATE_FAILED', error.message);
+    if (typeof data !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(data)) {
+      throw new ServiceError('INVITE_INVALID_RESPONSE', 'Sunucudan geçersiz davet bağlantısı alındı.');
+    }
+    return data;
   }
 
   async leaveRoom(code: string): Promise<void> {
@@ -572,7 +616,12 @@ export class SupabaseGameService implements GameService {
     const { data, error } = await sb.rpc('get_room_state_secure', {
       p_room_code: code.trim().toUpperCase(),
     });
-    if (error) throw new ServiceError('ROOM_STATE_FAILED', error.message);
+    if (error) {
+      if (error.message.toLowerCase().includes('oda bulunamadı veya erişim izniniz yok')) {
+        throw new ServiceError('ROOM_MEMBERSHIP_INVALID', 'Kayıtlı oda artık hesabına açık değil.');
+      }
+      throw new ServiceError('ROOM_STATE_FAILED', error.message);
+    }
     if (!data) return null;
     const state = data as Record<string, unknown>;
     if (
@@ -628,6 +677,16 @@ export class SupabaseGameService implements GameService {
         ? row.status
         : undefined,
     };
+  }
+
+  async restoreRoom(code: string, subscribe = true): Promise<GameState | null> {
+    const cleanCode = code.trim().toUpperCase();
+    const state = await this.getRoomState(cleanCode);
+    if (!state || !this.cachedPlayer || !state.players[this.cachedPlayer.id]) return null;
+    if (subscribe && state.phase !== 'game_over') {
+      await this.setupRealtimeSubscription(cleanCode);
+    }
+    return state;
   }
 
   async getRoomProgress(code: string): Promise<RoundProgress> {
@@ -958,41 +1017,47 @@ export class SupabaseGameService implements GameService {
       sb.removeChannel(this.currentChannel);
     }
     this.currentRoomCode = code;
+    this.stateSyncSequence += 1;
 
     const channel = sb.channel(`room:${code}`, {
       config: { broadcast: { self: true } },
     });
+    const syncState = async (includeResolution = false) => {
+      const sequence = ++this.stateSyncSequence;
+      try {
+        const state = await this.getRoomState(code);
+        if (sequence !== this.stateSyncSequence || this.currentRoomCode !== code || !state) return;
+        if (includeResolution) {
+          this.emit({ type: 'round_resolved', payload: { code, rows: state.roundResults } });
+        }
+        this.emit({ type: 'phase_changed', payload: { code, phase: state.phase } });
+        this.emit({ type: 'state', payload: state });
+      } catch (error) {
+        this.emit({
+          type: 'error',
+          payload: {
+            message: error instanceof Error ? error.message : 'Oda durumu yenilenemedi.',
+            code: error instanceof ServiceError ? error.code : undefined,
+          },
+        });
+      }
+    };
 
     channel
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` },
-        async () => {
-          const state = await this.getRoomState(code);
-          if (state) {
-            this.emit({ type: 'phase_changed', payload: { code, phase: state.phase } });
-            this.emit({ type: 'state', payload: state });
-          }
-        }
+        () => { void syncState(); }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'room_players', filter: `room_id=eq.${room.id}` },
-        async () => {
-          const state = await this.getRoomState(code);
-          if (state) this.emit({ type: 'state', payload: state });
-        }
+        () => { void syncState(); }
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'round_results', filter: `room_id=eq.${room.id}` },
-        async () => {
-          const state = await this.getRoomState(code);
-          if (state) {
-            this.emit({ type: 'round_resolved', payload: { code, rows: state.roundResults } });
-            this.emit({ type: 'state', payload: state });
-          }
-        }
+        () => { void syncState(true); }
       )
       .on(
         'postgres_changes',
@@ -1024,7 +1089,8 @@ export class SupabaseGameService implements GameService {
         if (status === 'SUBSCRIBED') {
           this.connection = 'online';
           this.emit({ type: 'connection', payload: { state: 'online' } });
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          void syncState();
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           this.connection = 'reconnecting';
           this.emit({ type: 'connection', payload: { state: 'reconnecting' } });
         }

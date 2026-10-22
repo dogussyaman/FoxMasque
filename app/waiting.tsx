@@ -22,7 +22,16 @@ import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
 import type { Player } from '@/types/game';
 
 export default function WaitingScreen() {
-  const { roomState, currentPlayer, roomCode, isLive, service, refreshRoom } = useGameStore();
+  const {
+    roomState,
+    currentPlayer,
+    roomCode,
+    isLive,
+    service,
+    refreshRoom,
+    setRoomCode,
+    setRoomState,
+  } = useGameStore();
   const prototype = usePrototype();
   const { trigger } = useHaptics();
   const [testMode, setTestMode] = useState(!isLive);
@@ -129,6 +138,8 @@ export default function WaitingScreen() {
     setControlError(null);
     try {
       await service.leaveRoom(roomCode);
+      setRoomCode(null);
+      setRoomState(null);
       setShowExitConfirmation(false);
       router.replace('/create-room');
     } catch (error) {

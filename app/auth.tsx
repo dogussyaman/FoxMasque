@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Mail } from 'lucide-react-native';
 import { Screen, Button, Card, Input } from '@/components/ui';
 import { colors, spacing, typography, radii } from '@/theme';
@@ -19,6 +19,11 @@ import type { Player } from '@/types/game';
 
 export default function AuthScreen() {
   const { service, setCurrentPlayer, isLive } = useGameStore();
+  const params = useLocalSearchParams<{
+    returnTo?: string;
+    code?: string;
+    invite?: string;
+  }>();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,7 +34,17 @@ export default function AuthScreen() {
 
   const finishAuth = (player: Player) => {
     setCurrentPlayer(player);
-    router.replace('/(tabs)');
+    if (params.returnTo === '/join-room') {
+      router.replace({
+        pathname: '/join-room',
+        params: {
+          code: params.code,
+          invite: params.invite,
+        },
+      });
+    } else {
+      router.replace('/(tabs)');
+    }
   };
 
   const handleEmailAuth = async () => {
