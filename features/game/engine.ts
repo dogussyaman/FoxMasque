@@ -108,7 +108,7 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
 
   for (const action of abilityActions) {
     const player = players.find((candidate) => candidate.id === action.playerId);
-    if (!player || player.isBlockedCurrentRound) continue;
+    if (!player) continue;
     const uses = abilityUsesByPlayer.get(action.playerId) ?? {};
     uses[action.abilityId] = (uses[action.abilityId] ?? 0) + 1;
     abilityUsesByPlayer.set(action.playerId, uses);
@@ -150,33 +150,6 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
 
   for (const p of players) {
     const isBlocked = !!p.isBlockedCurrentRound;
-
-    if (isBlocked) {
-      const outcome = computeOutcome({
-        answeredCorrectly: false,
-        victimsCount: 0,
-        choseRivalFake: false,
-        isBlocked: true,
-      });
-
-      const row: RoundResultRow = {
-        playerId: p.id,
-        outcome,
-        labels: outcome.labels,
-        pointsDelta: 0,
-        victimsCount: 0,
-        isBlocked: true,
-      };
-
-      rows[p.id] = row;
-      rowsList.push(row);
-      updatedPlayers[p.id] = {
-        ...p,
-        consecutiveCorrect: 0,
-        isBlockedCurrentRound: false, // reset current round block
-      };
-      continue;
-    }
 
     const pickIndex = picks[p.id];
     const chosen = pickIndex !== undefined ? choicesByIndex.get(pickIndex) : undefined;
@@ -222,7 +195,7 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
       deceivedByAuthorId,
       pickedText: chosen?.text,
       ownFakeText: fakeAnswers[p.id],
-      isBlocked: false,
+      isBlocked,
       penaltyDelta,
     };
 
@@ -257,11 +230,13 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
 
     // Next round block state
     let isBlockedNextRound = p.isBlockedNextRound;
+    let blockedByPlayerId = p.isBlockedCurrentRound ? p.blockedByPlayerId ?? null : null;
     if ((blocksByTarget.get(p.id)?.length ?? 0) > 0) {
       if (shieldedPlayers.has(p.id)) {
         // Shield saved defender from block!
       } else {
         isBlockedNextRound = true;
+        blockedByPlayerId = blocksByTarget.get(p.id)?.[0] ?? null;
       }
     }
 
@@ -279,6 +254,7 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
       blocksAvailable,
       isBlockedCurrentRound: false,
       isBlockedNextRound,
+      blockedByPlayerId,
       lastBlockedPlayerId: p.lastBlockedPlayerId,
     };
   }

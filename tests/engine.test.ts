@@ -361,6 +361,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
 
       // p2 was not shielded -> blocked for next round!
       assert.equal(res.updatedPlayers['p2'].isBlockedNextRound, true);
+      assert.equal(res.updatedPlayers['p2'].blockedByPlayerId, 'p1');
       assert.equal(res.updatedPlayers['p1'].blocksAvailable, 0);
 
       // p3 had active shield -> protected! Not blocked!
@@ -453,9 +454,10 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(result.updatedPlayers.target.score, 100);
     });
 
-    test('Blocked player skips round: receives 0 points and cannot answer', () => {
+    test('Blocked player can guess correctly but cannot submit a fake answer', () => {
       const p1 = createPlayer('p1', 'BlockedGuy', 100);
       p1.isBlockedCurrentRound = true;
+      p1.blockedByPlayerId = 'attacker';
 
       const choices: RoundChoice[] = [
         { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
@@ -470,9 +472,12 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       });
 
       assert.equal(res.rows['p1'].isBlocked, true);
-      assert.equal(res.rows['p1'].pointsDelta, 0);
-      assert.equal(res.updatedPlayers['p1'].score, 100);
+      assert.equal(res.rows['p1'].outcome.correct, true);
+      assert.equal(res.rows['p1'].pointsDelta, 100);
+      assert.equal(res.updatedPlayers['p1'].score, 200);
+      assert.equal(res.updatedPlayers['p1'].consecutiveCorrect, 1);
       assert.equal(res.updatedPlayers['p1'].isBlockedCurrentRound, false); // reset
+      assert.equal(res.updatedPlayers['p1'].blockedByPlayerId, 'attacker');
     });
 
     test('canUseAbility enforces constraints (cannot block self, cannot block same target consecutively)', () => {
@@ -486,6 +491,11 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       // Valid rival block
       const validBlock = canUseAbility(state, 'block', 'p2');
       assert.equal(validBlock.allowed, true);
+
+      state.isBlockedCurrentRound = true;
+      state.shieldsAvailable = 1;
+      const shieldWhileBlocked = canUseAbility(state, 'shield');
+      assert.equal(shieldWhileBlocked.allowed, true);
 
       // Cannot block same target consecutively
       state.lastBlockedPlayerId = 'p2';

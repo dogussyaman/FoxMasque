@@ -24,6 +24,7 @@ export interface Player {
   blocksAvailable: number;
   isBlockedCurrentRound: boolean;
   isBlockedNextRound: boolean;
+  blockedByPlayerId?: PlayerId | null;
   lastBlockedPlayerId?: PlayerId | null;
 }
 

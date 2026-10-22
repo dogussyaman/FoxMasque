@@ -14,7 +14,7 @@ export const ABILITIES: readonly Ability[] = [
     id: 'block',
     name: 'Bloklama',
     emoji: '🛑',
-    description: 'Hedef rakip bir sonraki turu oynayamaz ve puan kazanamaz. Art arda aynı hedefe uygulanamaz.',
+    description: 'Hedef rakip bir sonraki tur sahte cevap yazamaz ama gerçek cevabı seçebilir. Art arda aynı hedefe uygulanamaz.',
     targetRequired: true,
     unlockRule: 'Sahte cevabını en az 3 rakip veya rakiplerin yarısından fazlası seçtiğinde açılır.',
   },
@@ -75,10 +75,6 @@ export function canUseAbility(
   id: AbilityId,
   targetId?: string
 ): { allowed: boolean; reason?: string } {
-  if (state.isBlockedCurrentRound) {
-    return { allowed: false, reason: 'Bu tur bloklandığın için yetenek kullanamazsın.' };
-  }
-
   if (id === 'block') {
     if (state.blocksAvailable <= 0) {
       return { allowed: false, reason: 'Bloklama hakkın henüz açılmadı.' };

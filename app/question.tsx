@@ -192,6 +192,11 @@ export default function QuestionScreen() {
       soundService.stop('clock');
       return;
     }
+    if (isBlocked && !isGuessPhase) {
+      clockRequestId.current += 1;
+      soundService.stop('clock');
+      return;
+    }
     if (fakeSubmitted || submitting) {
       clockRequestId.current += 1;
       soundService.stop('clock');
@@ -220,7 +225,7 @@ export default function QuestionScreen() {
         }
       }
     }
-  }, [displayedSecondsLeft, isGuessPhase, fakeSubmitted, submitting, isPaused, soundEnabled, soundPreferenceReady]);
+  }, [displayedSecondsLeft, isGuessPhase, isBlocked, fakeSubmitted, submitting, isPaused, soundEnabled, soundPreferenceReady]);
 
   // Listen for phase transitions to result / scoreboard
   useEffect(() => {
@@ -359,19 +364,7 @@ export default function QuestionScreen() {
     }
   };
 
-  if (isBlocked) {
-    return (
-      <Screen gradient diagonalSlice>
-        <View style={styles.blockedWrap}>
-          <Image source={mascotImages.shocked} style={styles.blockedMascot} resizeMode="contain" />
-          <Text style={styles.blockedTitle}>Bu Tur Bloklandın!</Text>
-          <Text style={styles.blockedSubtitle}>
-            Rakiplerinden biri sana Blok yeteneği uyguladı. Bu tur cevap veremezsin; dinlen ve sonraki turda intikamını al!
-          </Text>
-        </View>
-      </Screen>
-    );
-  }
+  const blockerName = playersList.find((player) => player.id === me?.blockedByPlayerId)?.name;
 
   return (
     <Screen gradient diagonalSlice>
@@ -455,18 +448,36 @@ export default function QuestionScreen() {
                 <View style={{ flex: 1, paddingLeft: 8 }}>
                   <View style={styles.stageKicker}>
                     <Flame color={colors.orange} size={13} />
-                    <Text style={styles.stageKickerText}>1. ADIM: BLÖFÜNÜ YAZ</Text>
+                    <Text style={styles.stageKickerText}>
+                      {isBlocked ? '1. ADIM: BLÖF AŞAMASI' : '1. ADIM: BLÖFÜNÜ YAZ'}
+                    </Text>
                   </View>
                   <Text style={styles.cunningTitle}>
-                    İnandırıcı ol!{'\n'}Kimse gerçeği anlamasın.
+                    {isBlocked
+                      ? 'Bu tur blöf yazamazsın.'
+                      : 'İnandırıcı ol!\nKimse gerçeği anlamasın.'}
                   </Text>
                   <Text style={styles.cunningDesc}>
-                    Sahte cevabına düşen her rakip için +50 puan kaparsın!
+                    {isBlocked
+                      ? 'Seçenekler açılınca gerçek cevabı seçebilirsin.'
+                      : 'Sahte cevabına düşen her rakip için +50 puan kaparsın!'}
                   </Text>
                 </View>
               </View>
 
-              {!fakeSubmitted ? (
+              {isBlocked ? (
+                <Card variant="accent" style={styles.blockNotice}>
+                  <Lock color={colors.orange} size={20} />
+                  <View style={styles.blockNoticeCopy}>
+                    <Text style={styles.blockNoticeTitle}>
+                      {blockerName ? `${blockerName} seni blokladı` : 'Bu tur bloklandın'}
+                    </Text>
+                    <Text style={styles.blockNoticeText}>
+                      Bu tur blöf cevabı yazamazsın. Gerçek cevabı, seçenekler açılınca seçebilirsin.
+                    </Text>
+                  </View>
+                </Card>
+              ) : !fakeSubmitted ? (
                 <View style={styles.inputContainer}>
                   <Input
                     value={fakeAnswerText}
@@ -610,7 +621,7 @@ export default function QuestionScreen() {
               icon={<CheckCircle2 color="#FFF" size={20} />}
             />
           </StickyActionBar>
-        ) : !fakeSubmitted ? (
+        ) : !fakeSubmitted && !isBlocked ? (
           <StickyActionBar>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <Button
@@ -796,6 +807,28 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginTop: spacing.xs,
   },
+  blockNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    marginTop: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.orange,
+  },
+  blockNoticeCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  blockNoticeTitle: {
+    ...typography.bodyMedium,
+    color: colors.orange,
+    fontFamily: 'Poppins-Bold',
+  },
+  blockNoticeText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    lineHeight: 19,
+  },
   fakeInput: {
     backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
@@ -919,28 +952,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  blockedWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing['2xl'],
-    gap: 12,
-  },
-  blockedMascot: {
-    width: 140,
-    height: 140,
-  },
-  blockedTitle: {
-    ...typography.h2,
-    color: colors.dangerSoft,
-    textAlign: 'center',
-  },
-  blockedSubtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
   },
   errorText: {
     ...typography.small,

@@ -2247,7 +2247,6 @@ BEGIN
         PERFORM public.advance_expired_room_phase_secure(p_room_code);
         RETURN;
     END IF;
-    IF v_player.is_blocked_current_round THEN RAISE EXCEPTION 'Bu tur bloklandığınız için yetenek kullanamazsınız'; END IF;
     IF EXISTS (
         SELECT 1 FROM public.ability_actions
         WHERE room_id = v_room.id AND round_number = v_room.current_round
@@ -2318,7 +2317,6 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM public.room_players
         WHERE room_id = v_room.id AND player_id = v_user_id AND is_active
-          AND NOT is_blocked_current_round
     ) THEN RAISE EXCEPTION 'Bu tur yetenek seçimini tamamlayamazsınız'; END IF;
     IF v_room.phase_deadline_at IS NOT NULL AND v_room.phase_deadline_at <= now() THEN
         PERFORM public.advance_expired_room_phase_secure(p_room_code);
@@ -2327,13 +2325,12 @@ BEGIN
 
     UPDATE public.room_players
     SET ability_ready_round = v_room.current_round
-    WHERE room_id = v_room.id AND player_id = v_user_id AND is_active
-      AND NOT is_blocked_current_round;
+    WHERE room_id = v_room.id AND player_id = v_user_id AND is_active;
     IF NOT FOUND THEN RAISE EXCEPTION 'Bu tur yetenek seçimini tamamlayamazsınız'; END IF;
 
     SELECT count(*)::INTEGER INTO v_remaining
     FROM public.room_players
-    WHERE room_id = v_room.id AND is_active AND NOT is_blocked_current_round
+    WHERE room_id = v_room.id AND is_active
       AND ability_ready_round <> v_room.current_round;
     IF v_remaining = 0 THEN
         PERFORM public._set_room_phase(v_room.id, 'fake_answer', v_room.round_seconds);
@@ -2475,7 +2472,7 @@ BEGIN
 
     SELECT count(*)::INTEGER INTO v_remaining
     FROM public.room_players rp
-    WHERE rp.room_id = p_room_id AND rp.is_active AND NOT rp.is_blocked_current_round
+    WHERE rp.room_id = p_room_id AND rp.is_active
       AND NOT EXISTS (
           SELECT 1 FROM public.round_picks p
           WHERE p.room_id = p_room_id AND p.round_number = p_round_number
@@ -2515,7 +2512,7 @@ BEGIN
         SELECT * INTO v_pick FROM public.round_picks
         WHERE room_id = p_room_id AND round_number = p_round_number
           AND player_id = v_player.player_id;
-        IF FOUND AND NOT v_blocked THEN
+        IF FOUND THEN
             SELECT * INTO v_choice FROM public.round_choices
             WHERE room_id = p_room_id AND round_number = p_round_number
               AND choice_index = v_pick.choice_index;
@@ -2536,15 +2533,14 @@ BEGIN
           ON victim.room_id = p.room_id AND victim.player_id = p.player_id
         WHERE p.room_id = p_room_id AND p.round_number = p_round_number
           AND c.author_id = v_player.player_id AND p.player_id <> v_player.player_id
-          AND victim.is_active AND NOT victim.is_blocked_current_round;
-        IF v_blocked THEN v_victims := 0; END IF;
+          AND victim.is_active;
         v_delta := v_delta + v_victims * 50;
 
         SELECT count(*)::INTEGER INTO v_penalty_count
         FROM public.ability_actions a
         WHERE a.room_id = p_room_id AND a.round_number = p_round_number
           AND a.ability = 'penalty' AND a.target_id = v_player.player_id;
-        v_blocked := v_penalty_count > 0 AND NOT v_player.is_blocked_current_round;
+        v_blocked := v_penalty_count > 0;
         IF v_blocked AND NOT v_shielded THEN
             IF v_counter THEN
                 UPDATE public.room_players attacker
@@ -2588,19 +2584,18 @@ BEGIN
             UPDATE public.room_players
             SET score = greatest(0, score + v_delta),
                 shields_available = CASE
-                    WHEN NOT v_blocked AND v_correct AND consecutive_correct + 1 >= 3
+                    WHEN v_correct AND consecutive_correct + 1 >= 3
                     THEN shields_available + 1
                     ELSE shields_available
                 END,
                 consecutive_correct = CASE
-                    WHEN NOT v_blocked AND v_correct AND consecutive_correct + 1 >= 3
+                    WHEN v_correct AND consecutive_correct + 1 >= 3
                     THEN 0
-                    WHEN v_blocked OR NOT v_correct THEN 0
+                    WHEN NOT v_correct THEN 0
                     ELSE consecutive_correct + 1
                 END,
                 blocks_available = CASE
-                    WHEN NOT v_blocked
-                     AND (v_victims >= 3 OR v_victims::NUMERIC / v_total_opponents > 0.5)
+                    WHEN v_victims >= 3 OR v_victims::NUMERIC / v_total_opponents > 0.5
                     THEN blocks_available + 1
                     ELSE blocks_available
                 END
@@ -2623,7 +2618,6 @@ BEGIN
          AND counter.ability = 'counter'
         WHERE penalty.room_id = p_room_id AND penalty.round_number = p_round_number
           AND penalty.ability = 'penalty'
-          AND NOT target.is_blocked_current_round
           AND NOT EXISTS (
               SELECT 1 FROM public.ability_actions shield
               WHERE shield.room_id = penalty.room_id
@@ -2675,7 +2669,6 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM public.room_players
         WHERE room_id = v_room.id AND player_id = v_user_id AND is_active
-          AND NOT is_blocked_current_round
     ) THEN RAISE EXCEPTION 'Bu tur tahmin gönderemezsiniz'; END IF;
     IF v_room.phase_deadline_at IS NOT NULL AND v_room.phase_deadline_at <= now() THEN
         PERFORM public.advance_expired_room_phase_secure(p_room_code);
@@ -2698,7 +2691,7 @@ BEGIN
 
     SELECT count(*)::INTEGER INTO v_remaining
     FROM public.room_players rp
-    WHERE rp.room_id = v_room.id AND rp.is_active AND NOT rp.is_blocked_current_round
+    WHERE rp.room_id = v_room.id AND rp.is_active
       AND NOT EXISTS (
           SELECT 1 FROM public.round_picks p
           WHERE p.room_id = v_room.id AND p.round_number = v_room.current_round
@@ -2842,7 +2835,7 @@ BEGIN
     ELSIF v_room.phase = 'guess' THEN
         FOR v_player IN
             SELECT rp.* FROM public.room_players rp
-            WHERE rp.room_id = v_room.id AND rp.is_active AND NOT rp.is_blocked_current_round
+            WHERE rp.room_id = v_room.id AND rp.is_active
               AND NOT EXISTS (
                   SELECT 1 FROM public.round_picks p
                   WHERE p.room_id = v_room.id AND p.round_number = v_room.current_round
@@ -3187,7 +3180,7 @@ BEGIN
     SELECT count(*)::INTEGER INTO v_total
     FROM public.room_players rp
     WHERE rp.room_id = v_room.id AND rp.is_active
-      AND (v_room.phase NOT IN ('fake_answer', 'guess') OR NOT rp.is_blocked_current_round);
+      AND (v_room.phase <> 'fake_answer' OR NOT rp.is_blocked_current_round);
 
     IF v_room.phase = 'lobby' THEN
         SELECT count(*)::INTEGER INTO v_submitted FROM public.room_players rp
@@ -3201,7 +3194,7 @@ BEGIN
         SELECT count(*)::INTEGER INTO v_submitted FROM public.round_picks p
         JOIN public.room_players rp ON rp.room_id = p.room_id AND rp.player_id = p.player_id
         WHERE p.room_id = v_room.id AND p.round_number = v_room.current_round
-          AND rp.is_active AND NOT rp.is_blocked_current_round;
+          AND rp.is_active;
     END IF;
 
     SELECT jsonb_build_object(
@@ -3230,6 +3223,23 @@ BEGIN
                 'blocksAvailable', rp.blocks_available,
                 'isBlockedCurrentRound', rp.is_blocked_current_round,
                 'isBlockedNextRound', rp.is_blocked_next_round,
+                'blockedByPlayerId', CASE WHEN rp.is_blocked_current_round THEN (
+                    SELECT block_action.player_id
+                    FROM public.ability_actions block_action
+                    WHERE block_action.room_id = v_room.id
+                      AND block_action.round_number = v_room.current_round - 1
+                      AND block_action.ability = 'block'
+                      AND block_action.target_id = rp.player_id
+                      AND NOT EXISTS (
+                          SELECT 1 FROM public.ability_actions shield_action
+                          WHERE shield_action.room_id = v_room.id
+                            AND shield_action.round_number = block_action.round_number
+                            AND shield_action.player_id = rp.player_id
+                            AND shield_action.ability = 'shield'
+                      )
+                    ORDER BY block_action.created_at, block_action.player_id
+                    LIMIT 1
+                ) ELSE NULL END,
                 'lastBlockedPlayerId', rp.last_blocked_player_id
             ))
             FROM public.room_players rp
@@ -3250,7 +3260,7 @@ BEGIN
                 SELECT jsonb_object_agg(rp.player_id::TEXT,
                     CASE
                         WHEN v_room.phase = 'lobby' THEN rp.is_ready
-                        WHEN v_room.phase IN ('fake_answer', 'guess')
+                        WHEN v_room.phase = 'fake_answer'
                           AND rp.is_blocked_current_round THEN TRUE
                         WHEN v_room.phase = 'fake_answer' THEN EXISTS (
                             SELECT 1 FROM public.round_fake_answers fa
@@ -3436,7 +3446,9 @@ BEGIN
     ELSE
         RAISE EXCEPTION 'Bu aşamada dürtme gönderilemez';
     END IF;
-    IF v_target_done OR v_target.is_blocked_current_round THEN
+    IF v_target_done OR (
+        v_room.phase = 'fake_answer' AND v_target.is_blocked_current_round
+    ) THEN
         RAISE EXCEPTION 'Bu oyuncu aşamayı zaten tamamladı';
     END IF;
     IF EXISTS (

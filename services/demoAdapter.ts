@@ -339,9 +339,9 @@ export class DemoGameService implements GameService {
     const alreadyDone = room.phase === 'lobby'
       ? target.isReady
       : room.phase === 'fake_answer'
-        ? room.fakeAnswers[toId] !== undefined
+        ? target.isBlockedCurrentRound || room.fakeAnswers[toId] !== undefined
         : room.picks[toId] !== undefined;
-    if (target.isBlockedCurrentRound || alreadyDone) {
+    if (alreadyDone) {
       throw new ServiceError('NUDGE_PLAYER_DONE', 'Bu oyuncu aşamayı zaten tamamladı.');
     }
     if (room.nudges.some((nudge) =>
@@ -483,7 +483,7 @@ export class DemoGameService implements GameService {
       if (player.id !== playerId) room.abilityReadyRound[player.id] = room.currentRound;
     }
     if (Object.values(room.players).every((player) =>
-      player.isBlockedCurrentRound || room.abilityReadyRound[player.id] === room.currentRound
+      room.abilityReadyRound[player.id] === room.currentRound
     )) {
       this.setPhase(room, 'fake_answer', room.config.roundSeconds);
     }
@@ -561,8 +561,8 @@ export class DemoGameService implements GameService {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
     const player = this.currentPlayer && room.players[this.currentPlayer.id];
-    if (!player || player.isBlockedCurrentRound) {
-      throw new ServiceError('ROOM_ACCESS_DENIED', 'Bu tur tahmin gönderemezsiniz.');
+    if (!player) {
+      throw new ServiceError('ROOM_ACCESS_DENIED', 'Oda erişim izniniz yok.');
     }
     if (room.phase !== 'guess') throw new ServiceError('WRONG_PHASE', 'Tahmin aşaması aktif değil.');
     if (room.phaseDeadlineAt !== null && room.phaseDeadlineAt <= Date.now()) {
@@ -648,6 +648,19 @@ export class DemoGameService implements GameService {
         this.setPhase(room, 'game_over');
         this.emit({ type: 'game_over', payload: { code } });
       } else {
+        room.players = Object.fromEntries(
+          Object.entries(room.players).map(([playerId, player]) => [
+            playerId,
+            {
+              ...player,
+              isBlockedCurrentRound: player.isBlockedNextRound,
+              isBlockedNextRound: false,
+              blockedByPlayerId: player.isBlockedNextRound
+                ? player.blockedByPlayerId ?? null
+                : null,
+            },
+          ])
+        );
         room.currentRound += 1;
         this.setPhase(room, 'ability_select', room.config.roundSeconds);
         room.fakeAnswers = {};
@@ -768,7 +781,7 @@ export class DemoGameService implements GameService {
       this.setPhase(room, 'guess', room.config.roundSeconds);
     } else if (room.phase === 'guess') {
       for (const player of Object.values(room.players)) {
-        if (player.isBlockedCurrentRound || room.picks[player.id] !== undefined) continue;
+        if (room.picks[player.id] !== undefined) continue;
         const choice = room.choices.find((item) => item.authorId !== player.id);
         if (choice) room.picks[player.id] = choice.choiceIndex;
       }
@@ -887,7 +900,7 @@ export class DemoGameService implements GameService {
       const done = room.phase === 'lobby'
         ? player.isReady
         : room.phase === 'fake_answer'
-          ? room.fakeAnswers[player.id] !== undefined
+          ? player.isBlockedCurrentRound || room.fakeAnswers[player.id] !== undefined
           : room.phase === 'guess'
             ? room.picks[player.id] !== undefined
             : room.roundResults[player.id] !== undefined;

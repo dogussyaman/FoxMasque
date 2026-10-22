@@ -18,9 +18,12 @@ client. Never place a `service_role` key or Google OAuth client secret in an
 - For a brand-new, empty Supabase project, run `supabase/schema.sql` once in
   the SQL Editor. It contains the schema and functions assembled from the
   migrations through `20261029000001`, including the profile trigger needed by
-  Supabase Auth. Then run `supabase/migrations/20261030000001_private_room_access.sql`
-  once to enable password-protected rooms, followed by
+  Supabase Auth and the current block-only-fake-answer behavior. Then run
+  `supabase/migrations/20261030000001_private_room_access.sql` once to enable
+  password-protected rooms, followed by
   `supabase/migrations/20261031000001_player_discovery_weekly_leaderboard.sql`.
+  Do not run `20261101000001_block_only_fake_answers.sql` after the combined
+  schema; that behavior is already included.
 - For a project where migrations have already been applied, do not run the
   combined schema. Apply only pending files in `supabase/migrations/` in
   timestamp order, including `20261024000001_fix_join_room_ambiguity.sql` to
@@ -32,8 +35,10 @@ client. Never place a `service_role` key or Google OAuth client secret in an
   pending question-bank/avatar migrations (including `20261028000001` and
   `20261029000001`) before `20261030000001_private_room_access.sql`.
   Then apply `20261031000001_player_discovery_weekly_leaderboard.sql` for
-  authenticated player search and weekly/friends leaderboard scopes. Do not
-  edit or re-run the combined schema to install this update.
+  authenticated player search and weekly/friends leaderboard scopes, followed
+  by `20261101000001_block_only_fake_answers.sql` so blocks prevent only fake
+  answer submission. Do not edit or re-run the combined schema to install this
+  update.
 
 The private-room migration installs `pgcrypto` in the Supabase `extensions`
 schema. Room passwords are stored only as salted bcrypt hashes, and private
