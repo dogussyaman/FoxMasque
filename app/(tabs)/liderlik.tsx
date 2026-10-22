@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Trophy, Crown, Medal, Flame, RefreshCw } from 'lucide-react-native';
@@ -7,8 +7,9 @@ import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import type { Player } from '@/types/game';
+import type { LeaderboardScope } from '@/services/types';
 
-type FilterType = 'all' | 'weekly' | 'friends';
+type FilterType = LeaderboardScope;
 
 export default function LiderlikScreen() {
   const { service, currentPlayer } = useGameStore();
@@ -17,22 +18,45 @@ export default function LiderlikScreen() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const requestId = useRef(0);
+  const leaderboardCache = useRef(new Map<FilterType, Player[]>());
 
-  const loadLeaderboard = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      setPlayers(await service.getLeaderboard());
-    } catch (error) {
-      setLoadError((error as Error).message || 'Liderlik tablosu yüklenemedi.');
-    } finally {
+  const loadLeaderboard = useCallback(async (scope: FilterType) => {
+    const currentRequestId = ++requestId.current;
+    const cachedPlayers = leaderboardCache.current.get(scope);
+    if (cachedPlayers) {
+      setPlayers(cachedPlayers);
       setLoading(false);
+    } else {
+      setPlayers([]);
+      setLoading(true);
+    }
+    setLoadError(null);
+    setRefreshError(null);
+    try {
+      const nextPlayers = await service.getLeaderboard(scope);
+      if (currentRequestId === requestId.current) {
+        leaderboardCache.current.set(scope, nextPlayers);
+        setPlayers(nextPlayers);
+      }
+    } catch (error) {
+      if (currentRequestId === requestId.current) {
+        const message = (error as Error).message || 'Liderlik tablosu yüklenemedi.';
+        if (cachedPlayers) {
+          setRefreshError(message);
+        } else {
+          setLoadError(message);
+        }
+      }
+    } finally {
+      if (currentRequestId === requestId.current) setLoading(false);
     }
   }, [service]);
 
   useFocusEffect(useCallback(() => {
-    void loadLeaderboard();
-  }, [loadLeaderboard]));
+    void loadLeaderboard(filter);
+  }, [filter, loadLeaderboard]));
 
   const topThree = players.slice(0, 3);
   const podiumVisible = topThree.length >= 3;
@@ -53,7 +77,9 @@ export default function LiderlikScreen() {
           right={
             <View style={styles.badgeWrap}>
               <Flame color={colors.orange} size={16} />
-              <Text style={styles.badgeText}>SEZON 1</Text>
+              <Text style={styles.badgeText}>
+                {filter === 'weekly' ? 'SON 7 GÜN' : filter === 'friends' ? 'ARKADAŞLAR' : 'TÜM ZAMANLAR'}
+              </Text>
             </View>
           }
         />
@@ -62,6 +88,8 @@ export default function LiderlikScreen() {
         <View style={styles.filterRow}>
           <Pressable
             onPress={() => onTabSelect('all')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: filter === 'all' }}
             style={[styles.filterBtn, filter === 'all' && styles.filterBtnActive]}
           >
             <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
@@ -70,6 +98,8 @@ export default function LiderlikScreen() {
           </Pressable>
           <Pressable
             onPress={() => onTabSelect('weekly')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: filter === 'weekly' }}
             style={[styles.filterBtn, filter === 'weekly' && styles.filterBtnActive]}
           >
             <Text style={[styles.filterText, filter === 'weekly' && styles.filterTextActive]}>
@@ -78,6 +108,8 @@ export default function LiderlikScreen() {
           </Pressable>
           <Pressable
             onPress={() => onTabSelect('friends')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: filter === 'friends' }}
             style={[styles.filterBtn, filter === 'friends' && styles.filterBtnActive]}
           >
             <Text style={[styles.filterText, filter === 'friends' && styles.filterTextActive]}>
@@ -87,7 +119,7 @@ export default function LiderlikScreen() {
         </View>
 
         {/* Top 3 Podium */}
-        {podiumVisible && (
+        {!loading && !loadError && podiumVisible && (
           <View style={styles.podiumContainer}>
             {/* 2nd place */}
             <View style={[styles.podiumCol, styles.secondPlace]}>
@@ -143,7 +175,17 @@ export default function LiderlikScreen() {
 
         {/* Remainder list */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>TÜM YARIŞMACILAR</Text>
+          <Text style={styles.sectionTitle}>OYUNCU SIRALAMASI</Text>
+          {refreshError ? (
+            <Pressable
+              onPress={() => void loadLeaderboard(filter)}
+              style={styles.retryButton}
+              accessibilityRole="button"
+            >
+              <RefreshCw color={colors.orange} size={16} />
+              <Text style={styles.retryText}>Güncellenemedi · Yeniden dene</Text>
+            </Pressable>
+          ) : null}
           {loading ? (
             <Card variant="surface" style={styles.emptyCard}>
               <ActivityIndicator color={colors.blueSoft} />
@@ -152,7 +194,7 @@ export default function LiderlikScreen() {
           ) : loadError ? (
             <Card variant="surface" style={styles.emptyCard}>
               <Text style={styles.errorText}>{loadError}</Text>
-              <Pressable onPress={() => void loadLeaderboard()} style={styles.retryButton}>
+              <Pressable onPress={() => void loadLeaderboard(filter)} style={styles.retryButton}>
                 <RefreshCw color={colors.orange} size={16} />
                 <Text style={styles.retryText}>Yeniden dene</Text>
               </Pressable>
@@ -162,7 +204,11 @@ export default function LiderlikScreen() {
               <Trophy color={colors.yellow} size={24} />
               <Text style={styles.emptyTitle}>Henüz sıralama oluşmadı</Text>
               <Text style={styles.emptyText}>
-                İlk maç tamamlandığında oyuncular ve puanları burada görünecek.
+                {filter === 'friends'
+                  ? 'Arkadaşların arasında henüz sıralama yok.'
+                  : filter === 'weekly'
+                    ? 'Son 7 günde tamamlanmış bir oyun henüz yok.'
+                    : 'İlk maç tamamlandığında oyuncular ve puanları burada görünecek.'}
               </Text>
             </Card>
           ) : rest.length > 0 ? (
@@ -187,7 +233,7 @@ export default function LiderlikScreen() {
                       >
                         {p.name} {isMe ? '(Sen)' : ''}
                       </Text>
-                      <Text style={styles.subtext}>Seviye {Math.floor(p.score / 150) + 1}</Text>
+                      <Text style={styles.subtext}>{p.gamesPlayed ?? 0} tamamlanan oyun</Text>
                     </View>
                     <Badge tone={isMe ? 'orange' : 'neutral'}>{p.score} P</Badge>
                   </View>

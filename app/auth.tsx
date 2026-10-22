@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Mail, ShieldCheck } from 'lucide-react-native';
+import { Mail } from 'lucide-react-native';
 import { Screen, Button, Card, Input } from '@/components/ui';
 import { colors, spacing, typography, radii } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -101,105 +101,143 @@ export default function AuthScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
-            <View style={styles.logo}><ShieldCheck color={colors.orange} size={30} /></View>
-            <Text style={styles.title}>FOXMASQUE</Text>
-            <Text style={styles.subtitle}>Hesabınla giriş yap, oyuna kaldığın yerden devam et.</Text>
-          </View>
-
-          <Card variant="surface" style={styles.card}>
-            <Button
-              label="Google ile devam et"
-              onPress={() => void handleGoogleAuth()}
-              variant="primary"
-              fullWidth
-              disabled={busy}
-            />
-            <View style={styles.separator}>
-              <View style={styles.rule} />
-              <Text style={styles.orText}>veya e-posta ile</Text>
-              <View style={styles.rule} />
+          <View style={styles.content}>
+            <View style={styles.header}>
+              <View style={styles.logoStage}>
+                <View style={styles.logoGlow} />
+                <Image
+                  source={require('@/assets/illustrations/kızılkuyruk.png')}
+                  resizeMode="contain"
+                  accessibilityLabel="Kızılkuyruk"
+                  style={styles.logoImage}
+                />
+              </View>
+              <Text style={styles.title}>
+                {mode === 'register' ? 'Aramıza katıl!' : 'Tekrar hoş geldin!'}
+              </Text>
+              <Text style={styles.subtitle}>
+                {mode === 'register'
+                  ? 'Hesabını oluştur, arkadaşlarınla blöf heyecanına katıl.'
+                  : 'Giriş yap ve oyuna kaldığın yerden devam et.'}
+              </Text>
             </View>
 
-            {mode === 'register' ? (
+            <Card variant="surface" style={styles.card}>
+              <View style={styles.modeSwitch}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: mode === 'login' }}
+                  onPress={() => {
+                    setMode('login');
+                    setError(null);
+                    setMessage(null);
+                  }}
+                  disabled={busy}
+                  style={[styles.modeOption, mode === 'login' && styles.modeOptionActive]}
+                >
+                  <Text style={[styles.modeText, mode === 'login' && styles.modeTextActive]}>
+                    Giriş yap
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: mode === 'register' }}
+                  onPress={() => {
+                    setMode('register');
+                    setError(null);
+                    setMessage(null);
+                  }}
+                  disabled={busy}
+                  style={[styles.modeOption, mode === 'register' && styles.modeOptionActive]}
+                >
+                  <Text style={[styles.modeText, mode === 'register' && styles.modeTextActive]}>
+                    Kayıt ol
+                  </Text>
+                </Pressable>
+              </View>
+              <Button
+                label="Google ile devam et"
+                onPress={() => void handleGoogleAuth()}
+                variant="primary"
+                fullWidth
+                disabled={busy}
+              />
+              <View style={styles.separator}>
+                <View style={styles.rule} />
+                <Text style={styles.orText}>veya e-posta ile</Text>
+                <View style={styles.rule} />
+              </View>
+
+              {mode === 'register' ? (
+                <Input
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Oyuncu adı"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.input}
+                  maxLength={32}
+                  autoCapitalize="words"
+                  textContentType="name"
+                  variant="dark"
+                  focusedBorderColor={colors.purple}
+                />
+              ) : null}
               <Input
-                value={name}
-                onChangeText={setName}
-                placeholder="Oyuncu adı"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="E-posta"
                 placeholderTextColor={colors.textMuted}
                 style={styles.input}
-                maxLength={32}
-                autoCapitalize="words"
-                textContentType="name"
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                textContentType="emailAddress"
                 variant="dark"
                 focusedBorderColor={colors.purple}
               />
-            ) : null}
-            <Input
-              value={email}
-              onChangeText={setEmail}
-              placeholder="E-posta"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              variant="dark"
-              focusedBorderColor={colors.purple}
-            />
-            <Input
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Şifre (en az 6 karakter)"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              secureTextEntry
-              autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-              textContentType={mode === 'register' ? 'newPassword' : 'password'}
-              variant="dark"
-              focusedBorderColor={colors.purple}
-            />
+              <Input
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Şifre (en az 6 karakter)"
+                placeholderTextColor={colors.textMuted}
+                style={styles.input}
+                secureTextEntry
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                textContentType={mode === 'register' ? 'newPassword' : 'password'}
+                variant="dark"
+                focusedBorderColor={colors.purple}
+              />
 
-            {mode === 'login' ? (
-              <Pressable
-                onPress={() => void handlePasswordReset()}
-                disabled={busy || !email.trim()}
-                style={styles.forgotPassword}
-              >
-                <Text style={styles.switchText}>Şifremi unuttum</Text>
-              </Pressable>
-            ) : null}
-            {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-            {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+              {mode === 'login' ? (
+                <Pressable
+                  onPress={() => void handlePasswordReset()}
+                  disabled={busy || !email.trim()}
+                  style={styles.forgotPassword}
+                >
+                  <Text style={styles.switchText}>Şifremi unuttum</Text>
+                </Pressable>
+              ) : null}
+              {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+              {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
 
-            <Button
-              label={mode === 'register' ? 'Hesap oluştur' : 'Giriş yap'}
-              onPress={() => void handleEmailAuth()}
-              variant="orange"
-              fullWidth
-              disabled={busy || !email.trim() || !password}
-              icon={busy ? <ActivityIndicator color="#FFF" /> : <Mail color="#FFF" size={18} />}
-            />
+              <Button
+                label={mode === 'register' ? 'Hesap oluştur' : 'Giriş yap'}
+                onPress={() => void handleEmailAuth()}
+                variant="orange"
+                fullWidth
+                disabled={busy || !email.trim() || !password}
+                icon={busy ? <ActivityIndicator color="#FFF" /> : <Mail color="#FFF" size={18} />}
+              />
+            </Card>
 
             <Pressable
-              onPress={() => {
-                setMode(mode === 'login' ? 'register' : 'login');
-                setError(null);
-                setMessage(null);
-              }}
+              onPress={() => router.replace('/onboarding')}
               disabled={busy}
-              style={styles.switchMode}
+              style={styles.guest}
             >
-              <Text style={styles.switchText}>
-                {mode === 'register' ? 'Zaten hesabın var mı? Giriş yap' : 'Hesabın yok mu? Kayıt ol'}
-              </Text>
+              <Text style={styles.guestText}>Hesap oluşturmadan misafir olarak oyna</Text>
             </Pressable>
-          </Card>
-
-          <Pressable onPress={() => router.replace('/onboarding')} disabled={busy} style={styles.guest}>
-            <Text style={styles.guestText}>Hesap oluşturmadan misafir olarak oyna</Text>
-          </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
@@ -208,16 +246,71 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingBottom: spacing.xl },
-  header: { alignItems: 'center', marginBottom: spacing.xl },
-  logo: {
-    width: 64, height: 64, borderRadius: 20, backgroundColor: colors.bgSurface,
-    borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
-    marginBottom: spacing.md,
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingVertical: spacing.xl },
+  content: { width: '100%', maxWidth: 460, alignSelf: 'center' },
+  header: { alignItems: 'center', marginBottom: spacing.lg },
+  logoStage: {
+    width: '100%',
+    height: 154,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+    overflow: 'visible',
   },
-  title: { ...typography.h1, color: colors.textPrimary },
+  logoGlow: {
+    position: 'absolute',
+    width: '76%',
+    height: 78,
+    borderRadius: 999,
+    backgroundColor: colors.orangeGlow,
+    opacity: 0.65,
+  },
+  logoImage: {
+    width: '100%',
+    maxWidth: 440,
+    height: 154,
+  },
+  title: {
+    ...typography.h1,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    letterSpacing: -0.6,
+  },
   subtitle: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xs },
-  card: { gap: spacing.md },
+  card: {
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderAccent,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
+  },
+  modeSwitch: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgDark,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modeOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 42,
+    borderRadius: radii.sm,
+  },
+  modeOptionActive: {
+    backgroundColor: colors.bgSurfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderAccent,
+  },
+  modeText: {
+    ...typography.bodyMedium,
+    color: colors.textMuted,
+  },
+  modeTextActive: {
+    color: colors.textPrimary,
+  },
   separator: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   orText: { ...typography.caption, color: colors.textMuted },
@@ -234,7 +327,6 @@ const styles = StyleSheet.create({
   },
   error: { ...typography.caption, color: colors.dangerSoft },
   message: { ...typography.caption, color: colors.lime },
-  switchMode: { alignItems: 'center', padding: spacing.xs },
   forgotPassword: { alignSelf: 'flex-end', paddingVertical: spacing.xs },
   switchText: { ...typography.caption, color: colors.purpleSoft },
   guest: { alignItems: 'center', padding: spacing.lg },

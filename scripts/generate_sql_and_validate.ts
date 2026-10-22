@@ -103,7 +103,7 @@ function main() {
   }).join(',\n');
 
   const migrationSql = `-- ============================================================================
--- FOXMASQUE — QUESTION BANK EXPANSION (${expectedTotal} QUESTIONS)
+-- KIZILKUYRUK — QUESTION BANK EXPANSION (${expectedTotal} QUESTIONS)
 -- Migration: 20261028000001_expand_question_bank_2400.sql
 -- Categories: 400 questions each across all six categories
 -- Authoritative, bluff-compliant: default_decoys = ARRAY[]::TEXT[]

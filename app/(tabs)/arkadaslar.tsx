@@ -1,7 +1,7 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Share } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Share, TextInput } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { UserPlus, Share2, Send } from 'lucide-react-native';
+import { UserPlus, Share2, Send, Search, UserRoundX, UserRoundCheck } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, EmptyState, Badge } from '@/components/ui';
 import { colors, spacing, typography, radii } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -16,11 +16,20 @@ export default function ArkadaslarScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const hasLoadedSocialData = useRef(false);
   const [loadingRequest, setLoadingRequest] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SocialPlayer[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [loadingPlayerId, setLoadingPlayerId] = useState<string | null>(null);
 
   const refreshSocialData = useCallback(async () => {
-    setLoadingData(true);
-    setLoadError(null);
+    if (!hasLoadedSocialData.current) {
+      setLoadingData(true);
+      setLoadError(null);
+    }
     try {
       const [friendList, friendRequests] = await Promise.all([
         service.listFriends(),
@@ -28,9 +37,15 @@ export default function ArkadaslarScreen() {
       ]);
       setFriends(friendList);
       setRequests(friendRequests);
+      hasLoadedSocialData.current = true;
       setError(null);
     } catch (e) {
-      setLoadError((e as Error).message || 'Arkadaşların yüklenemedi.');
+      const message = (e as Error).message || 'Arkadaşların yüklenemedi.';
+      if (hasLoadedSocialData.current) {
+        setError(message);
+      } else {
+        setLoadError(message);
+      }
     } finally {
       setLoadingData(false);
     }
@@ -45,8 +60,8 @@ export default function ArkadaslarScreen() {
     try {
       await Share.share({
         message: roomCode
-          ? `FOXMASQUE parti oyununda odadayım! Kod: ${roomCode}. Hemen katıl!`
-          : `FOXMASQUE blöf oyununu oynamak için arkadaş ekle!`,
+          ? `Kızılkuyruk parti oyununda odadayım! Kod: ${roomCode}. Hemen katıl!`
+          : `Kızılkuyruk blöf oyununu oynamak için arkadaş ekle!`,
       });
     } catch (e) {
       setError((e as Error).message);
@@ -58,11 +73,69 @@ export default function ArkadaslarScreen() {
     setError(null);
     try {
       await service.respondFriendRequest(request.requestId, accept);
+      setSearchResults((results) => results.map((player) =>
+        player.id === request.id
+          ? { ...player, relationshipStatus: accept ? 'friends' : 'none' }
+          : player
+      ));
       await refreshSocialData();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoadingRequest(null);
+    }
+  };
+
+  const searchPlayers = async () => {
+    const query = searchQuery.trim();
+    if (query.length < 2 || query.length > 32) {
+      setSearchError('Oyuncu aramak için 2-32 karakter gir.');
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    setSearchError(null);
+    setHasSearched(false);
+    setSearchResults([]);
+    try {
+      setSearchResults(await service.searchPlayers(query));
+      setHasSearched(true);
+    } catch (e) {
+      setSearchError((e as Error).message || 'Oyuncular aranamadı.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const sendRequest = async (playerId: string) => {
+    setLoadingPlayerId(playerId);
+    setSearchError(null);
+    try {
+      const relationshipStatus = await service.sendFriendRequest(playerId);
+      setSearchResults((results) => results.map((player) =>
+        player.id === playerId ? { ...player, relationshipStatus } : player
+      ));
+      await refreshSocialData();
+    } catch (e) {
+      setSearchError((e as Error).message || 'Arkadaşlık isteği gönderilemedi.');
+    } finally {
+      setLoadingPlayerId(null);
+    }
+  };
+
+  const removeFriend = async (player: SocialPlayer) => {
+    setLoadingPlayerId(player.id);
+    setError(null);
+    try {
+      await service.removeFriend(player.id);
+      await refreshSocialData();
+      setSearchResults((results) => results.map((result) =>
+        result.id === player.id ? { ...result, relationshipStatus: 'none' } : result
+      ));
+    } catch (e) {
+      setError((e as Error).message || 'Arkadaş kaldırılamadı.');
+    } finally {
+      setLoadingPlayerId(null);
     }
   };
 
@@ -98,7 +171,15 @@ export default function ArkadaslarScreen() {
           </View>
         </Card>
 
-        {requests.length > 0 ? (
+        {loadingData ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Arkadaşlık İstekleri</Text>
+            <Card variant="surface" style={styles.loadingCard}>
+              <ActivityIndicator color={colors.blueSoft} />
+              <Text style={styles.loadingText}>İstekler yükleniyor...</Text>
+            </Card>
+          </View>
+        ) : loadError ? null : requests.length > 0 ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Arkadaşlık İstekleri ({requests.length})</Text>
             <Card variant="surface" style={styles.listCard}>
@@ -132,6 +213,84 @@ export default function ArkadaslarScreen() {
         ) : null}
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Oyuncu Bul</Text>
+          <Card variant="surface" style={styles.searchCard}>
+            <View style={styles.searchRow}>
+              <TextInput
+                value={searchQuery}
+                onChangeText={(value) => {
+                  setSearchQuery(value);
+                  setSearchError(null);
+                  setHasSearched(false);
+                  setSearchResults([]);
+                }}
+                onSubmitEditing={() => void searchPlayers()}
+                placeholder="Oyuncu adını yaz"
+                placeholderTextColor={colors.textMuted}
+                style={styles.searchInput}
+                maxLength={32}
+                returnKeyType="search"
+                autoCorrect={false}
+                accessibilityLabel="Oyuncu adıyla ara"
+              />
+              <Pressable
+                onPress={() => void searchPlayers()}
+                disabled={searching}
+                accessibilityRole="button"
+                accessibilityLabel="Oyuncu ara"
+                style={styles.searchButton}
+              >
+                {searching
+                  ? <ActivityIndicator color="#FFF" size="small" />
+                  : <Search color="#FFF" size={18} />}
+              </Pressable>
+            </View>
+            {searchError ? <Text accessibilityRole="alert" style={styles.error}>{searchError}</Text> : null}
+            {!searching && hasSearched && searchResults.length === 0 && !searchError ? (
+              <Text style={styles.loadingText}>Eşleşen oyuncu bulunamadı.</Text>
+            ) : null}
+            {searchResults.map((player) => (
+              <View key={player.id} style={styles.searchResult}>
+                <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} userId={player.id} size={40} />
+                <Text style={styles.searchName} numberOfLines={1}>{player.name}</Text>
+                {player.relationshipStatus === 'friends' ? (
+                  <Pressable
+                    onPress={() => void removeFriend(player)}
+                    disabled={loadingPlayerId === player.id}
+                    style={styles.relationshipAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${player.name} arkadaşlığını kaldır`}
+                  >
+                    {loadingPlayerId === player.id
+                      ? <ActivityIndicator color={colors.dangerSoft} size="small" />
+                      : <UserRoundX color={colors.dangerSoft} size={18} />}
+                  </Pressable>
+                ) : player.relationshipStatus === 'none' ? (
+                  <Pressable
+                    onPress={() => void sendRequest(player.id)}
+                    disabled={loadingPlayerId === player.id}
+                    style={styles.relationshipAction}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${player.name} arkadaşlık isteği gönder`}
+                  >
+                    {loadingPlayerId === player.id
+                      ? <ActivityIndicator color={colors.lime} size="small" />
+                      : <UserPlus color={colors.lime} size={18} />}
+                  </Pressable>
+                ) : (
+                  <View style={styles.requestStatus}>
+                    <UserRoundCheck color={colors.textMuted} size={16} />
+                    <Text style={styles.requestStatusText}>
+                      {player.relationshipStatus === 'incoming_pending' ? 'İstek gönderdi' : 'İstek gönderildi'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </Card>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Arkadaşların ({friends.length})</Text>
           {loadingData ? (
             <Card variant="surface" style={styles.loadingCard}>
@@ -154,6 +313,8 @@ export default function ArkadaslarScreen() {
                   key={friend.id}
                   friend={friend}
                   onInvite={handleShare}
+                  onRemove={() => void removeFriend(friend)}
+                  removing={loadingPlayerId === friend.id}
                   isLast={idx === friends.length - 1}
                 />
               ))}
@@ -168,11 +329,15 @@ export default function ArkadaslarScreen() {
 function FriendRow({
   friend,
   onInvite,
+  onRemove,
+  removing,
   muted,
   isLast,
 }: {
   friend: SocialPlayer;
   onInvite: () => void;
+  onRemove: () => void;
+  removing: boolean;
   muted?: boolean;
   isLast?: boolean;
 }) {
@@ -185,6 +350,17 @@ function FriendRow({
       </View>
       <Pressable onPress={onInvite} style={styles.iconBtn}>
         <Send color={colors.purpleSoft} size={18} />
+      </Pressable>
+      <Pressable
+        onPress={onRemove}
+        disabled={removing}
+        style={[styles.iconBtn, styles.removeFriendButton]}
+        accessibilityRole="button"
+        accessibilityLabel={`${friend.name} arkadaşlığını kaldır`}
+      >
+        {removing
+          ? <ActivityIndicator color={colors.dangerSoft} size="small" />
+          : <UserRoundX color={colors.dangerSoft} size={18} />}
       </Pressable>
     </View>
   );
@@ -258,6 +434,65 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.orange,
     fontFamily: 'Poppins-SemiBold',
+  },
+  searchCard: {
+    gap: spacing.sm,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    minHeight: 44,
+    color: colors.textPrimary,
+    backgroundColor: colors.bgSurfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    fontFamily: 'Poppins-Regular',
+  },
+  searchButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.md,
+    backgroundColor: colors.blueDeep,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchResult: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.sm,
+  },
+  searchName: {
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  relationshipAction: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestStatus: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  requestStatusText: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  removeFriendButton: {
+    marginLeft: spacing.xs,
   },
   row: {
     flexDirection: 'row',

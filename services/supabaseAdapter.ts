@@ -7,6 +7,7 @@ import type {
   EmailSignUpResult,
   FriendRequest,
   GameService,
+  LeaderboardScope,
   RelationshipStatus,
   RoomSummary,
   SocialPlayer,
@@ -61,9 +62,9 @@ interface LeaderboardRow {
   score: number;
   games_played: number;
   games_won: number;
-  correct_answers: number;
-  successful_traps: number;
-  times_trapped: number;
+  correct_answers: number | null;
+  successful_traps: number | null;
+  times_trapped: number | null;
 }
 
 interface SocialPlayerRow {
@@ -769,9 +770,11 @@ export class SupabaseGameService implements GameService {
     }
   }
 
-  async getLeaderboard(): Promise<Player[]> {
+  async getLeaderboard(scope: LeaderboardScope = 'all'): Promise<Player[]> {
     const sb = ensureSupabase();
-    const { data, error } = await sb.rpc('get_leaderboard_secure');
+    const { data, error } = await sb.rpc('get_leaderboard_scoped_secure', {
+      p_scope: scope,
+    });
     if (error) throw new ServiceError('LEADERBOARD_FAILED', error.message);
     if (!data) return [];
     return data.map((d: LeaderboardRow) => ({
@@ -782,9 +785,9 @@ export class SupabaseGameService implements GameService {
       score: Number(d.score),
       gamesPlayed: d.games_played,
       gamesWon: d.games_won,
-      correctAnswers: d.correct_answers,
-      successfulTraps: d.successful_traps,
-      timesTrapped: d.times_trapped,
+      correctAnswers: d.correct_answers === null ? undefined : d.correct_answers,
+      successfulTraps: d.successful_traps === null ? undefined : d.successful_traps,
+      timesTrapped: d.times_trapped === null ? undefined : d.times_trapped,
       isHost: false,
       isReady: false,
       isOnline: true,
@@ -795,6 +798,25 @@ export class SupabaseGameService implements GameService {
       isBlockedCurrentRound: false,
       isBlockedNextRound: false,
       lastBlockedPlayerId: null,
+    }));
+  }
+
+  async searchPlayers(query: string): Promise<SocialPlayer[]> {
+    const cleanQuery = query.trim();
+    if (cleanQuery.length < 2 || cleanQuery.length > 32) {
+      throw new ServiceError('PLAYER_SEARCH_INVALID', 'Oyuncu araması 2-32 karakter arasında olmalıdır.');
+    }
+    const { data, error } = await ensureSupabase().rpc('search_players_secure', {
+      p_query: cleanQuery,
+    });
+    if (error) throw new ServiceError('PLAYER_SEARCH_FAILED', error.message);
+    if (!data) return [];
+    return data.map((row: SocialPlayerRow) => ({
+      id: row.user_id,
+      name: row.display_name,
+      avatarKey: resolveAvatarKey(row.avatar_key, row.user_id),
+      avatarUrl: resolveAvatarUrl(row.avatar_url),
+      relationshipStatus: row.relationship_status,
     }));
   }
 

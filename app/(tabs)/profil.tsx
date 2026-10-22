@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput, Platform } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput, Platform } from 'react-native';
 import { router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut, LoaderCircle } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, Badge, Input } from '@/components/ui';
@@ -13,10 +14,9 @@ import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
 
 export default function ProfilScreen() {
   const { currentPlayer, setCurrentPlayer, isLive, isAnonymous, connection, service } = useGameStore();
-  const { trigger } = useHaptics();
+  const { trigger, enabled: hapticEnabled, ready: hapticPreferenceReady, setEnabled: setHapticEnabled } = useHaptics();
   const { enabled: soundEnabled, ready: soundPreferenceReady, setEnabled: setSoundEnabled } = useSound();
 
-  const [hapticEnabled, setHapticEnabled] = useState(true);
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(currentPlayer?.name ?? 'Oyuncu');
   const [selectedAvatar, setSelectedAvatar] = useState(currentPlayer?.avatarKey ?? 'fox');
@@ -24,7 +24,33 @@ export default function ProfilScreen() {
   const [showAllAvatars, setShowAllAvatars] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [statsPlayer, setStatsPlayer] = useState(currentPlayer);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+
+  const refreshStats = useCallback(async () => {
+    if (!currentPlayer) {
+      setStatsPlayer(null);
+      setStatsLoading(false);
+      return;
+    }
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const player = await service.getProfile(currentPlayer.id);
+      if (!player) throw new Error('Profil istatistikleri bulunamadı.');
+      setStatsPlayer(player);
+    } catch (error) {
+      setStatsError((error as Error).message || 'İstatistikler yüklenemedi.');
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [currentPlayer?.id, service]);
+
+  useFocusEffect(useCallback(() => {
+    void refreshStats();
+  }, [refreshStats]));
 
   useEffect(() => {
     if (!currentPlayer) return;
@@ -165,7 +191,7 @@ export default function ProfilScreen() {
                 </View>
               ) : (
                 <View style={styles.nameDisplayRow}>
-                  <Text style={styles.playerName}>{currentPlayer?.name ?? 'FOXMASQUE Ustası'}</Text>
+                  <Text style={styles.playerName}>{currentPlayer?.name ?? 'Kızılkuyruk Ustası'}</Text>
                   <Pressable onPress={() => setEditingName(true)} style={styles.editIconBtn}>
                     <Edit2 color={colors.orange} size={16} />
                   </Pressable>
@@ -173,7 +199,10 @@ export default function ProfilScreen() {
               )}
               <View style={styles.rolePill}>
                 <Flame color={colors.yellow} size={12} />
-                <Text style={styles.playerRole}>FOXMASQUE Ustası • Seviye 8</Text>
+                <Text style={styles.playerRole}>
+                  Kızılkuyruk Ustası
+                  {statsPlayer ? ` • Seviye ${Math.floor(statsPlayer.score / 150) + 1}` : ''}
+                </Text>
               </View>
             </View>
           </View>
@@ -252,29 +281,41 @@ export default function ProfilScreen() {
         {/* Stats Grid */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>İSTATİSTİKLER</Text>
+          {statsError ? <Text accessibilityRole="alert" style={styles.profileError}>{statsError}</Text> : null}
+          {statsLoading && !statsPlayer ? (
+            <ActivityIndicator color={colors.blueSoft} style={styles.statsLoading} />
+          ) : null}
           <View style={styles.statsGrid}>
             <Card variant="surface" style={styles.statBox}>
               <Award color={colors.yellow} size={24} />
-              <Text style={styles.statValue}>{currentPlayer?.score ?? 340} P</Text>
+              <Text style={styles.statValue}>
+                {statsPlayer ? `${statsPlayer.score} P` : '—'}
+              </Text>
               <Text style={styles.statLabel}>Toplam Puan</Text>
             </Card>
 
             <Card variant="surface" style={styles.statBox}>
-              <Zap color={colors.orange} size={24} />
-              <Text style={[styles.statValue, { color: colors.orange }]}>18</Text>
-              <Text style={styles.statLabel}>Tuzağa Düşürdün</Text>
-            </Card>
-
-            <Card variant="surface" style={styles.statBox}>
-              <Shield color={colors.dangerSoft} size={24} />
-              <Text style={[styles.statValue, { color: colors.dangerSoft }]}>4</Text>
-              <Text style={styles.statLabel}>Tuzağa Düştün</Text>
-            </Card>
-
-            <Card variant="surface" style={styles.statBox}>
               <Sparkles color={colors.lime} size={24} />
-              <Text style={[styles.statValue, { color: colors.lime }]}>%82</Text>
-              <Text style={styles.statLabel}>Blöf Başarısı</Text>
+              <Text style={[styles.statValue, { color: colors.lime }]}>
+                {statsPlayer?.correctAnswers ?? '—'}
+              </Text>
+              <Text style={styles.statLabel}>Doğru Cevap</Text>
+            </Card>
+
+            <Card variant="surface" style={styles.statBox}>
+              <Zap color={colors.orange} size={24} />
+              <Text style={[styles.statValue, { color: colors.orange }]}>
+                {statsPlayer?.successfulTraps ?? '—'}
+              </Text>
+              <Text style={styles.statLabel}>Başarılı Blöf</Text>
+            </Card>
+
+            <Card variant="surface" style={styles.statBox}>
+              <Shield color={colors.blueSoft} size={24} />
+              <Text style={[styles.statValue, { color: colors.blueSoft }]}>
+                {statsPlayer?.gamesPlayed ?? '—'}
+              </Text>
+              <Text style={styles.statLabel}>Tamamlanan Oyun</Text>
             </Card>
           </View>
         </View>
@@ -316,6 +357,7 @@ export default function ProfilScreen() {
               </View>
               <Switch
                 value={hapticEnabled}
+                disabled={!hapticPreferenceReady}
                 onValueChange={(v) => {
                   trigger('light');
                   setHapticEnabled(v);
@@ -364,7 +406,7 @@ export default function ProfilScreen() {
         {/* App Info Card */}
         <View style={styles.section}>
           <Card variant="comic" style={{ alignItems: 'center' }}>
-            <Text style={styles.aboutTitle}>FOXMASQUE v2.0</Text>
+            <Text style={styles.aboutTitle}>Kızılkuyruk v2.0</Text>
             <Text style={styles.aboutText}>Modern Türkçe Parti & Blöf Oyunu</Text>
             <Text style={styles.aboutSub}>2–10 Oyuncu • Gerçek Zamanlı Realtime Motoru</Text>
           </Card>
@@ -401,6 +443,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: spacing.sm,
+  },
+  statsLoading: {
+    marginVertical: spacing.sm,
   },
   profileCard: {
     marginTop: spacing.xs,

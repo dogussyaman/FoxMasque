@@ -1,4 +1,4 @@
-# FOXMASQUE
+# Kızılkuyruk
 
 ## Local setup
 
@@ -19,7 +19,8 @@ client. Never place a `service_role` key or Google OAuth client secret in an
   the SQL Editor. It contains the schema and functions assembled from the
   migrations through `20261029000001`, including the profile trigger needed by
   Supabase Auth. Then run `supabase/migrations/20261030000001_private_room_access.sql`
-  once to enable password-protected rooms.
+  once to enable password-protected rooms, followed by
+  `supabase/migrations/20261031000001_player_discovery_weekly_leaderboard.sql`.
 - For a project where migrations have already been applied, do not run the
   combined schema. Apply only pending files in `supabase/migrations/` in
   timestamp order, including `20261024000001_fix_join_room_ambiguity.sql` to
@@ -30,6 +31,9 @@ client. Never place a `service_role` key or Google OAuth client secret in an
   per-player repeat prevention, and confirmed-seen tracking. Apply any later
   pending question-bank/avatar migrations (including `20261028000001` and
   `20261029000001`) before `20261030000001_private_room_access.sql`.
+  Then apply `20261031000001_player_discovery_weekly_leaderboard.sql` for
+  authenticated player search and weekly/friends leaderboard scopes. Do not
+  edit or re-run the combined schema to install this update.
 
 The private-room migration installs `pgcrypto` in the Supabase `extensions`
 schema. Room passwords are stored only as salted bcrypt hashes, and private
@@ -48,6 +52,12 @@ Question selection reserves an unseen question for active room members, while
 the player's history is written only after the question screen acknowledges
 that it was displayed. A depleted unseen pool returns an error instead of
 silently repeating a question.
+
+Weekly rankings include completed games recorded after the player-discovery
+migration; earlier game snapshots have no reliable completion timestamp and
+are intentionally excluded from weekly results. All-time rankings are
+unchanged. The weekly score is the sum of a player's completed-match scores
+over the preceding seven days.
 
 There is no in-app question-admin screen. For a reviewed live import, use the
 Supabase Table Editor CSV import for `public.questions`, supplying at minimum

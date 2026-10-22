@@ -142,7 +142,7 @@ export default function OynaScreen() {
             <Swords color={colors.orange} size={22} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.tipTitle}>FOXMASQUE Blöf Taktikleri</Text>
+            <Text style={styles.tipTitle}>Kızılkuyruk Blöf Taktikleri</Text>
             <Text style={styles.tipCopy}>
               Gerçek cevabı bulmak +100 puan; ancak kendi uydurduğun cevaba arkadaşlarını tuzağa düşürmek rakip başına +50 puan! 3 kişiyi kandırırsan Blok yeteneği kazanırsın!
             </Text>

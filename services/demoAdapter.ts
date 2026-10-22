@@ -700,7 +700,7 @@ export class DemoGameService implements GameService {
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
-  async getLeaderboard(): Promise<Player[]> {
+  async getLeaderboard(scope: 'all' | 'weekly' | 'friends' = 'all'): Promise<Player[]> {
     if (this.leaderboard.length === 0) {
       this.leaderboard = makeSamplePlayers(10, 0).map((p, i) => ({
         ...p,
@@ -708,7 +708,38 @@ export class DemoGameService implements GameService {
         name: p.name,
       }));
     }
-    return [...this.leaderboard].sort((a, b) => b.score - a.score);
+    if (scope === 'weekly') return [];
+    const leaderboard = [...this.leaderboard].sort((a, b) => b.score - a.score);
+    if (scope !== 'friends' || !this.currentPlayer) return leaderboard;
+    const friends = await this.listFriends();
+    const friendIds = new Set(friends.map((friend) => friend.id));
+    return leaderboard.filter((player) => friendIds.has(player.id));
+  }
+
+  async searchPlayers(query: string): Promise<SocialPlayer[]> {
+    const cleanQuery = query.trim().toLocaleLowerCase();
+    if (cleanQuery.length < 2 || cleanQuery.length > 32) {
+      throw new ServiceError('PLAYER_SEARCH_INVALID', 'Oyuncu araması 2-32 karakter arasında olmalıdır.');
+    }
+    const players = await this.getLeaderboard();
+    const matches: SocialPlayer[] = [];
+    for (const player of players) {
+      if (
+        player.id === this.currentPlayer?.id ||
+        !player.name.toLocaleLowerCase().includes(cleanQuery)
+      ) continue;
+      const relationshipStatus = await this.getRelationshipStatus(player.id);
+      if (relationshipStatus === 'blocked') continue;
+      matches.push({
+        id: player.id,
+        name: player.name,
+        avatarKey: player.avatarKey,
+        avatarUrl: player.avatarUrl,
+        relationshipStatus,
+      });
+      if (matches.length === 20) break;
+    }
+    return matches;
   }
 
   async getProfile(playerId: string): Promise<Player | null> {

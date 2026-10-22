@@ -1,5 +1,5 @@
 -- ============================================================================
--- FOXMASQUE — QUESTION BANK EXPANSION (2400 QUESTIONS)
+-- KIZILKUYRUK — QUESTION BANK EXPANSION (2400 QUESTIONS)
 -- Migration: 20261028000001_expand_question_bank_2400.sql
 -- Categories: 400 questions each across all six categories
 -- Authoritative, bluff-compliant: default_decoys = ARRAY[]::TEXT[]

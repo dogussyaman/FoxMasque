@@ -4,7 +4,7 @@ import { QUESTIONS, questionsForCategory, pickQuestions } from '../features/game
 import { CATEGORIES } from '../features/game/categories';
 import { normalizeChoiceText } from '../features/game/engine';
 
-describe('FOXMASQUE Question Bank — 2,400 Questions Validation', () => {
+describe('Kızılkuyruk Question Bank — 2,400 Questions Validation', () => {
   test('Contains exactly 2,400 unique questions in total', () => {
     assert.equal(QUESTIONS.length, 2400);
 

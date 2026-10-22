@@ -103,19 +103,17 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Top Bar with FOXMASQUE Brand & Player Avatar */}
+        {/* Top bar with Kızılkuyruk branding and player avatar */}
         <View style={styles.topBar}>
           <View style={styles.brandRow}>
             <View style={styles.logoPill}>
-              <Text style={styles.logoText}>FOXMASQUE</Text>
+              <Image
+                source={require('@/assets/illustrations/kızılkuyruk.png')}
+                resizeMode="contain"
+                accessibilityLabel="Kızılkuyruk"
+                style={styles.logoImage}
+              />
             </View>
-            <Badge
-              tone={isLive ? 'lime' : 'yellow'}
-              sticker
-              style={{ marginLeft: 6 }}
-            >
-              {isLive ? 'CANLI' : 'DEMO'}
-            </Badge>
           </View>
 
           <Pressable
@@ -147,7 +145,7 @@ export default function HomeScreen() {
               <View style={styles.heroLeftCol}>
                 <View style={styles.kickerPill}>
                   <Flame color={colors.orange} size={14} />
-                  <Text style={styles.kickerText}>FOXMASQUE</Text>
+                  <Text style={styles.kickerText}>KIZILKUYRUK</Text>
                 </View>
                 <Text style={styles.heroTitle}>
                   Blöfünü Yap,{'\n'}
@@ -274,7 +272,7 @@ export default function HomeScreen() {
           </ScrollView>
         </View>
 
-        {/* How to Play - FOXMASQUE Guide Cards */}
+        {/* How to Play - Kızılkuyruk guide cards */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nasıl Oynanır?</Text>
           <Card variant="surface" style={styles.howToCard}>
@@ -396,19 +394,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoPill: {
-    backgroundColor: colors.purple,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: radii.sm,
-    borderWidth: 1.5,
-    borderColor: colors.purpleSoft,
     transform: [{ rotate: '-2deg' }],
   },
-  logoText: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 16,
-    color: '#FFF',
-    letterSpacing: 1.5,
+  logoImage: {
+    width: 144,
+    height: 54,
   },
   profileBtn: {
     padding: 2,

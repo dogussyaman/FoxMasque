@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle2, RotateCcw } from 'lucide-react-native';
-import { FoxmasqueLoading } from '@/components/loading/FoxmasqueLoading';
+import { KizilkuyrukLoading } from '@/components/loading/KizilkuyrukLoading';
 import { colors, radii } from '@/theme';
 
 export default function LoadingDemoScreen() {
@@ -37,7 +37,7 @@ export default function LoadingDemoScreen() {
         </View>
       ) : (
         <>
-          <FoxmasqueLoading
+          <KizilkuyrukLoading
             key={run}
             done={loadingDone}
             onFinish={() => setFinished(true)}

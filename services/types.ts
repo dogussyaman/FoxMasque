@@ -28,6 +28,8 @@ export type RelationshipStatus =
   | 'friends'
   | 'blocked';
 
+export type LeaderboardScope = 'all' | 'weekly' | 'friends';
+
 export interface SocialPlayer {
   id: string;
   name: string;
@@ -129,7 +131,8 @@ export interface GameService {
   submitAnswer(code: string, submission: AnswerSubmission): Promise<void>;
 
   // Profile / leaderboard
-  getLeaderboard(): Promise<Player[]>;
+  getLeaderboard(scope?: LeaderboardScope): Promise<Player[]>;
+  searchPlayers(query: string): Promise<SocialPlayer[]>;
   getProfile(playerId: string): Promise<Player | null>;
   getRelationshipStatus(playerId: string): Promise<RelationshipStatus>;
   sendFriendRequest(playerId: string): Promise<RelationshipStatus>;

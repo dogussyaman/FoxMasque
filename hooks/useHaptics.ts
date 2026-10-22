@@ -1,48 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
-import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
-
-type Style = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
-
-const map: Record<Style, Haptics.ImpactFeedbackStyle | null> = {
-  light: Haptics.ImpactFeedbackStyle.Light,
-  medium: Haptics.ImpactFeedbackStyle.Medium,
-  heavy: Haptics.ImpactFeedbackStyle.Heavy,
-  success: null,
-  warning: null,
-  error: null,
-};
+import { hapticsService } from '@/services/hapticsService';
 
 export function useHaptics() {
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabledState] = useState(() => hapticsService.isEnabled());
+  const [ready, setReady] = useState(() => hapticsService.isReady());
 
   useEffect(() => {
-    setEnabled(true);
+    const unsubscribe = hapticsService.subscribe(setEnabledState);
+    const unsubscribeReady = hapticsService.subscribeReady(() => setReady(true));
+    return () => {
+      unsubscribe();
+      unsubscribeReady();
+    };
   }, []);
 
-  const trigger = useCallback(
-    (style: Style = 'light') => {
-      if (!enabled) return;
-      if (Platform.OS === 'web') return;
-      try {
-        if (style === 'success' || style === 'warning' || style === 'error') {
-          Haptics.notificationAsync(
-            style === 'success'
-              ? Haptics.NotificationFeedbackType.Success
-              : style === 'warning'
-                ? Haptics.NotificationFeedbackType.Warning
-                : Haptics.NotificationFeedbackType.Error
-          );
-        } else {
-          const s = map[style];
-          if (s) Haptics.impactAsync(s);
-        }
-      } catch {
-        // no-op
-      }
-    },
-    [enabled]
-  );
+  const trigger = useCallback((style: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') => {
+    hapticsService.trigger(style);
+  }, []);
+  const setEnabled = useCallback((value: boolean) => {
+    hapticsService.setEnabled(value);
+  }, []);
 
-  return { trigger, setEnabled };
+  return { trigger, enabled, ready, setEnabled };
 }

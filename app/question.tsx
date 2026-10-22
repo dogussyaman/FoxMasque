@@ -18,7 +18,6 @@ import {
   Button,
   Card,
   Badge,
-  ProgressBar,
   StaggerRow,
   PopView,
   PulseView,
@@ -65,6 +64,8 @@ export default function QuestionScreen() {
   const [isPaused, setIsPaused] = useState(false);
   const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
 
+  const pickSubmissionInProgress = useRef(false);
+  const pickCommitted = useRef(false);
   const clockPlayedFake = useRef(false);
   const clockPlayedGuess = useRef(false);
   const clockAttemptedFake = useRef(false);
@@ -150,6 +151,7 @@ export default function QuestionScreen() {
     setFakeAnswerText('');
     setChoices([]);
     setSelectedChoiceIndex(null);
+    pickCommitted.current = false;
     setSecondsLeft(totalTime);
     expirationRequested.current = null;
     soundService.stop('clock');
@@ -339,7 +341,8 @@ export default function QuestionScreen() {
   };
 
   const submitPick = async (choiceIndex: number) => {
-    if (!roomCode || submitting) return;
+    if (!roomCode || submitting || pickSubmissionInProgress.current) return;
+    pickSubmissionInProgress.current = true;
     soundService.stop('clock');
     setSubmitting(true);
     setError(null);
@@ -351,11 +354,10 @@ export default function QuestionScreen() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      pickSubmissionInProgress.current = false;
       setSubmitting(false);
     }
   };
-
-  const progressFraction = Math.max(0, displayedSecondsLeft / totalTime);
 
   if (isBlocked) {
     return (
@@ -422,12 +424,6 @@ export default function QuestionScreen() {
             </View>
           </View>
 
-          <View style={styles.progressWrap}>
-            <ProgressBar
-              progress={progressFraction}
-              color={displayedSecondsLeft <= 4 ? colors.danger : colors.orange}
-            />
-          </View>
         </View>
 
         <ScrollView
@@ -531,13 +527,15 @@ export default function QuestionScreen() {
                     <StaggerRow key={choice.choiceIndex} index={idx} delay={90}>
                       <Pressable
                         onPress={() => {
-                          if (!isOwn) {
+                          if (!isOwn && !pickCommitted.current) {
                             soundService.play('click');
                             trigger('light');
+                            pickCommitted.current = true;
                             setSelectedChoiceIndex(choice.choiceIndex);
+                            void submitPick(choice.choiceIndex);
                           }
                         }}
-                        disabled={isOwn || submitting}
+                        disabled={isOwn || submitting || pickCommitted.current}
                         style={({ pressed }) => [
                           styles.choiceCard,
                           isSelected && styles.choiceCardSelected,
@@ -598,9 +596,11 @@ export default function QuestionScreen() {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <Button
               label={
-                selectedChoiceIndex !== null
-                  ? 'Seçimini Onayla & Gönder'
-                  : 'Bir Seçenek Seç'
+                error && selectedChoiceIndex !== null
+                  ? 'Tekrar dene'
+                  : submitting
+                    ? 'Cevabın gönderiliyor...'
+                    : 'Bir Seçenek Seç'
               }
               onPress={handlePickSubmit}
               variant="orange"
@@ -708,10 +708,10 @@ const styles = StyleSheet.create({
   timerWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     backgroundColor: colors.bgSurface,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.borderStrong,
@@ -722,11 +722,8 @@ const styles = StyleSheet.create({
   },
   timerText: {
     fontFamily: 'Poppins-Bold',
-    fontSize: 13,
+    fontSize: 15,
     color: colors.yellow,
-  },
-  progressWrap: {
-    marginTop: 4,
   },
   scroll: {
     paddingBottom: spacing.md,

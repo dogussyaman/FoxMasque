@@ -71,7 +71,7 @@ export default function OnboardingScreen() {
 
               <View style={styles.kickerPill}>
                 <Flame color={colors.orange} size={14} />
-                <Text style={styles.kickerText}>FOXMASQUE&apos;A HOŞ GELDİN!</Text>
+                <Text style={styles.kickerText}>KIZILKUYRUK&apos;A HOŞ GELDİN!</Text>
               </View>
 
               <Text style={styles.title}>Parti & Blöf Zamanı!</Text>
