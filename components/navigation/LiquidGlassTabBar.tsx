@@ -136,7 +136,7 @@ interface LiquidGlassTabBarProps {
 const TAB_CONFIGS = {
   index: { label: 'Ana Sayfa', icon: HomeTabIcon, activeColor: colors.purpleSoft },
   oyna: { label: 'Oyna', icon: GameTabIcon, activeColor: colors.orange },
-  arkadaslar: { label: 'Arkadaşlar', icon: FriendsTabIcon, activeColor: colors.purpleSoft },
+  arkadaslar: { label: 'Arkadaşlar', icon: FriendsTabIcon, activeColor: colors.blueSoft },
   liderlik: { label: 'Liderlik', icon: LeadershipTabIcon, activeColor: colors.yellow },
   profil: { label: 'Profil', icon: ProfileTabIcon, activeColor: colors.lime },
 } as const;
@@ -214,7 +214,7 @@ function TabItem({
       style={styles.tab}
     >
       <Animated.View style={[styles.inactiveIcon, iconStyle]}>
-        <Icon color="rgba(255, 247, 255, 0.62)" size={29} strokeWidth={2.2} />
+        <Icon color="rgba(255, 247, 255, 0.78)" size={29} strokeWidth={2.2} />
       </Animated.View>
     </Pressable>
   );
@@ -317,9 +317,9 @@ export function LiquidGlassTabBar({ state, navigation, descriptors }: LiquidGlas
           <AnimatedPath
             d={initialPath}
             animatedProps={pathProps}
-            fill={colors.bgSurfaceAlt}
-            stroke="rgba(184, 142, 255, 0.48)"
-            strokeWidth={1.5}
+            fill="#20364B"
+            stroke="rgba(147, 197, 253, 0.68)"
+            strokeWidth={1.75}
           />
         </Svg>
 
@@ -401,11 +401,11 @@ const styles = StyleSheet.create({
   },
   bar: {
     height: BAR_H,
-    shadowColor: colors.purple,
-    shadowOpacity: 0.62,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 20,
+    shadowColor: colors.blueDeep,
+    shadowOpacity: 0.42,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
   },
   tabsRow: {
     ...StyleSheet.absoluteFill,

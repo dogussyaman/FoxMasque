@@ -20,6 +20,8 @@ export default function ProfilScreen() {
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState(currentPlayer?.name ?? 'Oyuncu');
   const [selectedAvatar, setSelectedAvatar] = useState(currentPlayer?.avatarKey ?? 'fox');
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showAllAvatars, setShowAllAvatars] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -115,6 +117,12 @@ export default function ProfilScreen() {
 
   const avatarChoices: string[] = [...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS];
   if (!avatarChoices.includes(selectedAvatar)) avatarChoices.push(selectedAvatar);
+  const visibleAvatarChoices = showAllAvatars
+    ? avatarChoices
+    : [
+        ...avatarChoices.slice(0, 10),
+        ...(avatarChoices.slice(0, 10).includes(selectedAvatar) ? [] : [selectedAvatar]),
+      ];
 
   return (
     <Screen gradient diagonalSlice padded={false} edges={['top']}>
@@ -182,31 +190,63 @@ export default function ProfilScreen() {
           </Pressable>
           {profileError ? <Text style={styles.profileError}>{profileError}</Text> : null}
 
-          <Text style={styles.subhead}>AVATARINI SEÇ</Text>
-          <Text style={styles.avatarStyles}>LORELEI · BOTTTS · ADVENTURER</Text>
-          <View style={styles.avatarGrid}>
-            {avatarChoices.map((key) => {
-              const active = selectedAvatar === key;
-              return (
+          <Pressable
+            onPress={() => setShowAvatarPicker((visible) => !visible)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: showAvatarPicker }}
+            accessibilityLabel={showAvatarPicker ? 'Avatar seçimini kapat' : 'Avatar seçimini aç'}
+            style={styles.avatarPickerToggle}
+          >
+            <View>
+              <Text style={styles.subhead}>AVATARINI SEÇ</Text>
+              <Text style={styles.avatarPickerToggleHint}>
+                {showAvatarPicker ? 'Seçenekleri gizle' : 'Avatar seçeneklerini görüntüle'}
+              </Text>
+            </View>
+            <Text style={styles.avatarPickerToggleIcon}>{showAvatarPicker ? '−' : '+'}</Text>
+          </Pressable>
+          {showAvatarPicker ? (
+            <>
+              <Text style={styles.avatarStyles}>LORELEI · BOTTTS · ADVENTURER</Text>
+              <View style={styles.avatarGrid}>
+                {visibleAvatarChoices.map((key) => {
+                  const active = selectedAvatar === key;
+                  return (
+                    <Pressable
+                      key={key}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${key.startsWith('db:') ? key.split(':')[1] : key} avatarını seç`}
+                      accessibilityState={{ selected: active }}
+                      onPress={() => handleAvatarSelect(key)}
+                      disabled={savingProfile}
+                      style={[styles.avatarChoice, active && styles.avatarChoiceActive]}
+                    >
+                      <Avatar avatarKey={key} size={44} />
+                      {active ? (
+                        <View style={styles.avatarSelectedMark}>
+                          <Check color="#FFF" size={12} strokeWidth={3} />
+                        </View>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {avatarChoices.length > 10 ? (
                 <Pressable
-                  key={key}
+                  onPress={() => setShowAllAvatars((visible) => !visible)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${key.startsWith('db:') ? key.split(':')[1] : key} avatarını seç`}
-                  accessibilityState={{ selected: active }}
-                  onPress={() => handleAvatarSelect(key)}
-                  disabled={savingProfile}
-                  style={[styles.avatarChoice, active && styles.avatarChoiceActive]}
+                  accessibilityLabel={
+                    showAllAvatars ? 'Daha az avatar göster' : `Tüm ${avatarChoices.length} avatarı göster`
+                  }
+                  style={styles.toggleAvatarsButton}
                 >
-                  <Avatar avatarKey={key} size={44} />
-                  {active ? (
-                    <View style={styles.avatarSelectedMark}>
-                      <Check color="#FFF" size={12} strokeWidth={3} />
-                    </View>
-                  ) : null}
+                  <Text style={styles.toggleAvatarsText}>
+                    {showAllAvatars ? 'Daha az göster' : `Daha fazla avatar göster (${avatarChoices.length - visibleAvatarChoices.length})`}
+                  </Text>
                 </Pressable>
-              );
-            })}
-          </View>
+              ) : null}
+            </>
+          ) : null}
         </Card>
 
         {/* Stats Grid */}
@@ -429,8 +469,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textMuted,
     letterSpacing: 1,
+  },
+  avatarPickerToggle: {
+    minHeight: 48,
     marginTop: spacing.md,
-    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurfaceAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  avatarPickerToggleHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  avatarPickerToggleIcon: {
+    color: colors.orange,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 22,
+    paddingHorizontal: spacing.xs,
   },
   avatarStyles: {
     fontFamily: 'Poppins-SemiBold',
@@ -445,6 +506,21 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     rowGap: spacing.xs,
+  },
+  toggleAvatarsButton: {
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xs,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurfaceAlt,
+  },
+  toggleAvatarsText: {
+    ...typography.caption,
+    color: colors.orange,
+    fontFamily: 'Poppins-SemiBold',
   },
   avatarChoice: {
     width: '19%',
