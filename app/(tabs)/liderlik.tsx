@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Trophy, Crown, Medal, Flame, RefreshCw } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Badge, Avatar } from '@/components/ui';
@@ -146,6 +146,7 @@ export default function LiderlikScreen() {
           <Text style={styles.sectionTitle}>TÜM YARIŞMACILAR</Text>
           {loading ? (
             <Card variant="surface" style={styles.emptyCard}>
+              <ActivityIndicator color={colors.blueSoft} />
               <Text style={styles.emptyText}>Liderlik tablosu yükleniyor...</Text>
             </Card>
           ) : loadError ? (

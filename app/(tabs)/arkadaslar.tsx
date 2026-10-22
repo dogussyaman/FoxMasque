@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Pressable, Share } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Share } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { UserPlus, Share2, Send } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, EmptyState, Badge } from '@/components/ui';
@@ -14,9 +14,13 @@ export default function ArkadaslarScreen() {
   const [friends, setFriends] = useState<SocialPlayer[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingData, setLoadingData] = useState(true);
   const [loadingRequest, setLoadingRequest] = useState<string | null>(null);
 
   const refreshSocialData = useCallback(async () => {
+    setLoadingData(true);
+    setLoadError(null);
     try {
       const [friendList, friendRequests] = await Promise.all([
         service.listFriends(),
@@ -26,7 +30,9 @@ export default function ArkadaslarScreen() {
       setRequests(friendRequests);
       setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setLoadError((e as Error).message || 'Arkadaşların yüklenemedi.');
+    } finally {
+      setLoadingData(false);
     }
   }, [service]);
 
@@ -127,7 +133,19 @@ export default function ArkadaslarScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Arkadaşların ({friends.length})</Text>
-          {friends.length === 0 ? (
+          {loadingData ? (
+            <Card variant="surface" style={styles.loadingCard}>
+              <ActivityIndicator color={colors.blueSoft} />
+              <Text style={styles.loadingText}>Arkadaşların yükleniyor...</Text>
+            </Card>
+          ) : loadError ? (
+            <Card variant="surface" style={styles.loadingCard}>
+              <Text style={styles.loadError}>{loadError}</Text>
+              <Pressable onPress={() => void refreshSocialData()} style={styles.retryButton}>
+                <Text style={styles.retryText}>Yeniden dene</Text>
+              </Pressable>
+            </Card>
+          ) : friends.length === 0 ? (
             <EmptyState title="Henüz arkadaşın yok" message="Oyuncu profillerinden arkadaşlık isteği gönder." />
           ) : (
             <Card variant="surface" style={styles.listCard}>
@@ -214,6 +232,32 @@ const styles = StyleSheet.create({
   listCard: {
     padding: 0,
     overflow: 'hidden',
+  },
+  loadingCard: {
+    minHeight: 96,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    padding: spacing.lg,
+  },
+  loadingText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  loadError: {
+    ...typography.caption,
+    color: colors.dangerSoft,
+    textAlign: 'center',
+  },
+  retryButton: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  retryText: {
+    ...typography.caption,
+    color: colors.orange,
+    fontFamily: 'Poppins-SemiBold',
   },
   row: {
     flexDirection: 'row',
