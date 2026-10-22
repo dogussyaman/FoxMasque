@@ -24,6 +24,49 @@ export interface ZartoRoundResolution {
   updatedPlayers: Record<PlayerId, Player>;
 }
 
+export function applyRoundBlockEffects(
+  players: Player[],
+  abilityActions: AbilityAction[]
+): Record<PlayerId, Player> {
+  const shieldedPlayers = new Set(
+    abilityActions
+      .filter((action) => action.abilityId === 'shield')
+      .map((action) => action.playerId)
+  );
+  const blockersByTarget = new Map<PlayerId, PlayerId[]>();
+
+  for (const action of abilityActions) {
+    if (action.abilityId !== 'block' || !action.targetId) continue;
+    const blockers = blockersByTarget.get(action.targetId) ?? [];
+    blockers.push(action.playerId);
+    blockersByTarget.set(action.targetId, blockers);
+  }
+
+  const next = Object.fromEntries(players.map((player) => [player.id, { ...player }]));
+  for (const [targetId, blockers] of blockersByTarget) {
+    if (shieldedPlayers.has(targetId) || !next[targetId]) continue;
+    const blockerId = [...blockers].sort()[0];
+    next[targetId] = {
+      ...next[targetId],
+      isBlockedCurrentRound: true,
+      blockedByPlayerId: blockerId,
+    };
+  }
+  return next;
+}
+
+export function clearRoundBlockState(players: Player[]): Record<PlayerId, Player> {
+  return Object.fromEntries(players.map((player) => [
+    player.id,
+    {
+      ...player,
+      isBlockedCurrentRound: false,
+      isBlockedNextRound: false,
+      blockedByPlayerId: null,
+    },
+  ]));
+}
+
 export function normalizeChoiceText(text: string): string {
   return text.trim().normalize('NFKC').toLocaleLowerCase('tr-TR');
 }
@@ -157,7 +200,9 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     const answeredCorrectly = !!chosen?.isCorrect;
     const choseRivalFake = !!(chosen && !chosen.isCorrect && chosen.authorId && chosen.authorId !== p.id);
     const deceivedByAuthorId = choseRivalFake ? chosen!.authorId : null;
-    const victimsCount = victimCountsByAuthor.get(p.id) ?? 0;
+    const victimsCount = pickIndex === undefined
+      ? 0
+      : victimCountsByAuthor.get(p.id) ?? 0;
 
     const outcome = computeOutcome({
       answeredCorrectly,
@@ -214,7 +259,8 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     }
 
     // Tricking >= 3 rivals OR > 50% of opponents unlocks Block
-    if (victimsCount >= 3 || (victimsCount / activeOpponentsCount > 0.5)) {
+    if (pickIndex !== undefined
+      && (victimsCount >= 3 || (victimsCount / activeOpponentsCount > 0.5))) {
       blocksAvailable += 1;
     }
 
@@ -228,18 +274,6 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
       blocksAvailable - (abilityUsesByPlayer.get(p.id)?.block ?? 0)
     );
 
-    // Next round block state
-    let isBlockedNextRound = p.isBlockedNextRound;
-    let blockedByPlayerId = p.isBlockedCurrentRound ? p.blockedByPlayerId ?? null : null;
-    if ((blocksByTarget.get(p.id)?.length ?? 0) > 0) {
-      if (shieldedPlayers.has(p.id)) {
-        // Shield saved defender from block!
-      } else {
-        isBlockedNextRound = true;
-        blockedByPlayerId = blocksByTarget.get(p.id)?.[0] ?? null;
-      }
-    }
-
     const abilityUsedCounts = { ...p.abilityUsedCounts };
     for (const [abilityId, usedCount] of Object.entries(abilityUsesByPlayer.get(p.id) ?? {})) {
       abilityUsedCounts[abilityId as keyof typeof abilityUsedCounts] += usedCount;
@@ -252,9 +286,9 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
       consecutiveCorrect,
       shieldsAvailable,
       blocksAvailable,
-      isBlockedCurrentRound: false,
-      isBlockedNextRound,
-      blockedByPlayerId,
+      isBlockedCurrentRound: p.isBlockedCurrentRound,
+      isBlockedNextRound: false,
+      blockedByPlayerId: p.isBlockedCurrentRound ? p.blockedByPlayerId ?? null : null,
       lastBlockedPlayerId: p.lastBlockedPlayerId,
     };
   }

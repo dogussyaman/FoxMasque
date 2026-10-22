@@ -8,7 +8,6 @@ import {
   Card,
   Badge,
   Avatar,
-  MascotFloat,
   PopView,
   ShakeView,
   StaggerRow,
@@ -76,6 +75,7 @@ export default function ResultScreen() {
   const isCorrect = !!outcome?.correct;
   const zartaladın = !!outcome?.zartaladın || victimsCount > 0;
   const zartalandın = !!outcome?.zartalandın;
+  const didPick = myResult?.pickedText !== undefined && myResult?.pickedText !== null;
 
   useEffect(() => {
     if (!myResult) return;
@@ -116,15 +116,6 @@ export default function ResultScreen() {
 
   const trueAnswerText = question.correctAnswer;
 
-  // Mascot expression based on round outcome
-  const mascotSource = zartaladın
-    ? mascotImages.smug
-    : zartalandın
-    ? mascotImages.shocked
-    : isCorrect
-    ? mascotImages.hero
-    : mascotImages.searching;
-
   const headerTitle = zartaladın && isCorrect
     ? 'ÇİFTE BAŞARI! HEM BİLDİN HEM TUZAĞA DÜŞÜRDÜN!'
     : zartaladın
@@ -133,6 +124,8 @@ export default function ResultScreen() {
     ? 'TUZAĞA DÜŞTÜN! SAHTEYE KANDIN!'
     : isCorrect
     ? 'DOĞRU BİLDİN!'
+    : !didPick
+    ? 'CEVAP VERMEDİN!'
     : 'YANLIŞ TAHMİN!';
 
   return (
@@ -144,11 +137,7 @@ export default function ResultScreen() {
       >
         {/* Top Mascot Hero Banner */}
         <View style={styles.topHeader}>
-          <View style={styles.mascotCircle}>
-            <MascotFloat floatDistance={5} duration={2400}>
-              <Image source={mascotSource} style={styles.mascotImage} resizeMode="contain" />
-            </MascotFloat>
-          </View>
+          <Image source={mascotImages.brand} style={styles.mascotImage} resizeMode="contain" />
 
           <View style={styles.roundBadge}>
             <Text style={styles.roundText}>
@@ -211,8 +200,12 @@ export default function ResultScreen() {
                     <AlertTriangle color={colors.textMuted} size={22} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.outcomeWrongTitle}>YANLIŞ TAHMİN</Text>
-                    <Text style={styles.outcomeDesc}>Doğru cevabı bulamadın</Text>
+                    <Text style={styles.outcomeWrongTitle}>
+                      {didPick ? 'YANLIŞ TAHMİN' : 'CEVAP VERMEDİN'}
+                    </Text>
+                    <Text style={styles.outcomeDesc}>
+                      {didPick ? 'Doğru cevabı bulamadın' : 'Seçim yapmadığın için bu tur puan kazanmadın'}
+                    </Text>
                   </View>
                   <Badge tone="neutral">0 P</Badge>
                 </View>
@@ -344,22 +337,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.md,
   },
-  mascotCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.bgCard,
-    borderWidth: 2,
-    borderColor: colors.orange,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    marginBottom: spacing.sm,
-    ...shadows.glowOrange,
-  },
   mascotImage: {
-    width: 110,
-    height: 110,
+    width: 230,
+    height: 82,
+    marginBottom: spacing.sm,
   },
   roundBadge: {
     backgroundColor: colors.bgSurfaceAlt,

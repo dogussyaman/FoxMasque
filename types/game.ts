@@ -113,6 +113,7 @@ export interface GameState {
   history: RoundResultRow[][];
   phaseStartedAt?: number;
   phaseDeadlineAt?: number | null;
+  pausedAt?: number | null;
   stateVersion?: number;
   progress?: RoundProgress;
 }

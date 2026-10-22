@@ -349,7 +349,7 @@ export default function LobbyScreen() {
         ) : (
           <View style={styles.waitingNotice}>
             <MascotFloat floatDistance={4} duration={2400}>
-              <Image source={mascotImages.lobby} style={styles.miniMascotWait} resizeMode="contain" />
+              <Image source={mascotImages.brand} style={styles.miniMascotWait} resizeMode="contain" />
             </MascotFloat>
             <Text style={styles.waitingText}>
               Oda sahibinin oyunu başlatması bekleniyor…
@@ -639,8 +639,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   miniMascotWait: {
-    width: 40,
-    height: 40,
+    width: 110,
+    height: 44,
   },
   waitingText: {
     ...typography.small,

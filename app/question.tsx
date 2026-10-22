@@ -12,7 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Clock, Send, Sparkles, AlertCircle, CheckCircle2, Flame, Lock, Pause, Play, LogOut, Info } from 'lucide-react-native';
+import { Clock, Send, Sparkles, AlertCircle, CheckCircle2, Lock, Pause, Play, LogOut, Info } from 'lucide-react-native';
 import {
   Screen,
   Button,
@@ -21,7 +21,6 @@ import {
   StaggerRow,
   PopView,
   PulseView,
-  MascotFloat,
   StickyActionBar,
   Input,
 } from '@/components/ui';
@@ -29,7 +28,6 @@ import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { QUESTIONS, type Question } from '@/features/game/questions';
-import { getCategory } from '@/features/game/categories';
 import type { RoundChoice } from '@/types/game';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
@@ -49,11 +47,14 @@ export default function QuestionScreen() {
     secondsLeft: number;
   } | null>(null);
   const deadline = roomState?.phaseDeadlineAt;
+  const pausedAt = roomState?.pausedAt;
   const displayedSecondsLeft =
     isLive && deadline !== null && deadline !== undefined
-      ? deadlineCountdown?.deadline === deadline
-        ? deadlineCountdown.secondsLeft
-        : totalTime
+      ? pausedAt !== null && pausedAt !== undefined
+        ? Math.max(0, Math.ceil((deadline - pausedAt) / 1000))
+        : deadlineCountdown?.deadline === deadline
+          ? deadlineCountdown.secondsLeft
+          : Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
       : secondsLeft;
   const [fakeAnswerText, setFakeAnswerText] = useState('');
   const [fakeSubmitted, setFakeSubmitted] = useState(false);
@@ -61,8 +62,11 @@ export default function QuestionScreen() {
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
+  const [pauseUpdating, setPauseUpdating] = useState(false);
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  const [leavingGame, setLeavingGame] = useState(false);
   const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
+  const isGamePaused = roomState?.pausedAt != null;
 
   const pickSubmissionInProgress = useRef(false);
   const pickCommitted = useRef(false);
@@ -81,11 +85,11 @@ export default function QuestionScreen() {
     const timer = setInterval(() => {
       setDeadlineCountdown({
         deadline,
-        secondsLeft: Math.max(0, Math.ceil((deadline - Date.now()) / 1000)),
+        secondsLeft: Math.max(0, Math.ceil((deadline - (pausedAt ?? Date.now())) / 1000)),
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [isLive, deadline]);
+  }, [isLive, deadline, pausedAt]);
 
   // Active question
   const currentQId = roomState?.currentQuestionId || QUESTIONS[0].id;
@@ -93,7 +97,6 @@ export default function QuestionScreen() {
   const question: Question = loadedQuestion?.id === currentQId
     ? loadedQuestion
     : localQuestion || QUESTIONS[0];
-  const category = getCategory(question.categoryId);
   const currentRoomRound = roomState?.currentRound;
   const currentRoomPhase = roomState?.phase;
 
@@ -187,7 +190,7 @@ export default function QuestionScreen() {
       soundService.stop('clock');
       return;
     }
-    if (isPaused) {
+    if (isGamePaused) {
       clockRequestId.current += 1;
       soundService.stop('clock');
       return;
@@ -225,7 +228,7 @@ export default function QuestionScreen() {
         }
       }
     }
-  }, [displayedSecondsLeft, isGuessPhase, isBlocked, fakeSubmitted, submitting, isPaused, soundEnabled, soundPreferenceReady]);
+  }, [displayedSecondsLeft, isGuessPhase, isBlocked, fakeSubmitted, submitting, isGamePaused, soundEnabled, soundPreferenceReady]);
 
   // Listen for phase transitions to result / scoreboard
   useEffect(() => {
@@ -256,7 +259,7 @@ export default function QuestionScreen() {
 
   // Countdown timer (pauses when isPaused is true)
   useEffect(() => {
-    if (isPaused) {
+    if (isGamePaused) {
       soundService.stop('clock');
       return;
     }
@@ -274,38 +277,37 @@ export default function QuestionScreen() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [displayedSecondsLeft, isGuessPhase, isPaused, handleTimeExpire, trigger]);
+  }, [displayedSecondsLeft, isGuessPhase, isGamePaused, handleTimeExpire, trigger]);
 
-  const handleTogglePause = () => {
+  const handleTogglePause = async () => {
     soundService.play('click');
     trigger('medium');
-    setIsPaused((prev) => {
-      const next = !prev;
-      if (next) {
-        soundService.stop('clock');
-      } else {
-        if (displayedSecondsLeft < 10 && displayedSecondsLeft > 0) {
-          clockPlayedFake.current = false;
-          clockPlayedGuess.current = false;
-          clockAttemptedFake.current = false;
-          clockAttemptedGuess.current = false;
-        }
-      }
-      return next;
-    });
+    if (!roomCode || !me?.isHost || pauseUpdating) return;
+    setPauseUpdating(true);
+    setError(null);
+    try {
+      await service.setRoomPaused(roomCode, !isGamePaused);
+      await refreshRoom();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Oyun duraklatılamadı.');
+    } finally {
+      setPauseUpdating(false);
+    }
   };
 
   const handleLeaveGame = async () => {
     soundService.stop('clock');
-    setIsPaused(false);
+    setLeavingGame(true);
     if (roomCode) {
       try {
         await service.leaveRoom(roomCode);
       } catch (e) {
         setError((e as Error).message);
+        setLeavingGame(false);
         return;
       }
     }
+    setShowExitConfirmation(false);
     router.replace('/create-room');
   };
 
@@ -381,9 +383,15 @@ export default function QuestionScreen() {
               </Text>
             </View>
 
-            <Badge tone="purple" sticker>
-              {category.emoji} {category.name}
-            </Badge>
+            <View style={styles.stageIndicator}>
+              <Text style={styles.stageIndicatorText}>
+                {isGuessPhase
+                  ? '2. ADIM: GERÇEK CEVABI BUL'
+                  : isBlocked
+                  ? '1. ADIM: BLÖF AŞAMASI'
+                  : '1. ADIM: BLÖFÜNÜ YAZ'}
+              </Text>
+            </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               {displayedSecondsLeft <= 4 ? (
@@ -402,7 +410,7 @@ export default function QuestionScreen() {
                 </View>
               )}
 
-              {!isLive ? (
+              {me?.isHost ? (
                 <Pressable
                   onPress={handleTogglePause}
                   style={({ pressed }) => [
@@ -410,10 +418,27 @@ export default function QuestionScreen() {
                     { transform: [{ scale: pressed ? 0.94 : 1 }] },
                   ]}
                   hitSlop={8}
+                  disabled={pauseUpdating}
+                  accessibilityRole="button"
+                  accessibilityLabel={isGamePaused ? 'Oyuna devam et' : 'Oyunu duraklat'}
                 >
-                  <Pause color={colors.textPrimary} size={15} />
+                  {isGamePaused
+                    ? <Play color={colors.textPrimary} size={15} />
+                    : <Pause color={colors.textPrimary} size={15} />}
                 </Pressable>
               ) : null}
+              <Pressable
+                onPress={() => setShowExitConfirmation(true)}
+                style={({ pressed }) => [
+                  styles.pauseBtn,
+                  { transform: [{ scale: pressed ? 0.94 : 1 }] },
+                ]}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Oyundan çık"
+              >
+                <LogOut color={colors.textPrimary} size={15} />
+              </Pressable>
             </View>
           </View>
 
@@ -436,64 +461,53 @@ export default function QuestionScreen() {
           {/* STAGE 1: ENTER FAKE ANSWER */}
           {!isGuessPhase ? (
             <View style={styles.stageWrap}>
-              {/* Cunning Fox Mascot Banner */}
-              <View style={styles.cunningBanner}>
-                <MascotFloat floatDistance={5} duration={2200}>
-                  <Image
-                    source={mascotImages.cunning}
-                    style={styles.cunningMascot}
-                    resizeMode="contain"
-                  />
-                </MascotFloat>
-                <View style={{ flex: 1, paddingLeft: 8 }}>
-                  <View style={styles.stageKicker}>
-                    <Flame color={colors.orange} size={13} />
-                    <Text style={styles.stageKickerText}>
-                      {isBlocked ? '1. ADIM: BLÖF AŞAMASI' : '1. ADIM: BLÖFÜNÜ YAZ'}
-                    </Text>
-                  </View>
-                  <Text style={styles.cunningTitle}>
-                    {isBlocked
-                      ? 'Bu tur blöf yazamazsın.'
-                      : 'İnandırıcı ol!\nKimse gerçeği anlamasın.'}
-                  </Text>
-                  <Text style={styles.cunningDesc}>
-                    {isBlocked
-                      ? 'Seçenekler açılınca gerçek cevabı seçebilirsin.'
-                      : 'Sahte cevabına düşen her rakip için +50 puan kaparsın!'}
-                  </Text>
-                </View>
-              </View>
-
               {isBlocked ? (
-                <Card variant="accent" style={styles.blockNotice}>
-                  <Lock color={colors.orange} size={20} />
-                  <View style={styles.blockNoticeCopy}>
+                <View style={styles.blockedStage}>
+                  <Image
+                    source={mascotImages.shocked}
+                    style={styles.blockedMascot}
+                    resizeMode="contain"
+                    accessibilityLabel="Bloklandığı için şaşırmış tilki"
+                  />
+                  <View style={styles.blockedStageCopy}>
                     <Text style={styles.blockNoticeTitle}>
-                      {blockerName ? `${blockerName} seni blokladı` : 'Bu tur bloklandın'}
+                      {blockerName ? `${blockerName} seni blokladı!` : 'Bu tur bloklandın!'}
                     </Text>
                     <Text style={styles.blockNoticeText}>
-                      Bu tur blöf cevabı yazamazsın. Gerçek cevabı, seçenekler açılınca seçebilirsin.
+                      Bu tur blöf yazamazsın. Seçenekler açılınca gerçek cevabı seçebilirsin.
                     </Text>
                   </View>
-                </Card>
-              ) : !fakeSubmitted ? (
-                <View style={styles.inputContainer}>
-                  <Input
-                    value={fakeAnswerText}
-                    onChangeText={(t) => {
-                      setFakeAnswerText(t);
-                      if (error) setError(null);
-                    }}
-                    placeholder="İnandırıcı uydurma cevabın..."
-                    placeholderTextColor={colors.textMuted}
-                    style={styles.fakeInput}
-                    maxLength={48}
-                    returnKeyType="done"
-                    onSubmitEditing={handleFakeSubmit}
-                    focusedBorderColor={colors.purple}
-                  />
                 </View>
+              ) : !fakeSubmitted ? (
+                <>
+                  <View style={styles.cunningBanner}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cunningTitle}>
+                        İnandırıcı ol!
+                        {'\n'}Kimse gerçeği anlamasın.
+                      </Text>
+                      <Text style={styles.cunningDesc}>
+                        Sahte cevabına düşen her rakip için +50 puan kaparsın!
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.inputContainer}>
+                    <Input
+                      value={fakeAnswerText}
+                      onChangeText={(t) => {
+                        setFakeAnswerText(t);
+                        if (error) setError(null);
+                      }}
+                      placeholder="İnandırıcı uydurma cevabın..."
+                      placeholderTextColor={colors.textMuted}
+                      style={styles.fakeInput}
+                      maxLength={48}
+                      returnKeyType="done"
+                      onSubmitEditing={handleFakeSubmit}
+                      focusedBorderColor={colors.purple}
+                    />
+                  </View>
+                </>
               ) : (
                 <PopView delay={80} duration={350}>
                   <Card variant="accent" style={styles.submittedCard}>
@@ -509,12 +523,11 @@ export default function QuestionScreen() {
           ) : (
             /* STAGE 2: GUESS FROM BLENDED CHOICES */
             <View style={styles.stageWrap}>
-              <View style={styles.guessBanner}>
-                <CheckCircle2 color={colors.lime} size={20} />
-                <View style={{ flex: 1, paddingLeft: 6 }}>
-                  <Text style={styles.guessTitle}>2. Adım: Gerçek Cevabı Bul!</Text>
-                  <Text style={styles.guessDesc}>
-                    Doğru cevap +100 puan! Kendi sahte cevabını seçemezsin. Başka birinin sahtesine kanarsan -40 puan!
+              <View style={styles.cunningBanner}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cunningTitle}>Şıkları dikkatle incele!</Text>
+                  <Text style={styles.cunningDesc}>
+                    Doğru cevap +100 puan kazandırır. Başkasının sahte cevabına kanarsan -40 puan kaybedersin.
                   </Text>
                 </View>
               </View>
@@ -638,10 +651,12 @@ export default function QuestionScreen() {
 
       {/* Pause Modal */}
       <Modal
-        visible={isPaused}
+        visible={!!isGamePaused}
         transparent
         animationType="fade"
-        onRequestClose={handleTogglePause}
+        onRequestClose={() => {
+          if (me?.isHost) void handleTogglePause();
+        }}
       >
         <View style={styles.pauseBackdrop}>
           <Card variant="surface" glow="orange" style={styles.pauseModalCard}>
@@ -651,7 +666,9 @@ export default function QuestionScreen() {
               </View>
               <Text style={styles.pauseModalTitle}>Oyun Duraklatıldı</Text>
               <Text style={styles.pauseModalSubtitle}>
-                Süre durduruldu. Hazır olduğunuzda devam edebilirsiniz.
+                {!me?.isHost
+                  ? 'Oda sahibi oyunu devam ettirdiğinde sayaç kaldığı yerden sürecek.'
+                  : 'Süre durduruldu. Hazır olduğunuzda devam edebilirsiniz.'}
               </Text>
             </View>
 
@@ -669,21 +686,64 @@ export default function QuestionScreen() {
               </View>
             </View>
 
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <View style={styles.pauseActions}>
+              {me?.isHost ? (
+                <Button
+                  label={pauseUpdating ? 'Güncelleniyor...' : 'Oyuna Devam Et'}
+                  onPress={() => void handleTogglePause()}
+                  variant="lime"
+                  fullWidth
+                  disabled={pauseUpdating}
+                  icon={<Play color="#171026" size={18} fill="#171026" />}
+                  style={{ marginBottom: 10 }}
+                />
+              ) : null}
               <Button
-                label="Oyuna Devam Et"
-                onPress={handleTogglePause}
-                variant="lime"
-                fullWidth
-                icon={<Play color="#171026" size={18} fill="#171026" />}
-                style={{ marginBottom: 10 }}
-              />
-              <Button
-                label="Lobiden Ayrıl / Çıkış"
-                onPress={handleLeaveGame}
+                label="Oyundan Çık"
+                onPress={() => setShowExitConfirmation(true)}
                 variant="secondary"
                 fullWidth
                 icon={<LogOut color={colors.textSecondary} size={18} />}
+              />
+            </View>
+          </Card>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showExitConfirmation}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExitConfirmation(false)}
+      >
+        <View style={styles.pauseBackdrop}>
+          <Card variant="surface" style={styles.pauseModalCard}>
+            <Text style={styles.pauseModalTitle}>Oyundan çıkılsın mı?</Text>
+            <Text style={styles.pauseModalSubtitle}>
+              Odadan ayrılacak ve lobi ekranına döneceksin.
+            </Text>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <View style={styles.pauseActions}>
+              <Button
+                label={leavingGame ? 'Çıkılıyor...' : 'Evet, oyundan çık'}
+                onPress={() => void handleLeaveGame()}
+                variant="orange"
+                fullWidth
+                disabled={leavingGame}
+                loading={leavingGame}
+                icon={<LogOut color="#FFF" size={18} />}
+                style={{ marginBottom: 10 }}
+              />
+              <Button
+                label="Oyunda kal"
+                onPress={() => {
+                  setError(null);
+                  setShowExitConfirmation(false);
+                }}
+                variant="secondary"
+                fullWidth
+                disabled={leavingGame}
               />
             </View>
           </Card>
@@ -710,6 +770,24 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.borderStrong,
+  },
+  stageIndicator: {
+    flex: 1,
+    minWidth: 0,
+    marginHorizontal: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.orange,
+    backgroundColor: colors.bgCard,
+  },
+  stageIndicatorText: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 9,
+    lineHeight: 12,
+    color: colors.orange,
+    textAlign: 'center',
   },
   roundText: {
     ...typography.caption,
@@ -775,22 +853,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...shadows.card,
   },
-  cunningMascot: {
-    width: 86,
-    height: 86,
-  },
-  stageKicker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 2,
-  },
-  stageKickerText: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 10,
-    color: colors.orange,
-    letterSpacing: 1,
-  },
   cunningTitle: {
     fontFamily: 'Poppins-Bold',
     fontSize: 16,
@@ -807,27 +869,33 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginTop: spacing.xs,
   },
-  blockNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-    marginTop: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.orange,
+  blockedStage: {
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
   },
-  blockNoticeCopy: {
-    flex: 1,
+  blockedMascot: {
+    width: 260,
+    height: 260,
+    maxWidth: '100%',
+    marginBottom: spacing.sm,
+  },
+  blockedStageCopy: {
+    alignItems: 'center',
     gap: 4,
+    paddingHorizontal: spacing.md,
   },
   blockNoticeTitle: {
     ...typography.bodyMedium,
     color: colors.orange,
     fontFamily: 'Poppins-Bold',
+    textAlign: 'center',
   },
   blockNoticeText: {
     ...typography.caption,
     color: colors.textSecondary,
     lineHeight: 19,
+    textAlign: 'center',
   },
   fakeInput: {
     backgroundColor: colors.bgCard,
@@ -859,28 +927,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.textSecondary,
     textAlign: 'center',
-  },
-  guessBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(198, 243, 107, 0.12)',
-    borderRadius: radii.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.lime,
-    marginBottom: spacing.md,
-  },
-  guessTitle: {
-    fontFamily: 'Poppins-Bold',
-    fontSize: 15,
-    color: colors.lime,
-  },
-  guessDesc: {
-    fontFamily: 'Poppins-Regular',
-    fontSize: 11,
-    lineHeight: 15,
-    color: colors.textSecondary,
-    marginTop: 2,
   },
   choicesList: {
     gap: 10,

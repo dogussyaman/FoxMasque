@@ -558,6 +558,15 @@ export class SupabaseGameService implements GameService {
     this.emit({ type: 'player_left', payload: { code } });
   }
 
+  async setRoomPaused(code: string, paused: boolean): Promise<void> {
+    const sb = ensureSupabase();
+    const { error } = await sb.rpc('set_room_paused_secure', {
+      p_room_code: code.toUpperCase(),
+      p_paused: paused,
+    });
+    if (error) throw new ServiceError('ROOM_PAUSE_FAILED', error.message);
+  }
+
   async getRoomState(code: string): Promise<GameState | null> {
     const sb = ensureSupabase();
     const { data, error } = await sb.rpc('get_room_state_secure', {
@@ -578,10 +587,12 @@ export class SupabaseGameService implements GameService {
     }
     const startedAt = decodeTimestamp(state.phaseStartedAt, 'başlangıç');
     const deadlineAt = decodeTimestamp(state.phaseDeadlineAt, 'bitiş');
+    const pausedAt = decodeTimestamp(state.pausedAt, 'duraklatma');
     return {
       ...state,
       phaseStartedAt: startedAt ?? undefined,
       phaseDeadlineAt: deadlineAt,
+      pausedAt,
     } as unknown as GameState;
   }
 

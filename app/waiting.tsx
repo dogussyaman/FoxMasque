@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, Image, Pressable } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, Image, Pressable, Modal } from 'react-native';
 import { router } from 'expo-router';
-import { Clock, Sparkles, CheckCircle2, Vibrate, FlaskConical } from 'lucide-react-native';
+import { Clock, Sparkles, CheckCircle2, Vibrate, FlaskConical, Pause, Play, LogOut } from 'lucide-react-native';
 import {
   Screen,
   Card,
@@ -22,16 +22,21 @@ import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
 import type { Player } from '@/types/game';
 
 export default function WaitingScreen() {
-  const { roomState, currentPlayer, roomCode, isLive, service } = useGameStore();
+  const { roomState, currentPlayer, roomCode, isLive, service, refreshRoom } = useGameStore();
   const prototype = usePrototype();
   const { trigger } = useHaptics();
   const [testMode, setTestMode] = useState(!isLive);
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [nudgeError, setNudgeError] = useState<string | null>(null);
+  const [controlError, setControlError] = useState<string | null>(null);
+  const [pauseUpdating, setPauseUpdating] = useState(false);
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  const [leavingGame, setLeavingGame] = useState(false);
   const completedStageRef = useRef<string | null>(null);
 
   const playersList = roomState ? Object.values(roomState.players) : [];
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
+  const isPaused = roomState?.pausedAt != null;
   const isGuessPhase = (prototype.waitingStage?.phase ?? roomState?.phase) === 'guess';
   const phase = isGuessPhase ? 'guess' : 'fake_answer';
   const stageId = prototype.waitingStage?.id
@@ -81,14 +86,14 @@ export default function WaitingScreen() {
     : totalCount > 0 && submittedCount === totalCount;
 
   useEffect(() => {
-    if (isLive || !allSubmitted || completedStageRef.current === stageId) return;
+    if (isLive || isPaused || !allSubmitted || completedStageRef.current === stageId) return;
     completedStageRef.current = stageId;
     const timer = setTimeout(() => {
       prototype.finishWaiting(stageId);
       router.replace(isGuessPhase ? '/result' : '/question');
     }, 800);
     return () => clearTimeout(timer);
-  }, [allSubmitted, stageId, isGuessPhase, prototype.finishWaiting, isLive]);
+  }, [allSubmitted, stageId, isGuessPhase, prototype.finishWaiting, isLive, isPaused]);
 
   const nudgePlayer = async (player: Player) => {
     if (!roomCode) return;
@@ -101,6 +106,34 @@ export default function WaitingScreen() {
       }
     } catch (error) {
       setNudgeError((error as Error).message);
+    }
+  };
+
+  const handleTogglePause = async () => {
+    if (!roomCode || !me?.isHost || pauseUpdating) return;
+    setPauseUpdating(true);
+    setControlError(null);
+    try {
+      await service.setRoomPaused(roomCode, !isPaused);
+      await refreshRoom();
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : 'Oyun duraklatılamadı.');
+    } finally {
+      setPauseUpdating(false);
+    }
+  };
+
+  const handleLeaveGame = async () => {
+    if (!roomCode || leavingGame) return;
+    setLeavingGame(true);
+    setControlError(null);
+    try {
+      await service.leaveRoom(roomCode);
+      setShowExitConfirmation(false);
+      router.replace('/create-room');
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : 'Odadan çıkılamadı.');
+      setLeavingGame(false);
     }
   };
 
@@ -118,7 +151,7 @@ export default function WaitingScreen() {
         <View style={styles.topBanner}>
           <MascotFloat floatDistance={5} duration={2400}>
             <Image
-              source={mascotImages.searching}
+              source={mascotImages.brand}
               style={styles.mascotImage}
               resizeMode="contain"
             />
@@ -256,10 +289,38 @@ export default function WaitingScreen() {
 
       </ScrollView>
       <StickyActionBar>
-        <View style={styles.waitingNotice}>
-          <Text style={styles.waitingNoticeText}>
-            {nudgeError ?? (allSubmitted ? 'Herkes tamamladı! Sonraki aşama açılıyor…' : 'Cevaplar geldikçe otomatik devam edeceğiz.')}
-          </Text>
+        <View style={styles.waitingFooterRow}>
+          <View style={styles.waitingNotice}>
+            <Text style={styles.waitingNoticeText}>
+              {nudgeError ?? (allSubmitted ? 'Herkes tamamladı! Sonraki aşama açılıyor…' : 'Cevaplar geldikçe otomatik devam edeceğiz.')}
+            </Text>
+          </View>
+          <View style={styles.footerControls}>
+            {me?.isHost ? (
+              <Pressable
+                onPress={() => void handleTogglePause()}
+                style={styles.gameControlButton}
+                disabled={pauseUpdating}
+                accessibilityRole="button"
+                accessibilityLabel={isPaused ? 'Oyuna devam et' : 'Oyunu duraklat'}
+              >
+                {isPaused
+                  ? <Play color={colors.textPrimary} size={17} />
+                  : <Pause color={colors.textPrimary} size={17} />}
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => {
+                setControlError(null);
+                setShowExitConfirmation(true);
+              }}
+              style={styles.gameControlButton}
+              accessibilityRole="button"
+              accessibilityLabel="Oyundan çık"
+            >
+              <LogOut color={colors.textPrimary} size={17} />
+            </Pressable>
+          </View>
         </View>
       </StickyActionBar>
       <PlayerProfileSheet
@@ -268,6 +329,88 @@ export default function WaitingScreen() {
         visible={profilePlayer !== null}
         onClose={() => setProfilePlayer(null)}
       />
+      <Modal
+        visible={isPaused}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (me?.isHost) void handleTogglePause();
+        }}
+      >
+        <View style={styles.controlModalBackdrop}>
+          <Card variant="surface" glow="orange" style={styles.controlModalCard}>
+            <View style={styles.controlIconCircle}>
+              <Pause color={colors.orange} size={26} />
+            </View>
+            <Text style={styles.controlModalTitle}>Oyun Duraklatıldı</Text>
+            <Text style={styles.controlModalText}>
+              {me?.isHost
+                ? 'Tüm oyuncular için sayaç durdu.'
+                : 'Oda sahibi oyuna devam ettiğinde bekleme süreci sürecek.'}
+            </Text>
+            {controlError ? <Text style={styles.controlError}>{controlError}</Text> : null}
+            <View style={styles.controlModalActions}>
+              {me?.isHost ? (
+                <Pressable
+                  onPress={() => void handleTogglePause()}
+                  disabled={pauseUpdating}
+                  style={[styles.controlActionButton, styles.resumeButton]}
+                >
+                  <Play color="#171026" size={17} fill="#171026" />
+                  <Text style={styles.resumeButtonText}>
+                    {pauseUpdating ? 'Güncelleniyor...' : 'Oyuna Devam Et'}
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={() => {
+                  setControlError(null);
+                  setShowExitConfirmation(true);
+                }}
+                style={styles.controlActionButton}
+              >
+                <LogOut color={colors.textSecondary} size={17} />
+                <Text style={styles.controlActionText}>Oyundan Çık</Text>
+              </Pressable>
+            </View>
+          </Card>
+        </View>
+      </Modal>
+      <Modal
+        visible={showExitConfirmation}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowExitConfirmation(false)}
+      >
+        <View style={styles.controlModalBackdrop}>
+          <Card variant="surface" style={styles.controlModalCard}>
+            <Text style={styles.controlModalTitle}>Oyundan çıkılsın mı?</Text>
+            <Text style={styles.controlModalText}>
+              Odadan ayrılacak ve lobi ekranına döneceksin.
+            </Text>
+            {controlError ? <Text style={styles.controlError}>{controlError}</Text> : null}
+            <View style={styles.controlModalActions}>
+              <Pressable
+                onPress={() => void handleLeaveGame()}
+                disabled={leavingGame}
+                style={[styles.controlActionButton, styles.leaveButton]}
+              >
+                <LogOut color="#FFF" size={17} />
+                <Text style={styles.leaveButtonText}>
+                  {leavingGame ? 'Çıkılıyor...' : 'Evet, oyundan çık'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setShowExitConfirmation(false)}
+                disabled={leavingGame}
+                style={styles.controlActionButton}
+              >
+                <Text style={styles.controlActionText}>Oyunda kal</Text>
+              </Pressable>
+            </View>
+          </Card>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -277,13 +420,28 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     paddingTop: 8,
   },
+  waitingFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  gameControlButton: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   topBanner: {
     alignItems: 'center',
     paddingVertical: spacing.md,
   },
   mascotImage: {
-    width: 120,
-    height: 120,
+    width: 220,
+    height: 80,
     marginBottom: 8,
   },
   title: {
@@ -396,8 +554,13 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   waitingNotice: {
+    flex: 1,
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 8,
+  },
+  footerControls: {
+    flexDirection: 'row',
+    gap: 8,
   },
   waitingNoticeText: {
     ...typography.small,
@@ -477,5 +640,86 @@ const styles = StyleSheet.create({
   testPlayerName: {
     ...typography.small,
     color: colors.textPrimary,
+  },
+  controlModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10, 6, 20, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+  },
+  controlModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    padding: spacing.xl,
+    borderRadius: radii.xl,
+    alignItems: 'center',
+  },
+  controlIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 113, 59, 0.15)',
+    borderWidth: 1.5,
+    borderColor: colors.orange,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  controlModalTitle: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 21,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
+  controlModalText: {
+    fontFamily: 'Poppins-Regular',
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 5,
+  },
+  controlError: {
+    ...typography.small,
+    color: colors.dangerSoft,
+    textAlign: 'center',
+    marginTop: spacing.sm,
+  },
+  controlModalActions: {
+    width: '100%',
+    gap: 10,
+    marginTop: spacing.lg,
+  },
+  controlActionButton: {
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  resumeButton: {
+    backgroundColor: colors.lime,
+    borderColor: colors.lime,
+  },
+  resumeButtonText: {
+    fontFamily: 'Poppins-Bold',
+    color: '#171026',
+  },
+  leaveButton: {
+    backgroundColor: colors.orange,
+    borderColor: colors.orange,
+  },
+  leaveButtonText: {
+    fontFamily: 'Poppins-Bold',
+    color: '#FFF',
+  },
+  controlActionText: {
+    fontFamily: 'Poppins-SemiBold',
+    color: colors.textSecondary,
   },
 });

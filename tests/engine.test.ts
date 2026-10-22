@@ -9,11 +9,14 @@ import {
   normalizeChoiceText,
   resolveZartoRound,
   applyRoundToPlayers,
+  applyRoundBlockEffects,
+  clearRoundBlockState,
 } from '../features/game/engine';
 import {
   canUseAbility,
   freshAbilityState,
 } from '../features/game/abilities';
+import { DemoGameService } from '../services/demoAdapter';
 import { pickQuestions, questionsForCategory } from '../features/game/questions';
 import type { Player, RoundChoice } from '../types/game';
 import type { Question } from '../features/game/questions';
@@ -45,6 +48,32 @@ function createPlayer(id: string, name: string, score = 0): Player {
     isBlockedNextRound: false,
     lastBlockedPlayerId: null,
   };
+}
+
+async function createDemoBlockRound(roundSeconds = 30) {
+  const host = new DemoGameService();
+  await host.connect();
+  const room = await host.createRoom({
+    hostName: 'Host',
+    avatarKey: 'fox',
+    totalRounds: 2,
+    roundSeconds,
+    categories: ['genel-kultur'],
+  });
+  await host.startGame(room.code);
+
+  const state = await host.getRoomState(room.code);
+  assert.ok(state);
+  const targetId = Object.keys(state.players).find((id) => id !== room.playerId);
+  assert.ok(targetId);
+  state.players[room.playerId].blocksAvailable = 1;
+  await host.useAbility(room.code, {
+    playerId: room.playerId,
+    abilityId: 'block',
+    targetId,
+  });
+
+  return { host, roomCode: room.code, targetId };
 }
 
 describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
@@ -333,7 +362,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(res.updatedPlayers['p1'].blocksAvailable, 1);
     });
 
-    test('Block ability marks target as isBlockedNextRound; Shield protects defender', () => {
+    test('Block applies before fake answers, while a same-round shield protects its user', () => {
       const p1 = createPlayer('p1', 'Attacker', 0);
       const p2 = createPlayer('p2', 'Defender', 0);
       const p3 = createPlayer('p3', 'ShieldedDefender', 0);
@@ -347,26 +376,75 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       ];
       const picks = { p1: 0, p2: 0, p3: 0, p4: 0 };
 
+      const abilityActions = [
+        { playerId: 'p1', abilityId: 'block' as const, targetId: 'p2' },
+        { playerId: 'p4', abilityId: 'block' as const, targetId: 'p3' },
+        { playerId: 'p3', abilityId: 'shield' as const },
+      ];
+      const selectionPlayers = applyRoundBlockEffects(
+        [p1, p2, p3, p4],
+        abilityActions
+      );
+
+      assert.equal(selectionPlayers.p2.isBlockedCurrentRound, true);
+      assert.equal(selectionPlayers.p2.isBlockedNextRound, false);
+      assert.equal(selectionPlayers.p2.blockedByPlayerId, 'p1');
+      assert.equal(selectionPlayers.p3.isBlockedCurrentRound, false);
+
       const res = resolveZartoRound({
         question: sampleQuestion,
-        players: [p1, p2, p3],
+        players: Object.values(selectionPlayers),
         choices,
         picks,
-        abilityActions: [
-          { playerId: 'p1', abilityId: 'block', targetId: 'p2' },
-          { playerId: 'p4', abilityId: 'block', targetId: 'p3' },
-          { playerId: 'p3', abilityId: 'shield' }, // p3 activates shield!
+        abilityActions,
+      });
+      assert.equal(res.updatedPlayers.p2.isBlockedCurrentRound, true);
+      assert.equal(res.updatedPlayers.p2.isBlockedNextRound, false);
+      assert.equal(res.rows.p2.pointsDelta, 100);
+      assert.equal(res.updatedPlayers.p2.score, 100);
+      assert.equal(res.updatedPlayers.p3.isBlockedCurrentRound, false);
+      assert.equal(res.updatedPlayers.p3.shieldsAvailable, 0);
+      assert.equal(res.updatedPlayers.p1.blocksAvailable, 0);
+      assert.equal(res.updatedPlayers.p4.blocksAvailable, 0);
+
+      const nextRoundPlayers = clearRoundBlockState(Object.values(res.updatedPlayers));
+      assert.equal(nextRoundPlayers.p2.isBlockedCurrentRound, false);
+      assert.equal(nextRoundPlayers.p2.blockedByPlayerId, null);
+    });
+
+    test('Multiple blocks prevent fake answers once and choose a stable blocker', () => {
+      const players = [
+        createPlayer('player-a', 'A'),
+        createPlayer('player-b', 'B'),
+        createPlayer('target', 'Target'),
+      ];
+      const result = applyRoundBlockEffects(players, [
+        { playerId: 'player-b', abilityId: 'block', targetId: 'target' },
+        { playerId: 'player-a', abilityId: 'block', targetId: 'target' },
+      ]);
+
+      assert.equal(result.target.isBlockedCurrentRound, true);
+      assert.equal(result.target.blockedByPlayerId, 'player-a');
+      assert.equal(result.target.isBlockedNextRound, false);
+    });
+
+    test('A player who does not pick earns no points or ability unlocks', () => {
+      const unanswered = createPlayer('unanswered', 'Unanswered');
+      const picker = createPlayer('picker', 'Picker');
+      const result = resolveZartoRound({
+        question: sampleQuestion,
+        players: [unanswered, picker],
+        choices: [
+          { choiceIndex: 0, text: '1923', authorId: null, isCorrect: true },
+          { choiceIndex: 1, text: 'Blöf', authorId: 'unanswered', isCorrect: false },
         ],
+        picks: { picker: 1 },
       });
 
-      // p2 was not shielded -> blocked for next round!
-      assert.equal(res.updatedPlayers['p2'].isBlockedNextRound, true);
-      assert.equal(res.updatedPlayers['p2'].blockedByPlayerId, 'p1');
-      assert.equal(res.updatedPlayers['p1'].blocksAvailable, 0);
-
-      // p3 had active shield -> protected! Not blocked!
-      assert.equal(res.updatedPlayers['p3'].isBlockedNextRound, false);
-      assert.equal(res.updatedPlayers['p3'].shieldsAvailable, 0); // shield consumed
+      assert.equal(result.rows.unanswered.victimsCount, 0);
+      assert.equal(result.rows.unanswered.pointsDelta, 0);
+      assert.equal(result.updatedPlayers.unanswered.score, 0);
+      assert.equal(result.updatedPlayers.unanswered.blocksAvailable, 0);
     });
 
     test('Penalty applies on a wrong pick and counter reflects it to the attacker', () => {
@@ -476,7 +554,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(res.rows['p1'].pointsDelta, 100);
       assert.equal(res.updatedPlayers['p1'].score, 200);
       assert.equal(res.updatedPlayers['p1'].consecutiveCorrect, 1);
-      assert.equal(res.updatedPlayers['p1'].isBlockedCurrentRound, false); // reset
+      assert.equal(res.updatedPlayers['p1'].isBlockedCurrentRound, true);
       assert.equal(res.updatedPlayers['p1'].blockedByPlayerId, 'attacker');
     });
 
@@ -501,6 +579,66 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       state.lastBlockedPlayerId = 'p2';
       const repeatBlock = canUseAbility(state, 'block', 'p2');
       assert.equal(repeatBlock.allowed, false);
+    });
+
+    describe('Block phase integration in demo mode', () => {
+      test('Pauses the shared round timer and resumes with the remaining time intact', async () => {
+        const { host, roomCode, targetId } = await createDemoBlockRound(30);
+        const beforePause = await host.getRoomState(roomCode);
+        const originalDeadline = beforePause?.phaseDeadlineAt;
+
+        await host.setRoomPaused(roomCode, true);
+        const pausedState = await host.getRoomState(roomCode);
+        assert.ok(pausedState?.pausedAt);
+        assert.equal(await host.advanceExpiredPhase(roomCode), false);
+        await assert.rejects(
+          host.useAbility(roomCode, {
+            playerId: beforePause!.config.hostId,
+            abilityId: 'block',
+            targetId,
+          }),
+          /duraklatıldı/
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        await host.setRoomPaused(roomCode, false);
+        const resumedState = await host.getRoomState(roomCode);
+        assert.equal(resumedState?.pausedAt, null);
+        assert.ok((resumedState?.phaseDeadlineAt ?? 0) > (originalDeadline ?? 0));
+      });
+
+      test('Confirms the block before the fake-answer phase begins', async () => {
+        const { host, roomCode, targetId } = await createDemoBlockRound();
+        await host.confirmAbilitySelection(roomCode);
+
+        const fakeAnswerState = await host.getRoomState(roomCode);
+        assert.equal(fakeAnswerState?.phase, 'fake_answer');
+        assert.equal(fakeAnswerState?.players[targetId].isBlockedCurrentRound, true);
+        assert.equal(fakeAnswerState?.players[targetId].isBlockedNextRound, false);
+      });
+
+      test('Applies a block once on ability timeout and gives no points for unanswered guesses', async () => {
+        const { host, roomCode, targetId } = await createDemoBlockRound(1);
+        const waitForPhaseTimeout = () => new Promise((resolve) => setTimeout(resolve, 1200));
+
+        await waitForPhaseTimeout();
+        assert.equal(await host.advanceExpiredPhase(roomCode), true);
+        assert.equal(await host.advanceExpiredPhase(roomCode), false);
+        let state = await host.getRoomState(roomCode);
+        assert.equal(state?.phase, 'fake_answer');
+        assert.equal(state?.players[targetId].isBlockedCurrentRound, true);
+
+        await waitForPhaseTimeout();
+        assert.equal(await host.advanceExpiredPhase(roomCode), true);
+        state = await host.getRoomState(roomCode);
+        assert.equal(state?.phase, 'guess');
+
+        await waitForPhaseTimeout();
+        assert.equal(await host.advanceExpiredPhase(roomCode), true);
+        state = await host.getRoomState(roomCode);
+        assert.equal(state?.phase, 'reveal');
+        assert.ok(Object.values(state?.roundResults ?? {}).every((row) => row.pointsDelta === 0));
+      });
     });
   });
 });

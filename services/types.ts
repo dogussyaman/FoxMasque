@@ -106,6 +106,7 @@ export interface GameService {
   }): Promise<{ code: string; playerId: string }>;
   joinRoom(code: string, name: string, avatarKey: string, password?: string): Promise<{ playerId: string }>;
   leaveRoom(code: string): Promise<void>;
+  setRoomPaused(code: string, paused: boolean): Promise<void>;
   getRoomState(code: string): Promise<GameState | null>;
   getCurrentQuestion(code: string): Promise<Question | null>;
   listOpenRooms(): Promise<RoomSummary[]>;

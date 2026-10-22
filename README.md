@@ -17,8 +17,8 @@ client. Never place a `service_role` key or Google OAuth client secret in an
 
 - For a brand-new, empty Supabase project, run `supabase/schema.sql` once in
   the SQL Editor. It contains the schema and functions assembled from the
-  migrations through `20261029000001`, including the profile trigger needed by
-  Supabase Auth and the current block-only-fake-answer behavior. Then run
+  migrations, including the profile trigger needed by Supabase Auth, current
+  round-block behavior, and synchronized room pause support. Then run
   `supabase/migrations/20261030000001_private_room_access.sql` once to enable
   password-protected rooms, followed by
   `supabase/migrations/20261031000001_player_discovery_weekly_leaderboard.sql`.
@@ -37,8 +37,18 @@ client. Never place a `service_role` key or Google OAuth client secret in an
   Then apply `20261031000001_player_discovery_weekly_leaderboard.sql` for
   authenticated player search and weekly/friends leaderboard scopes, followed
   by `20261101000001_block_only_fake_answers.sql` so blocks prevent only fake
-  answer submission. Do not edit or re-run the combined schema to install this
-  update.
+  answer submission, then `20261102000001_apply_block_during_current_round.sql`
+  so blocks take effect in the round where they are selected, followed by
+  `20261103000001_room_pause_controls.sql` for host-controlled room pauses.
+  Do not edit or re-run the combined schema to install these updates.
+
+The combined schema includes the current-round block behavior. Existing
+installations should apply `20261102000001_apply_block_during_current_round.sql`
+after their previously applied migrations; it replaces the active RPC
+definitions, clears any queued next-round block flags, and makes an expired
+guess phase resolve without awarding points to players who did not choose.
+Apply `20261103000001_room_pause_controls.sql` after it to let the host pause
+the live room for everyone while preserving the remaining phase time.
 
 The private-room migration installs `pgcrypto` in the Supabase `extensions`
 schema. Room passwords are stored only as salted bcrypt hashes, and private

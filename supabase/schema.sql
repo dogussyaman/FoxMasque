@@ -1119,32 +1119,6 @@ BEGIN
         WHERE room_id = p_room_id AND player_id = v_player.player_id;
     END LOOP;
 
-    -- 4. Apply Block & Shield Interactions for Next Round
-    FOR v_player IN
-        SELECT * FROM public.room_players WHERE room_id = p_room_id
-    LOOP
-        -- Check if someone used 'block' on this player during this round
-        SELECT EXISTS (
-            SELECT 1 FROM public.ability_actions
-            WHERE room_id = p_room_id AND round_number = p_round_number
-              AND ability = 'block' AND target_id = v_player.player_id
-        ) INTO v_has_block_action;
-
-        -- Check if player used 'shield' to protect themselves
-        SELECT EXISTS (
-            SELECT 1 FROM public.ability_actions
-            WHERE room_id = p_room_id AND round_number = p_round_number
-              AND ability = 'shield' AND player_id = v_player.player_id
-        ) INTO v_has_shield;
-
-        IF v_has_block_action AND NOT v_has_shield THEN
-            -- Target is blocked for the next round
-            UPDATE public.room_players
-            SET is_blocked_next_round = TRUE
-            WHERE room_id = p_room_id AND player_id = v_player.player_id;
-        END IF;
-    END LOOP;
-
     -- Update room phase to 'reveal'
     UPDATE public.rooms
     SET phase = 'reveal', updated_at = timezone('utc'::text, now())
@@ -1196,9 +1170,8 @@ BEGIN
             ORDER BY random()
             LIMIT 1;
 
-            -- Shift next-round block to current-round block
             UPDATE public.room_players
-            SET is_blocked_current_round = is_blocked_next_round,
+            SET is_blocked_current_round = FALSE,
                 is_blocked_next_round = FALSE
             WHERE room_id = v_room.id;
 
@@ -1486,9 +1459,60 @@ ALTER TABLE public.rooms
     ADD COLUMN IF NOT EXISTS max_players INTEGER NOT NULL DEFAULT 10,
     ADD COLUMN IF NOT EXISTS phase_started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     ADD COLUMN IF NOT EXISTS phase_deadline_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS paused_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS state_version BIGINT NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS game_number INTEGER NOT NULL DEFAULT 1;
+
+CREATE OR REPLACE FUNCTION public.prevent_paused_room_mutations()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_paused_at TIMESTAMPTZ;
+BEGIN
+    IF TG_TABLE_NAME = 'rooms' THEN
+        IF OLD.paused_at IS NOT NULL AND NEW.paused_at IS NOT NULL
+           AND NEW.phase IS DISTINCT FROM OLD.phase THEN
+            RAISE EXCEPTION 'Oyun duraklatıldı; devam etmeden aşama değiştirilemez';
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    SELECT paused_at INTO v_paused_at
+    FROM public.rooms
+    WHERE id = NEW.room_id;
+    IF v_paused_at IS NOT NULL THEN
+        RAISE EXCEPTION 'Oyun duraklatıldı; devam etmeden işlem yapılamaz';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS prevent_paused_room_phase_change ON public.rooms;
+CREATE TRIGGER prevent_paused_room_phase_change
+BEFORE UPDATE OF phase ON public.rooms
+FOR EACH ROW EXECUTE FUNCTION public.prevent_paused_room_mutations();
+
+DROP TRIGGER IF EXISTS prevent_paused_ability_actions ON public.ability_actions;
+CREATE TRIGGER prevent_paused_ability_actions
+BEFORE INSERT OR UPDATE ON public.ability_actions
+FOR EACH ROW EXECUTE FUNCTION public.prevent_paused_room_mutations();
+
+DROP TRIGGER IF EXISTS prevent_paused_fake_answers ON public.round_fake_answers;
+CREATE TRIGGER prevent_paused_fake_answers
+BEFORE INSERT OR UPDATE ON public.round_fake_answers
+FOR EACH ROW EXECUTE FUNCTION public.prevent_paused_room_mutations();
+
+DROP TRIGGER IF EXISTS prevent_paused_picks ON public.round_picks;
+CREATE TRIGGER prevent_paused_picks
+BEFORE INSERT OR UPDATE ON public.round_picks
+FOR EACH ROW EXECUTE FUNCTION public.prevent_paused_room_mutations();
+
+REVOKE ALL ON FUNCTION public.prevent_paused_room_mutations()
+FROM PUBLIC, anon, authenticated;
 
 DO $$
 BEGIN
@@ -1509,6 +1533,11 @@ ALTER TABLE public.rooms VALIDATE CONSTRAINT rooms_player_bounds_check;
 ALTER TABLE public.room_players
     ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS ability_ready_round INTEGER NOT NULL DEFAULT 0;
+
+DROP TRIGGER IF EXISTS prevent_paused_ability_readiness ON public.room_players;
+CREATE TRIGGER prevent_paused_ability_readiness
+BEFORE UPDATE OF ability_ready_round ON public.room_players
+FOR EACH ROW EXECUTE FUNCTION public.prevent_paused_room_mutations();
 
 ALTER TABLE public.room_players
     ALTER COLUMN avatar_key TYPE TEXT;
@@ -2297,6 +2326,49 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public._apply_round_block_effects(
+    p_room_id UUID,
+    p_round_number INTEGER
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_room public.rooms;
+BEGIN
+    SELECT * INTO v_room
+    FROM public.rooms
+    WHERE id = p_room_id
+    FOR UPDATE;
+    IF NOT FOUND OR v_room.current_round <> p_round_number
+       OR v_room.phase <> 'ability_select' THEN
+        RAISE EXCEPTION 'Yetenek seçimi turu artık aktif değil';
+    END IF;
+
+    UPDATE public.room_players target
+    SET is_blocked_current_round = TRUE
+    WHERE target.room_id = p_room_id AND target.is_active
+      AND EXISTS (
+          SELECT 1
+          FROM public.ability_actions block_action
+          WHERE block_action.room_id = p_room_id
+            AND block_action.round_number = p_round_number
+            AND block_action.ability = 'block'
+            AND block_action.target_id = target.player_id
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM public.ability_actions shield_action
+          WHERE shield_action.room_id = p_room_id
+            AND shield_action.round_number = p_round_number
+            AND shield_action.ability = 'shield'
+            AND shield_action.player_id = target.player_id
+      );
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.confirm_ability_selection_secure(p_room_code VARCHAR(6))
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -2333,6 +2405,7 @@ BEGIN
     WHERE room_id = v_room.id AND is_active
       AND ability_ready_round <> v_room.current_round;
     IF v_remaining = 0 THEN
+        PERFORM public._apply_round_block_effects(v_room.id, v_room.current_round);
         PERFORM public._set_room_phase(v_room.id, 'fake_answer', v_room.round_seconds);
     ELSE
         UPDATE public.rooms SET state_version = state_version + 1, updated_at = now()
@@ -2458,9 +2531,9 @@ DECLARE
     v_shielded BOOLEAN;
     v_counter BOOLEAN;
     v_total_opponents INTEGER;
-    v_remaining INTEGER;
     v_result_created BOOLEAN;
     v_insert_count INTEGER;
+    v_has_pick BOOLEAN;
 BEGIN
     SELECT * INTO v_room FROM public.rooms WHERE id = p_room_id FOR UPDATE;
     IF NOT FOUND OR v_room.current_round <> p_round_number THEN
@@ -2469,16 +2542,6 @@ BEGIN
     IF NOT public.is_room_member(p_room_id) THEN RAISE EXCEPTION 'Odaya erişim izniniz yok'; END IF;
     IF v_room.phase IN ('reveal', 'scoreboard', 'game_over') THEN RETURN; END IF;
     IF v_room.phase <> 'guess' THEN RAISE EXCEPTION 'Tahmin aşaması tamamlanmadı'; END IF;
-
-    SELECT count(*)::INTEGER INTO v_remaining
-    FROM public.room_players rp
-    WHERE rp.room_id = p_room_id AND rp.is_active
-      AND NOT EXISTS (
-          SELECT 1 FROM public.round_picks p
-          WHERE p.room_id = p_room_id AND p.round_number = p_round_number
-            AND p.player_id = rp.player_id
-      );
-    IF v_remaining > 0 THEN RAISE EXCEPTION 'Tüm oyuncular tahminini göndermedi'; END IF;
 
     SELECT count(*)::INTEGER INTO v_total_opponents
     FROM public.room_players rp
@@ -2512,7 +2575,8 @@ BEGIN
         SELECT * INTO v_pick FROM public.round_picks
         WHERE room_id = p_room_id AND round_number = p_round_number
           AND player_id = v_player.player_id;
-        IF FOUND THEN
+        v_has_pick := FOUND;
+        IF v_has_pick THEN
             SELECT * INTO v_choice FROM public.round_choices
             WHERE room_id = p_room_id AND round_number = p_round_number
               AND choice_index = v_pick.choice_index;
@@ -2534,6 +2598,10 @@ BEGIN
         WHERE p.room_id = p_room_id AND p.round_number = p_round_number
           AND c.author_id = v_player.player_id AND p.player_id <> v_player.player_id
           AND victim.is_active;
+        IF NOT v_has_pick THEN
+            v_delta := 0;
+            v_victims := 0;
+        END IF;
         v_delta := v_delta + v_victims * 50;
 
         SELECT count(*)::INTEGER INTO v_penalty_count
@@ -2595,7 +2663,8 @@ BEGIN
                     ELSE consecutive_correct + 1
                 END,
                 blocks_available = CASE
-                    WHEN v_victims >= 3 OR v_victims::NUMERIC / v_total_opponents > 0.5
+                    WHEN v_has_pick
+                      AND (v_victims >= 3 OR v_victims::NUMERIC / v_total_opponents > 0.5)
                     THEN blocks_available + 1
                     ELSE blocks_available
                 END
@@ -2630,19 +2699,6 @@ BEGIN
     WHERE result.room_id = p_room_id AND result.round_number = p_round_number
       AND result.player_id = reflected.player_id;
 
-    UPDATE public.room_players target
-    SET is_blocked_next_round = TRUE
-    WHERE target.room_id = p_room_id AND target.is_active
-      AND NOT EXISTS (
-          SELECT 1 FROM public.ability_actions shield
-          WHERE shield.room_id = p_room_id AND shield.round_number = p_round_number
-            AND shield.player_id = target.player_id AND shield.ability = 'shield'
-      )
-      AND EXISTS (
-          SELECT 1 FROM public.ability_actions block_action
-          WHERE block_action.room_id = p_room_id AND block_action.round_number = p_round_number
-            AND block_action.target_id = target.player_id AND block_action.ability = 'block'
-      );
     PERFORM public._set_room_phase(p_room_id, 'reveal', NULL);
 END;
 $$;
@@ -2724,6 +2780,7 @@ BEGIN
     IF v_room.host_id <> v_user_id THEN RAISE EXCEPTION 'Yalnızca oda kurucusu aşamayı ilerletebilir'; END IF;
 
     IF v_room.phase = 'ability_select' THEN
+        PERFORM public._apply_round_block_effects(v_room.id, v_room.current_round);
         PERFORM public._set_room_phase(v_room.id, 'fake_answer', v_room.round_seconds);
     ELSIF v_room.phase = 'reveal' THEN
         PERFORM public._set_room_phase(v_room.id, 'scoreboard', NULL);
@@ -2789,7 +2846,7 @@ BEGIN
             INSERT INTO public.room_round_questions (room_id, game_number, round_number, question_id)
             VALUES (v_room.id, v_room.game_number, v_room.current_round + 1, v_question_id);
             UPDATE public.room_players
-            SET is_blocked_current_round = is_blocked_next_round,
+            SET is_blocked_current_round = FALSE,
                 is_blocked_next_round = FALSE,
                 ability_ready_round = 0
             WHERE room_id = v_room.id;
@@ -2819,10 +2876,13 @@ BEGIN
     IF NOT FOUND OR NOT public.is_room_member(v_room.id) THEN
         RAISE EXCEPTION 'Odaya erişim izniniz yok';
     END IF;
-    IF v_room.phase_deadline_at IS NULL OR v_room.phase_deadline_at > now() THEN
+    IF v_room.paused_at IS NOT NULL
+       OR v_room.phase_deadline_at IS NULL
+       OR v_room.phase_deadline_at > now() THEN
         RETURN FALSE;
     END IF;
     IF v_room.phase = 'ability_select' THEN
+        PERFORM public._apply_round_block_effects(v_room.id, v_room.current_round);
         PERFORM public._set_room_phase(v_room.id, 'fake_answer', v_room.round_seconds);
     ELSIF v_room.phase = 'fake_answer' THEN
         INSERT INTO public.round_fake_answers (room_id, round_number, player_id, fake_answer)
@@ -2833,26 +2893,6 @@ BEGIN
         PERFORM public._build_round_choices(v_room.id, v_room.current_round);
         PERFORM public._set_room_phase(v_room.id, 'guess', v_room.round_seconds);
     ELSIF v_room.phase = 'guess' THEN
-        FOR v_player IN
-            SELECT rp.* FROM public.room_players rp
-            WHERE rp.room_id = v_room.id AND rp.is_active
-              AND NOT EXISTS (
-                  SELECT 1 FROM public.round_picks p
-                  WHERE p.room_id = v_room.id AND p.round_number = v_room.current_round
-                    AND p.player_id = rp.player_id
-              )
-        LOOP
-            SELECT c.choice_index INTO v_choice
-            FROM public.round_choices c
-            WHERE c.room_id = v_room.id AND c.round_number = v_room.current_round
-              AND c.author_id IS DISTINCT FROM v_player.player_id
-            ORDER BY c.choice_index
-            LIMIT 1;
-            IF v_choice IS NOT NULL THEN
-                INSERT INTO public.round_picks (room_id, round_number, player_id, choice_index)
-                VALUES (v_room.id, v_room.current_round, v_player.player_id, v_choice);
-            END IF;
-        END LOOP;
         PERFORM public.resolve_round_authoritative(v_room.id, v_room.current_round);
     ELSE
         RETURN FALSE;
@@ -3147,6 +3187,7 @@ GRANT EXECUTE ON FUNCTION public.block_user_secure(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.unblock_user_secure(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.list_friends_secure() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_pending_friend_requests_secure() TO authenticated;
+REVOKE ALL ON FUNCTION public._apply_round_block_effects(UUID, INTEGER) FROM PUBLIC, anon, authenticated;
 
 DO $$
 BEGIN
@@ -3156,6 +3197,60 @@ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION public.set_room_paused_secure(
+    p_room_code VARCHAR(6),
+    p_paused BOOLEAN
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+    v_room public.rooms;
+    v_now TIMESTAMPTZ := now();
+BEGIN
+    IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Oturum açılması gerekiyor'; END IF;
+    SELECT * INTO v_room FROM public.rooms
+    WHERE code = upper(p_room_code)
+    FOR UPDATE;
+    IF NOT FOUND OR NOT public.is_room_member(v_room.id) THEN
+        RAISE EXCEPTION 'Oda bulunamadı veya erişim izniniz yok';
+    END IF;
+    IF v_room.host_id <> auth.uid() THEN
+        RAISE EXCEPTION 'Oyunu yalnızca oda sahibi duraklatabilir veya devam ettirebilir';
+    END IF;
+    IF v_room.phase NOT IN ('ability_select', 'fake_answer', 'guess') THEN
+        RAISE EXCEPTION 'Oyun bu aşamada duraklatılamaz';
+    END IF;
+    IF p_paused AND v_room.phase_deadline_at IS NOT NULL
+       AND v_room.phase_deadline_at <= v_now THEN
+        RAISE EXCEPTION 'Süre dolduğu için oyun duraklatılamaz';
+    END IF;
+    IF p_paused AND v_room.paused_at IS NULL THEN
+        UPDATE public.rooms
+        SET paused_at = v_now, state_version = state_version + 1, updated_at = v_now
+        WHERE id = v_room.id;
+    ELSIF NOT p_paused AND v_room.paused_at IS NOT NULL THEN
+        UPDATE public.rooms
+        SET phase_started_at = phase_started_at + (v_now - v_room.paused_at),
+            phase_deadline_at = CASE
+                WHEN phase_deadline_at IS NULL THEN NULL
+                ELSE phase_deadline_at + (v_now - v_room.paused_at)
+            END,
+            paused_at = NULL,
+            state_version = state_version + 1,
+            updated_at = v_now
+        WHERE id = v_room.id;
+    END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.set_room_paused_secure(VARCHAR, BOOLEAN)
+FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_room_paused_secure(VARCHAR, BOOLEAN)
+TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_room_state_secure(p_room_code VARCHAR(6))
 RETURNS JSONB
@@ -3227,7 +3322,7 @@ BEGIN
                     SELECT block_action.player_id
                     FROM public.ability_actions block_action
                     WHERE block_action.room_id = v_room.id
-                      AND block_action.round_number = v_room.current_round - 1
+                      AND block_action.round_number = v_room.current_round
                       AND block_action.ability = 'block'
                       AND block_action.target_id = rp.player_id
                       AND NOT EXISTS (
@@ -3237,7 +3332,7 @@ BEGIN
                             AND shield_action.player_id = rp.player_id
                             AND shield_action.ability = 'shield'
                       )
-                    ORDER BY block_action.created_at, block_action.player_id
+                    ORDER BY block_action.player_id
                     LIMIT 1
                 ) ELSE NULL END,
                 'lastBlockedPlayerId', rp.last_blocked_player_id
@@ -3251,6 +3346,7 @@ BEGIN
         'currentQuestionId', v_room.current_question_id,
         'phaseStartedAt', v_room.phase_started_at,
         'phaseDeadlineAt', v_room.phase_deadline_at,
+        'pausedAt', v_room.paused_at,
         'stateVersion', v_room.state_version,
         'progress', jsonb_build_object(
             'submittedCount', v_submitted,

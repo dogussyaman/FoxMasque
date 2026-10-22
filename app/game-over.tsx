@@ -77,15 +77,13 @@ export default function GameOverScreen() {
       >
         {/* Grand Champion Mascot Banner */}
         <View style={styles.topHeader}>
-          <View style={styles.winnerMascotCircle}>
-            <MascotFloat floatDistance={6} duration={2600}>
-              <Image
-                source={mascotImages.winner}
-                style={styles.winnerMascot}
-                resizeMode="contain"
-              />
-            </MascotFloat>
-          </View>
+          <MascotFloat floatDistance={6} duration={2600}>
+            <Image
+              source={mascotImages.brand}
+              style={styles.winnerMascot}
+              resizeMode="contain"
+            />
+          </MascotFloat>
 
           <Pressable
             onPress={() => winner && setProfilePlayer(winner)}
@@ -250,22 +248,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.md,
   },
-  winnerMascotCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: colors.bgCard,
-    borderWidth: 3,
-    borderColor: colors.yellow,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    marginBottom: spacing.sm,
-    ...shadows.glow,
-  },
   winnerMascot: {
-    width: 130,
-    height: 130,
+    width: 250,
+    height: 90,
+    marginBottom: spacing.sm,
   },
   trophyPill: {
     flexDirection: 'row',

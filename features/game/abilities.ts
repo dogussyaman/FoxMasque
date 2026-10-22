@@ -14,7 +14,7 @@ export const ABILITIES: readonly Ability[] = [
     id: 'block',
     name: 'Bloklama',
     emoji: '🛑',
-    description: 'Hedef rakip bir sonraki tur sahte cevap yazamaz ama gerçek cevabı seçebilir. Art arda aynı hedefe uygulanamaz.',
+    description: 'Hedef rakip bu tur sahte cevap yazamaz ama gerçek cevabı seçebilir. Art arda aynı hedefe uygulanamaz.',
     targetRequired: true,
     unlockRule: 'Sahte cevabını en az 3 rakip veya rakiplerin yarısından fazlası seçtiğinde açılır.',
   },

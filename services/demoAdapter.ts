@@ -1,7 +1,12 @@
 import type { CategoryId } from '../features/game/categories';
 import { pickQuestions, QUESTIONS } from '../features/game/questions';
 import { canUseAbility } from '../features/game/abilities';
-import { blendChoices, resolveZartoRound } from '../features/game/engine';
+import {
+  applyRoundBlockEffects,
+  blendChoices,
+  clearRoundBlockState,
+  resolveZartoRound,
+} from '../features/game/engine';
 import type {
   AbilityAction,
   AnswerSubmission,
@@ -52,6 +57,7 @@ interface DemoRoom {
   questionQueue: string[];
   phaseStartedAt: number;
   phaseDeadlineAt: number | null;
+  pausedAt: number | null;
   abilityReadyRound: Record<string, number>;
 }
 
@@ -228,6 +234,7 @@ export class DemoGameService implements GameService {
       questionQueue: [],
       phaseStartedAt: Date.now(),
       phaseDeadlineAt: null,
+      pausedAt: null,
       abilityReadyRound: {},
     };
     this.rooms.set(code, room);
@@ -274,6 +281,7 @@ export class DemoGameService implements GameService {
         this.rooms.delete(code);
         return;
       }
+
       if (wasHost) {
         const nextHost = Object.values(room.players)[0];
         room.config.hostId = nextHost.id;
@@ -284,6 +292,31 @@ export class DemoGameService implements GameService {
       }
     }
     this.emit({ type: 'player_left', payload: { code } });
+    this.emit({ type: 'state', payload: this.snapshot(code) });
+  }
+
+  async setRoomPaused(code: string, paused: boolean): Promise<void> {
+    const room = this.rooms.get(code);
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (!this.currentPlayer || room.config.hostId !== this.currentPlayer.id) {
+      throw new ServiceError('HOST_ONLY', 'Oyunu yalnızca oda sahibi duraklatabilir.');
+    }
+    if (!['ability_select', 'fake_answer', 'guess'].includes(room.phase)) {
+      throw new ServiceError('WRONG_PHASE', 'Oyun bu aşamada duraklatılamaz.');
+    }
+    if (paused === (room.pausedAt !== null)) return;
+    if (paused && room.phaseDeadlineAt !== null && room.phaseDeadlineAt <= Date.now()) {
+      throw new ServiceError('PHASE_EXPIRED', 'Süre dolduğu için oyun duraklatılamaz.');
+    }
+
+    if (paused) {
+      room.pausedAt = Date.now();
+    } else {
+      const pausedDuration = Date.now() - room.pausedAt!;
+      room.phaseStartedAt += pausedDuration;
+      if (room.phaseDeadlineAt !== null) room.phaseDeadlineAt += pausedDuration;
+      room.pausedAt = null;
+    }
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
@@ -428,6 +461,7 @@ export class DemoGameService implements GameService {
   async useAbility(code: string, action: AbilityAction): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    this.assertRoomActive(room);
     const player = this.currentPlayer;
     if (!player || !room.players[player.id] || action.playerId !== player.id || room.phase !== 'ability_select') {
       throw new ServiceError('ABILITY_UNAVAILABLE', 'Yetenek bu aşamada kullanılamaz.');
@@ -470,6 +504,7 @@ export class DemoGameService implements GameService {
   async confirmAbilitySelection(code: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    this.assertRoomActive(room);
     const playerId = this.currentPlayer?.id;
     if (!playerId || !room.players[playerId] || room.phase !== 'ability_select') {
       throw new ServiceError('ABILITY_PHASE_INVALID', 'Yetenek seçimi aşaması aktif değil.');
@@ -485,7 +520,7 @@ export class DemoGameService implements GameService {
     if (Object.values(room.players).every((player) =>
       room.abilityReadyRound[player.id] === room.currentRound
     )) {
-      this.setPhase(room, 'fake_answer', room.config.roundSeconds);
+      this.beginFakeAnswerPhase(room);
     }
     this.emit({ type: 'phase_changed', payload: { code, phase: room.phase } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
@@ -495,6 +530,7 @@ export class DemoGameService implements GameService {
   async submitFakeAnswer(code: string, fakeAnswer: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    this.assertRoomActive(room);
     const player = this.currentPlayer && room.players[this.currentPlayer.id];
     if (!player || player.isBlockedCurrentRound) {
       throw new ServiceError('ROOM_ACCESS_DENIED', 'Bu tur cevap gönderemezsiniz.');
@@ -527,7 +563,7 @@ export class DemoGameService implements GameService {
 
     let decoyIdx = 0;
     for (const p of Object.values(room.players)) {
-      if (p.id !== meId && !room.fakeAnswers[p.id]) {
+      if (p.id !== meId && !p.isBlockedCurrentRound && room.fakeAnswers[p.id] === undefined) {
         room.fakeAnswers[p.id] = `${botAnswers[decoyIdx % botAnswers.length]} (${decoyIdx + 1})`;
         decoyIdx++;
       }
@@ -560,6 +596,7 @@ export class DemoGameService implements GameService {
   async submitPick(code: string, choiceIndex: number): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    this.assertRoomActive(room);
     const player = this.currentPlayer && room.players[this.currentPlayer.id];
     if (!player) {
       throw new ServiceError('ROOM_ACCESS_DENIED', 'Oda erişim izniniz yok.');
@@ -582,13 +619,11 @@ export class DemoGameService implements GameService {
     }
     room.picks[meId] = choiceIndex;
 
-    // Bots make random picks (never picking their own fake answer)
-    for (const p of Object.values(room.players)) {
-      if (p.id !== meId && room.picks[p.id] === undefined) {
-        const validChoices = room.choices.filter((c) => c.authorId !== p.id);
-        const randomPick = validChoices[Math.floor(Math.random() * validChoices.length)];
-        room.picks[p.id] = randomPick ? randomPick.choiceIndex : 0;
-      }
+    for (const bot of Object.values(room.players)) {
+      if (bot.id === meId || room.picks[bot.id] !== undefined) continue;
+      const validChoices = room.choices.filter((item) => item.authorId !== bot.id);
+      const botPick = validChoices[Math.floor(Math.random() * validChoices.length)];
+      if (botPick) room.picks[bot.id] = botPick.choiceIndex;
     }
 
     // Resolve round authoritatively
@@ -630,15 +665,25 @@ export class DemoGameService implements GameService {
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
+  private beginFakeAnswerPhase(room: DemoRoom) {
+    if (room.phase !== 'ability_select') return;
+    room.players = applyRoundBlockEffects(
+      Object.values(room.players),
+      room.abilityActions
+    );
+    this.setPhase(room, 'fake_answer', room.config.roundSeconds);
+  }
+
   advancePhase(code: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    this.assertRoomActive(room);
     if (!this.currentPlayer || room.config.hostId !== this.currentPlayer.id) {
       throw new ServiceError('HOST_ONLY', 'Yalnızca oda kurucusu aşamayı ilerletebilir.');
     }
 
     if (room.phase === 'ability_select') {
-      this.setPhase(room, 'fake_answer', room.config.roundSeconds);
+      this.beginFakeAnswerPhase(room);
     } else if (room.phase === 'fake_answer') {
       this.setPhase(room, 'guess', room.config.roundSeconds);
     } else if (room.phase === 'reveal') {
@@ -648,19 +693,7 @@ export class DemoGameService implements GameService {
         this.setPhase(room, 'game_over');
         this.emit({ type: 'game_over', payload: { code } });
       } else {
-        room.players = Object.fromEntries(
-          Object.entries(room.players).map(([playerId, player]) => [
-            playerId,
-            {
-              ...player,
-              isBlockedCurrentRound: player.isBlockedNextRound,
-              isBlockedNextRound: false,
-              blockedByPlayerId: player.isBlockedNextRound
-                ? player.blockedByPlayerId ?? null
-                : null,
-            },
-          ])
-        );
+        room.players = clearRoundBlockState(Object.values(room.players));
         room.currentRound += 1;
         this.setPhase(room, 'ability_select', room.config.roundSeconds);
         room.fakeAnswers = {};
@@ -767,9 +800,10 @@ export class DemoGameService implements GameService {
     if (!this.currentPlayer || !room.players[this.currentPlayer.id]) {
       throw new ServiceError('ROOM_ACCESS_DENIED', 'Oda erişim izniniz yok.');
     }
+    if (room.pausedAt !== null) return false;
     if (room.phaseDeadlineAt === null || room.phaseDeadlineAt > Date.now()) return false;
     if (room.phase === 'ability_select') {
-      this.setPhase(room, 'fake_answer', room.config.roundSeconds);
+      this.beginFakeAnswerPhase(room);
     } else if (room.phase === 'fake_answer') {
       for (const player of Object.values(room.players)) {
         if (!player.isBlockedCurrentRound && room.fakeAnswers[player.id] === undefined) {
@@ -780,11 +814,6 @@ export class DemoGameService implements GameService {
       room.choices = blendChoices(question, room.fakeAnswers, room.currentRound * 17);
       this.setPhase(room, 'guess', room.config.roundSeconds);
     } else if (room.phase === 'guess') {
-      for (const player of Object.values(room.players)) {
-        if (room.picks[player.id] !== undefined) continue;
-        const choice = room.choices.find((item) => item.authorId !== player.id);
-        if (choice) room.picks[player.id] = choice.choiceIndex;
-      }
       this.resolveRoundAuthoritatively(code);
     } else {
       return false;
@@ -922,6 +951,7 @@ export class DemoGameService implements GameService {
       history: [],
       phaseStartedAt: room.phaseStartedAt,
       phaseDeadlineAt: room.phaseDeadlineAt,
+      pausedAt: room.pausedAt,
       progress: {
         submittedCount,
         totalCount: participants.length,
@@ -937,5 +967,11 @@ export class DemoGameService implements GameService {
     room.phaseDeadlineAt = deadlineSeconds === undefined
       ? null
       : room.phaseStartedAt + deadlineSeconds * 1000;
+  }
+
+  private assertRoomActive(room: DemoRoom) {
+    if (room.pausedAt !== null) {
+      throw new ServiceError('ROOM_PAUSED', 'Oyun duraklatıldı; devam etmesini bekle.');
+    }
   }
 }
