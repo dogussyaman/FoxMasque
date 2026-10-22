@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
-import { Sparkles, ArrowRight, Shield, Zap, Target, Flame } from 'lucide-react-native';
+import { Sparkles, ArrowRight, Shield, Zap, Target, Flame, Check } from 'lucide-react-native';
 import { Screen, Button, Avatar, Card, StickyActionBar, Input } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
-import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
+import {
+  AVATAR_KEYS,
+  DICEBEAR_AVATAR_KEYS,
+  createRandomDiceBearAvatarKey,
+} from '@/features/game/players';
 import { mascotImages } from '@/assets/illustrations';
 
 export default function OnboardingScreen() {
@@ -15,7 +19,12 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState<AvatarKey>('fox');
+  const [avatarOptions] = useState(() => [
+    createRandomDiceBearAvatarKey(),
+    ...AVATAR_KEYS,
+    ...DICEBEAR_AVATAR_KEYS,
+  ]);
+  const [selectedAvatar, setSelectedAvatar] = useState(avatarOptions[0]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,18 +141,26 @@ export default function OnboardingScreen() {
             {/* Avatar Grid */}
             <Text style={styles.sectionLabel}>AVATARINI SEÇ</Text>
             <View style={styles.avatarGrid}>
-              {AVATAR_KEYS.map((key) => {
+              {avatarOptions.map((key) => {
                 const active = selectedAvatar === key;
                 return (
                   <Pressable
                     key={key}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${key.startsWith('db:') ? key.split(':')[1] : key} avatarını seç`}
+                    accessibilityState={{ selected: active }}
                     onPress={() => {
                       trigger('light');
                       setSelectedAvatar(key);
                     }}
                     style={[styles.avatarBox, active && styles.avatarBoxActive]}
                   >
-                    <Avatar avatarKey={key} size={48} />
+                    <Avatar avatarKey={key} size={46} />
+                    {active ? (
+                      <View style={styles.avatarSelectedMark}>
+                        <Check color="#FFF" size={12} strokeWidth={3} />
+                      </View>
+                    ) : null}
                   </Pressable>
                 );
               })}
@@ -311,14 +328,29 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   avatarBox: {
-    padding: 4,
-    borderRadius: radii.xl,
+    width: '18%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.lg,
     borderWidth: 2,
     borderColor: 'transparent',
+    position: 'relative',
   },
   avatarBoxActive: {
     borderColor: colors.orange,
     backgroundColor: 'rgba(255, 113, 59, 0.2)',
+  },
+  avatarSelectedMark: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.orange,
   },
   input: {
     backgroundColor: colors.bgCard,

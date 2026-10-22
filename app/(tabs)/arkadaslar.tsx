@@ -98,7 +98,7 @@ export default function ArkadaslarScreen() {
             <Card variant="surface" style={styles.listCard}>
             {requests.map((request, idx) => (
               <View key={request.requestId} style={[styles.row, idx < requests.length - 1 && styles.rowBorder]}>
-                <Avatar avatarKey={request.avatarUrl ?? request.avatarKey} size={42} />
+                <Avatar avatarKey={request.avatarUrl ?? request.avatarKey} userId={request.id} size={42} />
                 <View style={styles.requestIdentity}>
                   <Text style={styles.name}>{request.name}</Text>
                   <Text style={styles.requestDate}>
@@ -160,7 +160,7 @@ function FriendRow({
 }) {
   return (
     <View style={[styles.row, !isLast && styles.rowBorder]}>
-      <Avatar avatarKey={friend.avatarUrl ?? friend.avatarKey} size={42} />
+      <Avatar avatarKey={friend.avatarUrl ?? friend.avatarKey} userId={friend.id} size={42} />
       <View style={{ flex: 1, marginLeft: 10 }}>
         <Text style={[styles.name, muted && { color: colors.textMuted }]}>{friend.name}</Text>
         <Badge tone="neutral" sticker>Arkadaş</Badge>

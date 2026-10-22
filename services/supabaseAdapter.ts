@@ -26,14 +26,15 @@ import type {
   RoundResultRow,
 } from '../types/game';
 import { isCategoryId, type CategoryId } from '../features/game/categories';
+import { defaultDiceBearAvatarKey } from '../features/game/players';
 import type { Question } from '../features/game/questions';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface ProfilePayload {
   id: string;
   display_name: string;
-  avatar_key: string;
-  avatar_url: string | null;
+  avatar_key?: string | null;
+  avatar_url?: string | null;
   stats?: {
     games_played?: number;
     games_won?: number;
@@ -55,8 +56,8 @@ interface OpenRoomRow {
 interface LeaderboardRow {
   player_id: string;
   name: string;
-  avatar_key: string;
-  avatar_url: string | null;
+  avatar_key?: string | null;
+  avatar_url?: string | null;
   score: number;
   games_played: number;
   games_won: number;
@@ -68,8 +69,8 @@ interface LeaderboardRow {
 interface SocialPlayerRow {
   user_id: string;
   display_name: string;
-  avatar_key: string;
-  avatar_url: string | null;
+  avatar_key?: string | null;
+  avatar_url?: string | null;
   relationship_status: RelationshipStatus;
 }
 
@@ -77,7 +78,7 @@ interface FriendRequestRow {
   request_id: string;
   user_id: string;
   display_name: string;
-  avatar_key: string;
+  avatar_key?: string | null;
   created_at: string;
 }
 
@@ -101,6 +102,14 @@ function decodeBase64(value: string): Uint8Array {
   }
 
   return output.subarray(0, outputIndex);
+}
+
+function resolveAvatarKey(value: unknown, userId: string): string {
+  return typeof value === 'string' && value ? value : defaultDiceBearAvatarKey(userId);
+}
+
+function resolveAvatarUrl(value: unknown): string | null {
+  return typeof value === 'string' && value ? value : null;
 }
 
 function decodeTimestamp(value: unknown, field: string): number | null {
@@ -199,8 +208,7 @@ export class SupabaseGameService implements GameService {
     const profile = data as ProfilePayload;
     if (
       typeof profile.id !== 'string' ||
-      typeof profile.display_name !== 'string' ||
-      typeof profile.avatar_key !== 'string'
+      typeof profile.display_name !== 'string'
     ) {
       throw new ServiceError('PROFILE_INVALID', 'Sunucudan geçersiz profil bilgisi alındı.');
     }
@@ -208,8 +216,8 @@ export class SupabaseGameService implements GameService {
     return {
       id: profile.id,
       name: profile.display_name,
-      avatarKey: profile.avatar_key,
-      avatarUrl: profile.avatar_url,
+      avatarKey: resolveAvatarKey(profile.avatar_key, profile.id),
+      avatarUrl: resolveAvatarUrl(profile.avatar_url),
       isHost: false,
       isReady: false,
       isOnline: true,
@@ -251,7 +259,7 @@ export class SupabaseGameService implements GameService {
     const { data, error } = await sb.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: { data: { name: name.trim().slice(0, 32) || 'Oyuncu', avatarKey: 'fox' } },
+      options: { data: { name: name.trim().slice(0, 32) || 'Oyuncu' } },
     });
     if (error) throw new ServiceError('AUTH_SIGNUP_FAILED', this.authErrorMessage(error.message));
     if (!data.user) {
@@ -458,6 +466,8 @@ export class SupabaseGameService implements GameService {
     totalRounds: number;
     roundSeconds: number;
     categories: CategoryId[];
+    isPrivate?: boolean;
+    password?: string;
   }): Promise<{ code: string; playerId: string }> {
     const sb = ensureSupabase();
     if (!this.cachedPlayer) {
@@ -474,6 +484,8 @@ export class SupabaseGameService implements GameService {
       p_total_rounds: config.totalRounds,
       p_round_seconds: config.roundSeconds,
       p_categories: config.categories,
+      p_is_private: config.isPrivate ?? false,
+      p_password: config.isPrivate ? config.password : null,
     });
 
     if (error) {
@@ -494,7 +506,8 @@ export class SupabaseGameService implements GameService {
   async joinRoom(
     code: string,
     name: string,
-    avatarKey: string
+    avatarKey: string,
+    password?: string
   ): Promise<{ playerId: string }> {
     const sb = ensureSupabase();
     const cleanCode = code.trim().toUpperCase();
@@ -506,12 +519,27 @@ export class SupabaseGameService implements GameService {
       p_code: cleanCode,
       p_name: name.trim() || 'Oyuncu',
       p_avatar_key: avatarKey,
+      p_password: password || null,
     });
 
     if (error) {
+      const message = error.message.toLowerCase();
+      if (message.includes('oda dolu')) {
+        throw new ServiceError('ROOM_FULL', 'Oda dolu.');
+      }
+      if (message.includes('oyun çoktan başladı')) {
+        throw new ServiceError('GAME_ALREADY_STARTED', 'Oyun çoktan başladı.');
+      }
       throw new ServiceError('JOIN_ROOM_FAILED', error.message);
     }
 
+    const joined = Array.isArray(data) ? data[0] : data;
+    if (!joined || typeof joined !== 'object' || !('player_id' in joined)) {
+      throw new ServiceError(
+        'ROOM_ACCESS_DENIED',
+        'Oda kodu veya şifre hatalı ya da katılım geçici olarak sınırlandı.'
+      );
+    }
     const playerId = this.cachedPlayer!.id;
     await this.setupRealtimeSubscription(cleanCode);
     return { playerId };
@@ -749,8 +777,8 @@ export class SupabaseGameService implements GameService {
     return data.map((d: LeaderboardRow) => ({
       id: d.player_id,
       name: d.name,
-      avatarKey: d.avatar_key,
-      avatarUrl: d.avatar_url,
+      avatarKey: resolveAvatarKey(d.avatar_key, d.player_id),
+      avatarUrl: resolveAvatarUrl(d.avatar_url),
       score: Number(d.score),
       gamesPlayed: d.games_played,
       gamesWon: d.games_won,
@@ -849,8 +877,8 @@ export class SupabaseGameService implements GameService {
       .map((row: SocialPlayerRow) => ({
         id: row.user_id,
         name: row.display_name,
-        avatarKey: row.avatar_key,
-        avatarUrl: row.avatar_url,
+        avatarKey: resolveAvatarKey(row.avatar_key, row.user_id),
+        avatarUrl: resolveAvatarUrl(row.avatar_url),
         relationshipStatus: 'friends',
       }));
   }
@@ -863,7 +891,7 @@ export class SupabaseGameService implements GameService {
       requestId: row.request_id,
       id: row.user_id,
       name: row.display_name,
-      avatarKey: row.avatar_key,
+      avatarKey: resolveAvatarKey(row.avatar_key, row.user_id),
       relationshipStatus: 'incoming_pending',
       createdAt: new Date(row.created_at).getTime(),
     }));

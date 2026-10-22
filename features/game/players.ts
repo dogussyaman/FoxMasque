@@ -3,6 +3,7 @@ import { createAvatar } from '@dicebear/core';
 import * as adventurer from '@dicebear/adventurer';
 import * as bottts from '@dicebear/bottts';
 import * as funEmoji from '@dicebear/fun-emoji';
+import * as lorelei from '@dicebear/lorelei';
 
 export const AVATARS = {
   fox: { key: 'fox', emoji: '🦊', gradient: ['#F97316', '#FB923C'] as const },
@@ -21,30 +22,83 @@ export type AvatarKey = keyof typeof AVATARS;
 
 export const AVATAR_KEYS = Object.keys(AVATARS) as AvatarKey[];
 
-export const DICEBEAR_AVATAR_KEYS = Array.from(
-  { length: 36 },
-  (_, index) => `db-${index.toString().padStart(2, '0')}`
-);
+export const DICEBEAR_STYLES = ['lorelei', 'bottts', 'adventurer'] as const;
+export type DiceBearStyle = (typeof DICEBEAR_STYLES)[number];
 
-export function diceBearAvatarSvg(key: string): string | null {
-  const index = Number(key.slice(3));
-  if (
-    !key.startsWith('db-') ||
-    !Number.isInteger(index) ||
-    index < 0 ||
-    index >= DICEBEAR_AVATAR_KEYS.length
-  ) {
-    return null;
-  }
-
-  const options = { seed: `foxmasque-${index + 1}` };
-  if (index < 12) return createAvatar(adventurer, options).toString();
-  if (index < 24) return createAvatar(bottts, options).toString();
-  return createAvatar(funEmoji, options).toString();
+export function createDiceBearAvatarKey(style: DiceBearStyle, seed: string): string {
+  return `db:${style}:${seed}`;
 }
 
-export function avatarOf(key: string) {
-  return (AVATARS as Record<string, (typeof AVATARS)[AvatarKey]>)[key] ?? AVATARS.fox;
+export const DICEBEAR_AVATAR_KEYS = DICEBEAR_STYLES.flatMap((style) =>
+  Array.from({ length: 12 }, (_, index) =>
+    createDiceBearAvatarKey(style, `foxmasque-${(index + 1).toString().padStart(2, '0')}`)
+  )
+);
+
+function hashSeed(value: string, initialValue: number): string {
+  let hash = initialValue;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function defaultDiceBearAvatarKey(userId?: string | null): string {
+  if (!userId) return createDiceBearAvatarKey('lorelei', 'foxmasque-default');
+  const seed = `user-${hashSeed(userId, 2166136261)}${hashSeed(userId, 2246822519)}`;
+  return createDiceBearAvatarKey('lorelei', seed);
+}
+
+export function createRandomDiceBearAvatarKey(style: DiceBearStyle = 'lorelei'): string {
+  const seed = `p-${Date.now().toString(36).slice(-6)}-${Math.random().toString(36).slice(2, 8)}`;
+  return createDiceBearAvatarKey(style, seed);
+}
+
+const avatarSvgCache = new Map<string, string>();
+const MAX_CACHED_AVATARS = 128;
+
+export function diceBearAvatarSvg(key: string): string | null {
+  const cached = avatarSvgCache.get(key);
+  if (cached) return cached;
+
+  let svg: string | null = null;
+  const selection = /^db:(lorelei|bottts|adventurer):([a-zA-Z0-9_-]{1,80})$/.exec(key);
+  if (selection) {
+    const seed = selection[2];
+    switch (selection[1] as DiceBearStyle) {
+      case 'lorelei':
+        svg = createAvatar(lorelei, { seed }).toString();
+        break;
+      case 'bottts':
+        svg = createAvatar(bottts, { seed }).toString();
+        break;
+      case 'adventurer':
+        svg = createAvatar(adventurer, { seed }).toString();
+        break;
+    }
+  } else {
+    const legacySelection = /^db-(\d{2})$/.exec(key);
+    const index = legacySelection ? Number(legacySelection[1]) : -1;
+    if (index >= 0 && index < 36) {
+      const options = { seed: `foxmasque-${index + 1}` };
+      if (index < 12) svg = createAvatar(adventurer, options).toString();
+      else if (index < 24) svg = createAvatar(bottts, options).toString();
+      else svg = createAvatar(funEmoji, options).toString();
+    }
+  }
+
+  if (svg) {
+    if (avatarSvgCache.size >= MAX_CACHED_AVATARS) {
+      const oldestKey = avatarSvgCache.keys().next().value;
+      if (oldestKey) avatarSvgCache.delete(oldestKey);
+    }
+    avatarSvgCache.set(key, svg);
+  }
+  return svg;
+}
+
+export function avatarOf(key?: string | null) {
+  return (AVATARS as Record<string, (typeof AVATARS)[AvatarKey]>)[key ?? ''] ?? AVATARS.fox;
 }
 
 export const SAMPLE_PLAYER_NAMES = [

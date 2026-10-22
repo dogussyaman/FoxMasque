@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -11,12 +11,12 @@ import {
   Image,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronLeft, LogIn, Users, KeyRound, Sparkles } from 'lucide-react-native';
+import { ChevronLeft, LogIn, Users, KeyRound, Sparkles, Eye, EyeOff } from 'lucide-react-native';
 import { Screen, Button, Card, Avatar, Badge, StickyActionBar, Input } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
-import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
+import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
 import type { RoomSummary } from '@/services/types';
 import { mascotImages } from '@/assets/illustrations';
 
@@ -25,28 +25,52 @@ export default function JoinRoomScreen() {
   const { trigger } = useHaptics();
 
   const [code, setCode] = useState('');
+  const [roomPassword, setRoomPassword] = useState('');
+  const [showRoomPassword, setShowRoomPassword] = useState(false);
   const [name, setName] = useState(currentPlayer?.name ?? 'Oyuncu');
-  const [avatarKey, setAvatarKey] = useState<AvatarKey>((currentPlayer?.avatarKey as AvatarKey) ?? 'panda');
+  const [avatarKey, setAvatarKey] = useState(currentPlayer?.avatarKey ?? 'fox');
   const [openRooms, setOpenRooms] = useState<RoomSummary[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const submitting = useRef(false);
 
   useEffect(() => {
-    service.listOpenRooms().then(setOpenRooms).catch(() => {});
+    let active = true;
+    service.listOpenRooms()
+      .then((rooms) => {
+        if (active) setOpenRooms(rooms);
+      })
+      .catch((e) => {
+        if (active) setError(`Açık odalar yüklenemedi: ${(e as Error).message}`);
+      })
+      .finally(() => {
+        if (active) setLoadingRooms(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [service]);
 
   const handleJoin = async (targetCode?: string) => {
+    if (submitting.current) return;
     const finalCode = (targetCode || code).trim().toUpperCase();
-    if (!finalCode) {
-      setError('Lütfen 5 haneli bir oda kodu gir.');
+    if (!/^[A-Z0-9]{5,6}$/.test(finalCode)) {
+      setError('Lütfen geçerli 5-6 karakterli bir oda kodu gir.');
       return;
     }
+    submitting.current = true;
     trigger('medium');
     setLoading(true);
     setError(null);
     try {
-      const res = await service.joinRoom(finalCode, name.trim() || 'Oyuncu', avatarKey);
+      const res = await service.joinRoom(
+        finalCode,
+        name.trim() || 'Oyuncu',
+        avatarKey,
+        roomPassword || undefined
+      );
       setRoomCode(finalCode);
       const state = await service.getRoomState(finalCode);
       setRoomState(state);
@@ -57,6 +81,7 @@ export default function JoinRoomScreen() {
     } catch (e) {
       setError((e as Error).message || 'Odaya katılırken bir hata oluştu.');
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   };
@@ -127,6 +152,41 @@ export default function JoinRoomScreen() {
             />
           </Card>
 
+          <Card variant="surface" style={styles.sectionCard}>
+            <View style={styles.codeHeaderRow}>
+              <KeyRound color={colors.purpleSoft} size={18} />
+              <Text style={styles.sectionLabel}>Oda Şifresi</Text>
+            </View>
+            <Text style={styles.roomPasswordHint}>Kilitli odalarda gereklidir; açık odalarda boş bırak.</Text>
+            <View style={styles.roomPasswordRow}>
+              <TextInput
+                value={roomPassword}
+                onChangeText={(value) => {
+                  setError(null);
+                  setRoomPassword(value);
+                }}
+                placeholder="Oda şifresi"
+                placeholderTextColor={colors.textMuted}
+                style={styles.roomPasswordInput}
+                secureTextEntry={!showRoomPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={72}
+                accessibilityLabel="Oda şifresi"
+              />
+              <Pressable
+                onPress={() => setShowRoomPassword((visible) => !visible)}
+                accessibilityRole="button"
+                accessibilityLabel={showRoomPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                style={styles.passwordVisibilityButton}
+              >
+                {showRoomPassword
+                  ? <EyeOff color={colors.textSecondary} size={20} />
+                  : <Eye color={colors.textSecondary} size={20} />}
+              </Pressable>
+            </View>
+          </Card>
+
           {/* Profile Card */}
           <Card variant="surface" style={styles.sectionCard}>
             <Text style={styles.sectionLabel}>Lobiye Giriş İsmin</Text>
@@ -147,7 +207,7 @@ export default function JoinRoomScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.avatarScroll}
             >
-              {AVATAR_KEYS.map((key) => {
+              {[...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS].map((key) => {
                 const active = avatarKey === key;
                 return (
                   <Pressable
@@ -166,6 +226,9 @@ export default function JoinRoomScreen() {
           </Card>
 
           {/* Open Rooms Section */}
+          {loadingRooms ? (
+            <Text style={styles.roomPasswordHint}>Açık odalar aranıyor...</Text>
+          ) : null}
           {openRooms.length > 0 && (
             <View style={styles.openRoomsWrap}>
               <View style={styles.openRoomsHeader}>
@@ -177,6 +240,7 @@ export default function JoinRoomScreen() {
                 <Pressable
                   key={room.code}
                   onPress={() => handleJoin(room.code)}
+                  disabled={loading}
                   style={styles.roomRow}
                 >
                   <View style={{ flex: 1 }}>
@@ -273,6 +337,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginBottom: 8,
+  },
+  roomPasswordHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  roomPasswordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurfaceAlt,
+  },
+  roomPasswordInput: {
+    flex: 1,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Medium',
+  },
+  passwordVisibilityButton: {
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionLabel: {
     ...typography.bodyMedium,

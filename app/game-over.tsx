@@ -122,7 +122,7 @@ export default function GameOverScreen() {
             {/* 2nd place */}
             <PopView delay={260} duration={380}>
               <Pressable onPress={() => setProfilePlayer(topThree[1])} style={[styles.podiumCol, styles.secondPlace]}>
-                <Avatar avatarKey={topThree[1].avatarKey} size={48} />
+                <Avatar avatarKey={topThree[1].avatarKey} userId={topThree[1].id} size={48} />
                 <View style={styles.silverBadge}>
                   <Text style={styles.podiumRankNum}>2</Text>
                 </View>
@@ -144,7 +144,7 @@ export default function GameOverScreen() {
                     <Crown color={colors.yellow} size={22} fill={colors.yellow} />
                   </MascotFloat>
                 </View>
-                <Avatar avatarKey={topThree[0].avatarKey} size={60} ring />
+                <Avatar avatarKey={topThree[0].avatarKey} userId={topThree[0].id} size={60} ring />
                 <View style={styles.goldBadge}>
                   <Text style={styles.podiumRankNum}>1</Text>
                 </View>
@@ -164,7 +164,7 @@ export default function GameOverScreen() {
             {topThree[2] && (
               <PopView delay={380} duration={380}>
                 <Pressable onPress={() => setProfilePlayer(topThree[2])} style={[styles.podiumCol, styles.thirdPlace]}>
-                  <Avatar avatarKey={topThree[2].avatarKey} size={44} />
+                  <Avatar avatarKey={topThree[2].avatarKey} userId={topThree[2].id} size={44} />
                   <View style={styles.bronzeBadge}>
                     <Text style={styles.podiumRankNum}>3</Text>
                   </View>
@@ -197,7 +197,7 @@ export default function GameOverScreen() {
                         style={[styles.restRow, isMe && styles.meRow]}
                       >
                         <Text style={styles.restRank}>#{rank}</Text>
-                        <Avatar avatarKey={player.avatarKey} size={36} ring={isMe} />
+                        <Avatar avatarKey={player.avatarKey} userId={player.id} size={36} ring={isMe} />
                         <Text style={[styles.restName, isMe && { color: colors.orange }]}>
                           {player.name} {isMe ? '(Sen)' : ''}
                         </Text>

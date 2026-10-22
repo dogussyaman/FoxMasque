@@ -19,6 +19,7 @@ export default function AbilitySelectScreen() {
   const [error, setError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const expirationRequested = useRef<number | null>(null);
+  const submitting = useRef(false);
 
   // Transition to question screen once room enters 'fake_answer' or 'question' phase
   useEffect(() => {
@@ -98,7 +99,8 @@ export default function AbilitySelectScreen() {
   };
 
   const handleConfirm = async () => {
-    if (!roomCode || !me) return;
+    if (!roomCode || !me || submitting.current) return;
+    submitting.current = true;
     trigger('medium');
     setLoading(true);
     setError(null);
@@ -110,26 +112,29 @@ export default function AbilitySelectScreen() {
           targetId: targetId || undefined,
         });
       }
-      setConfirmed(true);
       await service.confirmAbilitySelection(roomCode);
+      setConfirmed(true);
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   };
 
   const handleSkip = async () => {
-    if (!roomCode) return;
+    if (!roomCode || submitting.current) return;
+    submitting.current = true;
     trigger('light');
     setLoading(true);
     setError(null);
     try {
-      setConfirmed(true);
       await service.confirmAbilitySelection(roomCode);
+      setConfirmed(true);
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   };
@@ -199,6 +204,11 @@ export default function AbilitySelectScreen() {
                   </View>
                   <Text style={styles.desc}>{ab.description}</Text>
                   <Text style={styles.unlockDesc}>🔒 Kural: {ab.unlockRule}</Text>
+                  {!check.allowed ? (
+                    <Text style={styles.disabledReason}>{check.reason}</Text>
+                  ) : (
+                    <Text style={styles.usesRemaining}>{left} kullanım hakkı kaldı</Text>
+                  )}
                 </Pressable>
               </StaggerRow>
             );
@@ -221,7 +231,7 @@ export default function AbilitySelectScreen() {
                     }}
                     style={[styles.targetChip, isTarget && styles.targetChipActive]}
                   >
-                    <Avatar avatarKey={opp.avatarUrl ?? opp.avatarKey} size={36} ring={isTarget} />
+                    <Avatar avatarKey={opp.avatarUrl ?? opp.avatarKey} userId={opp.id} size={36} ring={isTarget} />
                     <Text style={[styles.targetName, isTarget && styles.targetNameActive]}>
                       {opp.name}
                     </Text>
@@ -359,6 +369,16 @@ const styles = StyleSheet.create({
     color: colors.yellow,
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  disabledReason: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 5,
+  },
+  usesRemaining: {
+    ...typography.caption,
+    color: colors.lime,
+    marginTop: 5,
   },
   targetSection: {
     marginTop: spacing.sm,

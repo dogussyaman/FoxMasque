@@ -124,6 +124,7 @@ export default function HomeScreen() {
           >
             <Avatar
               avatarKey={currentPlayer?.avatarUrl ?? currentPlayer?.avatarKey ?? 'fox'}
+              userId={currentPlayer?.id}
               size={38}
               ring
             />
@@ -361,7 +362,7 @@ export default function HomeScreen() {
                       {i + 1}
                     </Text>
                   </View>
-                  <Avatar avatarKey={p.avatarKey} size={36} />
+                  <Avatar avatarKey={p.avatarKey} userId={p.id} size={36} />
                   <Text style={styles.leaderName} numberOfLines={1}>
                     {p.name}
                   </Text>

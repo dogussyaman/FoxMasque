@@ -86,7 +86,7 @@ export default function ScoreboardScreen() {
               <PopView delay={220} duration={360}>
                 <View style={[styles.podiumCol, styles.podiumColSecond]}>
                   <View style={styles.avatarWrapSecond}>
-                    <Avatar avatarKey={top2.avatarUrl ?? top2.avatarKey} size={48} />
+                    <Avatar avatarKey={top2.avatarUrl ?? top2.avatarKey} userId={top2.id} size={48} />
                     <View style={styles.silverBadge}>
                       <Text style={styles.podiumRankText}>2</Text>
                     </View>
@@ -110,7 +110,7 @@ export default function ScoreboardScreen() {
                     </MascotFloat>
                   </View>
                   <View style={styles.avatarWrapFirst}>
-                    <Avatar avatarKey={top1.avatarUrl ?? top1.avatarKey} size={58} ring />
+                    <Avatar avatarKey={top1.avatarUrl ?? top1.avatarKey} userId={top1.id} size={58} ring />
                     <View style={styles.goldBadge}>
                       <Text style={styles.podiumRankText}>1</Text>
                     </View>
@@ -133,7 +133,7 @@ export default function ScoreboardScreen() {
               <PopView delay={340} duration={360}>
                 <View style={[styles.podiumCol, styles.podiumColThird]}>
                   <View style={styles.avatarWrapThird}>
-                    <Avatar avatarKey={top3.avatarUrl ?? top3.avatarKey} size={44} />
+                    <Avatar avatarKey={top3.avatarUrl ?? top3.avatarKey} userId={top3.id} size={44} />
                     <View style={styles.bronzeBadge}>
                       <Text style={styles.podiumRankText}>3</Text>
                     </View>
@@ -168,7 +168,7 @@ export default function ScoreboardScreen() {
                     </Text>
                   </View>
 
-                  <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} size={40} ring={isMe} />
+                  <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} userId={player.id} size={40} ring={isMe} />
 
                   <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={[styles.playerName, isMe && { color: colors.orange }]}>

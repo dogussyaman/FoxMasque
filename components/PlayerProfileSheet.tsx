@@ -71,7 +71,7 @@ export function PlayerProfileSheet({ player, isSelf, visible, onClose }: PlayerP
   return (
     <ModalSheet visible={visible} onClose={onClose} title="Oyuncu Profili">
       <View style={styles.profile}>
-        <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} size={82} ring />
+        <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} userId={player.id} size={82} ring />
         <Text style={styles.name}>{player.name}</Text>
         <Text style={styles.score}>{player.score} toplam puan</Text>
         <View style={styles.stats}>

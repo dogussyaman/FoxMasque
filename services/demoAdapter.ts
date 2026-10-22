@@ -36,6 +36,7 @@ function generateCode(): string {
 
 interface DemoRoom {
   config: RoomConfig;
+  password?: string;
   players: Record<string, Player>;
   phase: RoomPhase;
   currentRound: number;
@@ -61,6 +62,7 @@ export class DemoGameService implements GameService {
   private handlers = new Set<ServiceEventHandler>();
   private rooms = new Map<string, DemoRoom>();
   private currentPlayer: Player | null = null;
+  private playerSequence = 0;
   private leaderboard: Player[] = [];
   private relationships = new Map<string, RelationshipStatus>();
   private friendRequests = new Map<string, FriendRequest>();
@@ -90,7 +92,7 @@ export class DemoGameService implements GameService {
 
   async signInAnonymously(name: string, avatarKey: string): Promise<Player> {
     const player: Player = {
-      id: `me-${Date.now()}`,
+      id: `me-${Date.now()}-${this.playerSequence++}`,
       name: name.trim() || 'Sen',
       avatarKey,
       isHost: false,
@@ -168,7 +170,16 @@ export class DemoGameService implements GameService {
     totalRounds: number;
     roundSeconds: number;
     categories: CategoryId[];
+    isPrivate?: boolean;
+    password?: string;
   }): Promise<{ code: string; playerId: string }> {
+    if (config.isPrivate && (
+      !config.password ||
+      config.password.length < 8 ||
+      config.password.length > 72
+    )) {
+      throw new ServiceError('ROOM_PASSWORD_INVALID', 'Oda şifresi 8-72 karakter arasında olmalıdır.');
+    }
     if (!this.currentPlayer) {
       await this.signInAnonymously(config.hostName, config.avatarKey);
     }
@@ -201,6 +212,7 @@ export class DemoGameService implements GameService {
 
     const room: DemoRoom = {
       config: roomConfig,
+      password: config.isPrivate ? config.password : undefined,
       players,
       phase: 'lobby',
       currentRound: 1,
@@ -224,9 +236,21 @@ export class DemoGameService implements GameService {
     return { code, playerId: hostId };
   }
 
-  async joinRoom(code: string, name: string, avatarKey: string): Promise<{ playerId: string }> {
-    const room = this.rooms.get(code);
+  async joinRoom(code: string, name: string, avatarKey: string, password?: string): Promise<{ playerId: string }> {
+    const cleanCode = code.trim().toUpperCase();
+    const room = this.rooms.get(cleanCode);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    const existingPlayerId = this.currentPlayer?.id;
+    const isExistingMember = !!existingPlayerId && !!room.players[existingPlayerId];
+    if (room.password && !isExistingMember && room.password !== password) {
+      throw new ServiceError('ROOM_ACCESS_DENIED', 'Oda şifresi hatalı.');
+    }
+    if (!isExistingMember && room.phase !== 'lobby') {
+      throw new ServiceError('GAME_ALREADY_STARTED', 'Oyun çoktan başladı.');
+    }
+    if (!isExistingMember && Object.keys(room.players).length >= room.config.maxPlayers) {
+      throw new ServiceError('ROOM_FULL', 'Oda dolu.');
+    }
     const ids = Object.values(room.players).map((p) => p.avatarKey);
     const key = avatarKey || pickAvatarKey(ids);
     if (!this.currentPlayer) await this.signInAnonymously(name, key);
@@ -242,18 +266,41 @@ export class DemoGameService implements GameService {
   async leaveRoom(code: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) return;
-    if (this.currentPlayer) delete room.players[this.currentPlayer.id];
+    if (this.currentPlayer) {
+      const leavingId = this.currentPlayer.id;
+      const wasHost = room.config.hostId === leavingId;
+      delete room.players[leavingId];
+      if (Object.keys(room.players).length === 0) {
+        this.rooms.delete(code);
+        return;
+      }
+      if (wasHost) {
+        const nextHost = Object.values(room.players)[0];
+        room.config.hostId = nextHost.id;
+        for (const player of Object.values(room.players)) {
+          player.isHost = player.id === nextHost.id;
+          if (player.isHost) player.isReady = true;
+        }
+      }
+    }
     this.emit({ type: 'player_left', payload: { code } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
   getRoomState(code: string): Promise<GameState | null> {
+    const room = this.rooms.get(code);
+    if (!room || !this.currentPlayer || !room.players[this.currentPlayer.id]) {
+      return Promise.resolve(null);
+    }
     return Promise.resolve(this.snapshot(code));
   }
 
   listOpenRooms(): Promise<RoomSummary[]> {
     const list: RoomSummary[] = [];
     for (const room of this.rooms.values()) {
+      if (room.password || room.phase !== 'lobby' || Object.keys(room.players).length >= room.config.maxPlayers) {
+        continue;
+      }
       const host = Object.values(room.players).find((p) => p.isHost);
       list.push({
         code: room.config.code,
@@ -269,12 +316,11 @@ export class DemoGameService implements GameService {
   async setReady(code: string, ready: boolean): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
-    if (this.currentPlayer) {
-      room.players[this.currentPlayer.id] = {
-        ...room.players[this.currentPlayer.id],
-        isReady: ready,
-      };
+    const player = this.currentPlayer && room.players[this.currentPlayer.id];
+    if (!player || room.phase !== 'lobby') {
+      throw new ServiceError('ROOM_ACCESS_DENIED', 'Lobideki oda üyeleri hazır durumunu değiştirebilir.');
     }
+    room.players[player.id] = { ...player, isReady: ready };
     this.emit({ type: 'player_ready', payload: { code } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
@@ -284,7 +330,7 @@ export class DemoGameService implements GameService {
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
     const fromId = this.currentPlayer?.id;
     const target = room.players[toId];
-    if (!fromId || !target || fromId === toId) {
+    if (!fromId || !room.players[fromId] || !target || fromId === toId) {
       throw new ServiceError('NUDGE_TARGET_INVALID', 'Geçerli bir oda oyuncusu seçmelisin.');
     }
     if (!['lobby', 'fake_answer', 'guess'].includes(room.phase)) {
@@ -321,6 +367,12 @@ export class DemoGameService implements GameService {
   async startGame(code: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (!this.currentPlayer || room.config.hostId !== this.currentPlayer.id) {
+      throw new ServiceError('HOST_ONLY', 'Yalnızca oda kurucusu oyunu başlatabilir.');
+    }
+    if (room.phase !== 'lobby') {
+      throw new ServiceError('WRONG_PHASE', 'Oyun zaten başladı.');
+    }
     const readyCount = Object.values(room.players).filter((p) => p.isReady).length;
     if (readyCount < 2) throw new ServiceError('NOT_ENOUGH_READY', 'En az 2 oyuncu hazır olmalı.');
 
@@ -349,7 +401,11 @@ export class DemoGameService implements GameService {
 
   async getCurrentQuestion(code: string) {
     const room = this.rooms.get(code);
-    if (!room?.currentQuestionId) return null;
+    if (
+      !room?.currentQuestionId ||
+      !this.currentPlayer ||
+      !room.players[this.currentPlayer.id]
+    ) return null;
     return QUESTIONS.find((question) => question.id === room.currentQuestionId) ?? null;
   }
 
@@ -373,8 +429,12 @@ export class DemoGameService implements GameService {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
     const player = this.currentPlayer;
-    if (!player || action.playerId !== player.id || room.phase !== 'ability_select') {
+    if (!player || !room.players[player.id] || action.playerId !== player.id || room.phase !== 'ability_select') {
       throw new ServiceError('ABILITY_UNAVAILABLE', 'Yetenek bu aşamada kullanılamaz.');
+    }
+    if (room.phaseDeadlineAt !== null && room.phaseDeadlineAt <= Date.now()) {
+      await this.advanceExpiredPhase(code);
+      throw new ServiceError('PHASE_EXPIRED', 'Yetenek seçimi süresi doldu.');
     }
     if (room.abilityActions.some((used) =>
       used.playerId === action.playerId && used.abilityId === action.abilityId
@@ -414,6 +474,10 @@ export class DemoGameService implements GameService {
     if (!playerId || !room.players[playerId] || room.phase !== 'ability_select') {
       throw new ServiceError('ABILITY_PHASE_INVALID', 'Yetenek seçimi aşaması aktif değil.');
     }
+    if (room.phaseDeadlineAt !== null && room.phaseDeadlineAt <= Date.now()) {
+      await this.advanceExpiredPhase(code);
+      return;
+    }
     room.abilityReadyRound[playerId] = room.currentRound;
     for (const player of Object.values(room.players)) {
       if (player.id !== playerId) room.abilityReadyRound[player.id] = room.currentRound;
@@ -431,8 +495,16 @@ export class DemoGameService implements GameService {
   async submitFakeAnswer(code: string, fakeAnswer: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    const player = this.currentPlayer && room.players[this.currentPlayer.id];
+    if (!player || player.isBlockedCurrentRound) {
+      throw new ServiceError('ROOM_ACCESS_DENIED', 'Bu tur cevap gönderemezsiniz.');
+    }
     if (room.phase !== 'fake_answer') throw new ServiceError('WRONG_PHASE', 'Sahte cevap aşaması aktif değil.');
-    const meId = this.currentPlayer?.id ?? 'me';
+    if (room.phaseDeadlineAt !== null && room.phaseDeadlineAt <= Date.now()) {
+      await this.advanceExpiredPhase(code);
+      throw new ServiceError('PHASE_EXPIRED', 'Cevap süresi doldu.');
+    }
+    const meId = player.id;
     const clean = fakeAnswer.trim();
     if (!clean || clean.length > 120) {
       throw new ServiceError('INVALID_FAKE_ANSWER', 'Cevap 1-120 karakter arasında olmalıdır.');
@@ -472,8 +544,11 @@ export class DemoGameService implements GameService {
 
   async getRoundChoices(code: string): Promise<RoundChoice[]> {
     const room = this.rooms.get(code);
-    if (!room) return [];
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
     const meId = this.currentPlayer?.id;
+    if (!meId || !room.players[meId]) {
+      throw new ServiceError('ROOM_ACCESS_DENIED', 'Oda erişim izniniz yok.');
+    }
     return room.choices.map((c) => ({
       choiceIndex: c.choiceIndex,
       text: c.text,
@@ -485,8 +560,16 @@ export class DemoGameService implements GameService {
   async submitPick(code: string, choiceIndex: number): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    const player = this.currentPlayer && room.players[this.currentPlayer.id];
+    if (!player || player.isBlockedCurrentRound) {
+      throw new ServiceError('ROOM_ACCESS_DENIED', 'Bu tur tahmin gönderemezsiniz.');
+    }
     if (room.phase !== 'guess') throw new ServiceError('WRONG_PHASE', 'Tahmin aşaması aktif değil.');
-    const meId = this.currentPlayer?.id ?? 'me';
+    if (room.phaseDeadlineAt !== null && room.phaseDeadlineAt <= Date.now()) {
+      await this.advanceExpiredPhase(code);
+      throw new ServiceError('PHASE_EXPIRED', 'Tahmin süresi doldu.');
+    }
+    const meId = player.id;
     const choice = room.choices.find((item) => item.choiceIndex === choiceIndex);
     if (!choice || choice.authorId === meId) {
       throw new ServiceError('INVALID_PICK', 'Bu seçenek geçerli değil.');
@@ -550,6 +633,9 @@ export class DemoGameService implements GameService {
   advancePhase(code: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (!this.currentPlayer || room.config.hostId !== this.currentPlayer.id) {
+      throw new ServiceError('HOST_ONLY', 'Yalnızca oda kurucusu aşamayı ilerletebilir.');
+    }
 
     if (room.phase === 'ability_select') {
       this.setPhase(room, 'fake_answer', room.config.roundSeconds);
@@ -581,6 +667,12 @@ export class DemoGameService implements GameService {
   async rematch(code: string): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (!this.currentPlayer || room.config.hostId !== this.currentPlayer.id) {
+      throw new ServiceError('HOST_ONLY', 'Yalnızca oda kurucusu yeni oyun başlatabilir.');
+    }
+    if (room.phase !== 'game_over') {
+      throw new ServiceError('WRONG_PHASE', 'Oyun henüz tamamlanmadı.');
+    }
     this.setPhase(room, 'lobby');
     room.currentRound = 1;
     room.fakeAnswers = {};
@@ -628,6 +720,9 @@ export class DemoGameService implements GameService {
   async advanceExpiredPhase(code: string): Promise<boolean> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (!this.currentPlayer || !room.players[this.currentPlayer.id]) {
+      throw new ServiceError('ROOM_ACCESS_DENIED', 'Oda erişim izniniz yok.');
+    }
     if (room.phaseDeadlineAt === null || room.phaseDeadlineAt > Date.now()) return false;
     if (room.phase === 'ability_select') {
       this.setPhase(room, 'fake_answer', room.config.roundSeconds);

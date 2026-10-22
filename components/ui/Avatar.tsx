@@ -1,20 +1,39 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
+import { memo, useMemo, useState } from 'react';
 import { SvgXml } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radii, typography } from '@/theme';
-import { avatarOf, diceBearAvatarSvg } from '@/features/game/players';
+import {
+  avatarOf,
+  defaultDiceBearAvatarKey,
+  diceBearAvatarSvg,
+} from '@/features/game/players';
 
 interface AvatarProps {
-  avatarKey: string;
+  avatarKey?: string | null;
+  userId?: string | null;
   size?: number;
   online?: boolean;
   ring?: boolean;
 }
 
-export function Avatar({ avatarKey, size = 44, online, ring }: AvatarProps) {
+export const UserAvatar = memo(function UserAvatar({
+  avatarKey,
+  userId,
+  size = 44,
+  online,
+  ring,
+}: AvatarProps) {
   const av = avatarOf(avatarKey);
-  const imageUri = /^(https?:|file:|content:)/.test(avatarKey) ? avatarKey : null;
-  const diceBearSvg = imageUri ? null : diceBearAvatarSvg(avatarKey);
+  const imageUri = /^(https?:|file:|content:)/.test(avatarKey ?? '') ? avatarKey ?? null : null;
+  const fallbackKey =
+    imageUri ? defaultDiceBearAvatarKey(userId) : avatarKey || defaultDiceBearAvatarKey(userId);
+  const diceBearSvg = useMemo(() => diceBearAvatarSvg(fallbackKey), [fallbackKey]);
+  const [loadedImageUri, setLoadedImageUri] = useState<string | null>(null);
+  const [failedImageUri, setFailedImageUri] = useState<string | null>(null);
+  const imageLoaded = imageUri !== null && loadedImageUri === imageUri;
+  const imageFailed = imageUri !== null && failedImageUri === imageUri;
+
   return (
     <View style={{ position: 'relative' }}>
       <LinearGradient
@@ -31,13 +50,19 @@ export function Avatar({ avatarKey, size = 44, online, ring }: AvatarProps) {
           },
         ]}
       >
-        {imageUri ? (
-          <Image source={{ uri: imageUri }} style={StyleSheet.absoluteFill} />
-        ) : diceBearSvg ? (
+        {diceBearSvg ? (
           <SvgXml xml={diceBearSvg} width={size} height={size} />
         ) : (
           <Text style={{ fontSize: size * 0.5 }}>{av.emoji}</Text>
         )}
+        {imageUri && !imageFailed ? (
+          <Image
+            source={{ uri: imageUri }}
+            style={[StyleSheet.absoluteFill, { opacity: imageLoaded ? 1 : 0 }]}
+            onLoad={() => setLoadedImageUri(imageUri)}
+            onError={() => setFailedImageUri(imageUri)}
+          />
+        ) : null}
       </LinearGradient>
       {online !== undefined ? (
         <View
@@ -49,7 +74,9 @@ export function Avatar({ avatarKey, size = 44, online, ring }: AvatarProps) {
       ) : null}
     </View>
   );
-}
+});
+
+export const Avatar = UserAvatar;
 
 export function AvatarStack({ keys, max = 4, size = 32 }: { keys: string[]; max?: number; size?: number }) {
   const shown = keys.slice(0, max);

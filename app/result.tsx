@@ -289,7 +289,7 @@ export default function ResultScreen() {
               return (
                 <StaggerRow key={player.id} index={idx} delay={70}>
                   <Card variant="surface" style={styles.playerRow}>
-                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} size={38} />
+                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} userId={player.id} size={38} />
                     <Text style={styles.playerName}>{player.name}</Text>
                     <View style={styles.badgesWrap}>
                       {res?.outcome.correct ? (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,7 +12,7 @@ import {
   ImageBackground,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronLeft, Sparkles, Check, Clock, Layers, Flame } from 'lucide-react-native';
+import { ChevronLeft, Sparkles, Check, Clock, Layers, Flame, Eye, EyeOff } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Screen, Button, Card, Avatar, Badge, StickyActionBar, Input } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
@@ -23,7 +23,7 @@ import {
   CATEGORY_OPTIONS,
   type CategoryOptionId,
 } from '@/features/game/categories';
-import { AVATAR_KEYS, type AvatarKey } from '@/features/game/players';
+import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 import { categoryOptionImages } from '@/assets/categories/options';
@@ -37,13 +37,17 @@ export default function CreateRoomScreen() {
   const { trigger } = useHaptics();
 
   const [hostName, setHostName] = useState(currentPlayer?.name ?? 'Ev Sahibi');
-  const [avatarKey, setAvatarKey] = useState<AvatarKey>((currentPlayer?.avatarKey as AvatarKey) ?? 'fox');
+  const [avatarKey, setAvatarKey] = useState(currentPlayer?.avatarKey ?? 'fox');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [rounds, setRounds] = useState(5);
   const [roundSeconds, setRoundSeconds] = useState(15);
   const [selectedCats, setSelectedCats] = useState<CategoryOptionId[]>([]);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [roomPassword, setRoomPassword] = useState('');
+  const [showRoomPassword, setShowRoomPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitting = useRef(false);
 
   const toggleCategory = (id: CategoryOptionId) => {
     soundService.play('click');
@@ -66,9 +70,14 @@ export default function CreateRoomScreen() {
   };
 
   const handleCreate = async () => {
+    if (submitting.current) return;
     if (selectedCats.length === 0) {
       trigger('warning');
       setError('Lütfen en az 1 kategori seçin.');
+      return;
+    }
+    if (isPrivate && (roomPassword.length < 8 || roomPassword.length > 72)) {
+      setError('Kilitli oda şifresi 8-72 karakter arasında olmalıdır.');
       return;
     }
     const supportedQuestionCategories = new Set(
@@ -84,6 +93,7 @@ export default function CreateRoomScreen() {
       setError(`Seçtiğin kategorilerde ${rounds} tur için yeterli farklı soru yok.`);
       return;
     }
+    submitting.current = true;
     trigger('medium');
     setLoading(true);
     setError(null);
@@ -100,6 +110,8 @@ export default function CreateRoomScreen() {
               .map((category) => category.questionCategoryId)
           )
         ),
+        isPrivate,
+        password: isPrivate ? roomPassword : undefined,
       });
 
       setRoomCode(res.code);
@@ -113,6 +125,7 @@ export default function CreateRoomScreen() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
   };
@@ -164,7 +177,16 @@ export default function CreateRoomScreen() {
                 onPress={() => setShowAvatarPicker(!showAvatarPicker)}
                 style={styles.avatarButton}
               >
-                <Avatar avatarKey={avatarKey} size={54} ring />
+                <Avatar
+                  avatarKey={
+                    currentPlayer?.avatarKey === avatarKey
+                      ? currentPlayer.avatarUrl ?? avatarKey
+                      : avatarKey
+                  }
+                  userId={currentPlayer?.id}
+                  size={54}
+                  ring
+                />
                 <View style={styles.avatarChangeBadge}>
                   <Text style={styles.avatarChangeText}>Değiştir</Text>
                 </View>
@@ -185,7 +207,7 @@ export default function CreateRoomScreen() {
             {/* Avatar Picker Drawer */}
             {showAvatarPicker && (
               <View style={styles.avatarPickerRow}>
-                {AVATAR_KEYS.map((k) => (
+                {[...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS].map((k) => (
                   <Pressable
                     key={k}
                     onPress={() => {
@@ -203,6 +225,60 @@ export default function CreateRoomScreen() {
                 ))}
               </View>
             )}
+          </Card>
+
+          <Card variant="surface" style={styles.sectionCard}>
+            <Text style={styles.sectionLabel}>Oda Erişimi</Text>
+            <View style={styles.roomTypeRow}>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: !isPrivate }}
+                onPress={() => setIsPrivate(false)}
+                style={[styles.roomTypeButton, !isPrivate && styles.roomTypeButtonActive]}
+              >
+                <Text style={[styles.roomTypeTitle, !isPrivate && styles.roomTypeTitleActive]}>
+                  Herkese Açık
+                </Text>
+                <Text style={styles.roomTypeDescription}>Açık oda listesinde görünür.</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isPrivate }}
+                onPress={() => setIsPrivate(true)}
+                style={[styles.roomTypeButton, isPrivate && styles.roomTypeButtonActive]}
+              >
+                <Text style={[styles.roomTypeTitle, isPrivate && styles.roomTypeTitleActive]}>
+                  Kilitli / Özel
+                </Text>
+                <Text style={styles.roomTypeDescription}>Katılım için oda kodu ve şifre gerekir.</Text>
+              </Pressable>
+            </View>
+            {isPrivate ? (
+              <View style={styles.roomPasswordRow}>
+                <TextInput
+                  value={roomPassword}
+                  onChangeText={setRoomPassword}
+                  placeholder="En az 8 karakter"
+                  placeholderTextColor={colors.textMuted}
+                  style={styles.roomPasswordInput}
+                  secureTextEntry={!showRoomPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={72}
+                  accessibilityLabel="Özel oda şifresi"
+                />
+                <Pressable
+                  onPress={() => setShowRoomPassword((visible) => !visible)}
+                  accessibilityRole="button"
+                  accessibilityLabel={showRoomPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                  style={styles.passwordVisibilityButton}
+                >
+                  {showRoomPassword
+                    ? <EyeOff color={colors.textSecondary} size={20} />
+                    : <Eye color={colors.textSecondary} size={20} />}
+                </Pressable>
+              </View>
+            ) : null}
           </Card>
 
           {/* Rounds selector */}
@@ -447,6 +523,60 @@ const styles = StyleSheet.create({
   },
   sectionCard: {
     marginBottom: spacing.md,
+  },
+  roomTypeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  roomTypeButton: {
+    flex: 1,
+    minHeight: 82,
+    justifyContent: 'center',
+    padding: spacing.sm,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurfaceAlt,
+  },
+  roomTypeButtonActive: {
+    borderColor: colors.orange,
+    backgroundColor: 'rgba(255, 113, 59, 0.12)',
+  },
+  roomTypeTitle: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 12,
+    color: colors.textPrimary,
+  },
+  roomTypeTitleActive: {
+    color: colors.orange,
+  },
+  roomTypeDescription: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 3,
+  },
+  roomPasswordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurfaceAlt,
+  },
+  roomPasswordInput: {
+    flex: 1,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Medium',
+  },
+  passwordVisibilityButton: {
+    minWidth: 48,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   labelRow: {
     flexDirection: 'row',

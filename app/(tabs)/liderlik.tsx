@@ -91,7 +91,7 @@ export default function LiderlikScreen() {
           <View style={styles.podiumContainer}>
             {/* 2nd place */}
             <View style={[styles.podiumCol, styles.secondPlace]}>
-              <Avatar avatarKey={topThree[1].avatarUrl ?? topThree[1].avatarKey} size={50} />
+              <Avatar avatarKey={topThree[1].avatarUrl ?? topThree[1].avatarKey} userId={topThree[1].id} size={50} />
               <View style={styles.silverBadge}>
                 <Text style={styles.rankNum}>2</Text>
               </View>
@@ -109,7 +109,7 @@ export default function LiderlikScreen() {
               <View style={styles.crownWrap}>
                 <Crown color={colors.yellow} size={24} fill={colors.yellow} />
               </View>
-              <Avatar avatarKey={topThree[0].avatarUrl ?? topThree[0].avatarKey} size={62} ring />
+              <Avatar avatarKey={topThree[0].avatarUrl ?? topThree[0].avatarKey} userId={topThree[0].id} size={62} ring />
               <View style={styles.goldBadge}>
                 <Text style={styles.rankNum}>1</Text>
               </View>
@@ -126,7 +126,7 @@ export default function LiderlikScreen() {
 
             {/* 3rd place */}
             <View style={[styles.podiumCol, styles.thirdPlace]}>
-              <Avatar avatarKey={topThree[2].avatarUrl ?? topThree[2].avatarKey} size={46} />
+              <Avatar avatarKey={topThree[2].avatarUrl ?? topThree[2].avatarKey} userId={topThree[2].id} size={46} />
               <View style={styles.bronzeBadge}>
                 <Text style={styles.rankNum}>3</Text>
               </View>
@@ -178,7 +178,7 @@ export default function LiderlikScreen() {
                     ]}
                   >
                     <Text style={styles.rankText}>#{rank}</Text>
-                    <Avatar avatarKey={p.avatarUrl ?? p.avatarKey} size={40} ring={isMe} />
+                    <Avatar avatarKey={p.avatarUrl ?? p.avatarKey} userId={p.id} size={40} ring={isMe} />
                     <View style={styles.playerDetails}>
                       <Text
                         style={[styles.name, isMe && { color: colors.orange }]}

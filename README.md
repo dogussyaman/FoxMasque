@@ -17,7 +17,9 @@ client. Never place a `service_role` key or Google OAuth client secret in an
 
 - For a brand-new, empty Supabase project, run `supabase/schema.sql` once in
   the SQL Editor. It contains the schema and functions assembled from the
-  migrations, including the profile trigger needed by Supabase Auth.
+  migrations through `20261029000001`, including the profile trigger needed by
+  Supabase Auth. Then run `supabase/migrations/20261030000001_private_room_access.sql`
+  once to enable password-protected rooms.
 - For a project where migrations have already been applied, do not run the
   combined schema. Apply only pending files in `supabase/migrations/` in
   timestamp order, including `20261024000001_fix_join_room_ambiguity.sql` to
@@ -25,7 +27,18 @@ client. Never place a `service_role` key or Google OAuth client secret in an
   to fix the nudge RPC, and `20261026000001_choices_correct_and_player_fakes_only.sql`
   to exclude question distractors from the answer pool, followed by
   `20261027000001_question_bank_and_seen_history.sql` for question metadata,
-  per-player repeat prevention, and confirmed-seen tracking.
+  per-player repeat prevention, and confirmed-seen tracking. Apply any later
+  pending question-bank/avatar migrations (including `20261028000001` and
+  `20261029000001`) before `20261030000001_private_room_access.sql`.
+
+The private-room migration installs `pgcrypto` in the Supabase `extensions`
+schema. Room passwords are stored only as salted bcrypt hashes, and private
+rooms are excluded from the public-room listing. The join RPC rate-limits
+failed attempts per authenticated user. Configure Supabase Auth's anonymous
+sign-in rate limits as an additional safeguard; database-only rate limiting
+cannot identify an IP address reliably.
+The local demo adapter keeps its mock room password only in transient
+in-memory state; production access control is enforced by Supabase RPCs.
 
 Questions use one prompt and one correct answer. Legacy distractors are moved
 to the restricted `question_legacy_decoys` archive before the live question

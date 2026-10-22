@@ -99,8 +99,10 @@ export interface GameService {
     totalRounds: number;
     roundSeconds: number;
     categories: CategoryId[];
+    isPrivate?: boolean;
+    password?: string;
   }): Promise<{ code: string; playerId: string }>;
-  joinRoom(code: string, name: string, avatarKey: string): Promise<{ playerId: string }>;
+  joinRoom(code: string, name: string, avatarKey: string, password?: string): Promise<{ playerId: string }>;
   leaveRoom(code: string): Promise<void>;
   getRoomState(code: string): Promise<GameState | null>;
   getCurrentQuestion(code: string): Promise<Question | null>;

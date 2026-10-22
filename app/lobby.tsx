@@ -222,7 +222,7 @@ export default function LobbyScreen() {
                   style={[styles.playerCard, isSelf && styles.playerCardSelf]}
                 >
                   <Pressable onPress={() => setProfilePlayer(player)} style={styles.playerIdentity}>
-                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} size={46} online={player.isOnline} ring={isSelf} />
+                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} userId={player.id} size={46} online={player.isOnline} ring={isSelf} />
                     <View style={styles.playerIdentityText}>
                       <View style={styles.nameWrap}>
                         <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>

@@ -156,7 +156,7 @@ export default function WaitingScreen() {
                   ]}
                 >
                   <Pressable onPress={() => setProfilePlayer(player)} style={styles.playerIdentity}>
-                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} size={42} ring={isSelf} />
+                    <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} userId={player.id} size={42} ring={isSelf} />
                     <View style={styles.playerIdentityText}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Text style={[styles.playerName, isSelf && { color: colors.orange }]}>

@@ -113,6 +113,9 @@ export default function ProfilScreen() {
     }
   };
 
+  const avatarChoices: string[] = [...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS];
+  if (!avatarChoices.includes(selectedAvatar)) avatarChoices.push(selectedAvatar);
+
   return (
     <Screen gradient diagonalSlice padded={false} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -129,7 +132,12 @@ export default function ProfilScreen() {
         {/* Profile Card */}
         <Card variant="surface" glow="orange" style={styles.profileCard}>
           <View style={styles.avatarRow}>
-            <Avatar avatarKey={currentPlayer?.avatarUrl ?? selectedAvatar} size={68} ring />
+            <Avatar
+              avatarKey={currentPlayer?.avatarUrl ?? selectedAvatar}
+              userId={currentPlayer?.id}
+              size={68}
+              ring
+            />
             <View style={{ flex: 1 }}>
               {editingName ? (
                 <View style={styles.editRow}>
@@ -174,22 +182,31 @@ export default function ProfilScreen() {
           </Pressable>
           {profileError ? <Text style={styles.profileError}>{profileError}</Text> : null}
 
-          <Text style={styles.subhead}>AVATAR KÜTÜPHANESİ</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.avatarList}>
-            {[...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS].map((key) => {
+          <Text style={styles.subhead}>AVATARINI SEÇ</Text>
+          <Text style={styles.avatarStyles}>LORELEI · BOTTTS · ADVENTURER</Text>
+          <View style={styles.avatarGrid}>
+            {avatarChoices.map((key) => {
               const active = selectedAvatar === key;
               return (
                 <Pressable
                   key={key}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${key.startsWith('db:') ? key.split(':')[1] : key} avatarını seç`}
+                  accessibilityState={{ selected: active }}
                   onPress={() => handleAvatarSelect(key)}
                   disabled={savingProfile}
                   style={[styles.avatarChoice, active && styles.avatarChoiceActive]}
                 >
-                  <Avatar avatarKey={key} size={42} />
+                  <Avatar avatarKey={key} size={44} />
+                  {active ? (
+                    <View style={styles.avatarSelectedMark}>
+                      <Check color="#FFF" size={12} strokeWidth={3} />
+                    </View>
+                  ) : null}
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </View>
         </Card>
 
         {/* Stats Grid */}
@@ -415,10 +432,45 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
-  avatarList: {
-    gap: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 2,
+  avatarStyles: {
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 9,
+    color: colors.textMuted,
+    letterSpacing: 0.8,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.xs,
+  },
+  avatarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing.xs,
+  },
+  avatarChoice: {
+    width: '19%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.lg,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    position: 'relative',
+    marginBottom: 2,
+  },
+  avatarChoiceActive: {
+    borderColor: colors.orange,
+    backgroundColor: 'rgba(255, 113, 59, 0.2)',
+  },
+  avatarSelectedMark: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.orange,
   },
   uploadAvatarButton: {
     minHeight: 44,
@@ -443,16 +495,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.dangerSoft,
     marginTop: spacing.xs,
-  },
-  avatarChoice: {
-    padding: 4,
-    borderRadius: radii.xl,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  avatarChoiceActive: {
-    borderColor: colors.orange,
-    backgroundColor: 'rgba(255, 113, 59, 0.2)',
   },
   section: {
     marginTop: spacing.xl,
