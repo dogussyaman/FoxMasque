@@ -75,7 +75,7 @@ export interface ServiceEvent {
 
 export type ServiceEventHandler = (event: ServiceEvent) => void;
 
-export interface GameService {
+export interface RoundRevealChoice { choiceIndex: number; text: string; authorId: string | null; isCorrect: boolean; pickedBy: string[]; }\n\nexport interface GameService {
   readonly kind: 'demo' | 'supabase';
 
   connect(): Promise<void>;
@@ -133,7 +133,7 @@ export interface GameService {
 
   // ZARTO Bluff Game flow
   submitFakeAnswer(code: string, fakeAnswer: string): Promise<void>;
-  getRoundChoices(code: string): Promise<RoundChoice[]>;
+  getRoundChoices(code: string): Promise<RoundChoice[]>;\n  getRoundReveal(code: string): Promise<RoundRevealChoice[]>;
   submitPick(code: string, choiceIndex: number): Promise<void>;
   useAbility(code: string, action: AbilityAction): Promise<void>;
   confirmAbilitySelection(code: string): Promise<void>;
