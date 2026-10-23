@@ -35,6 +35,7 @@ import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 import { usePrototype } from '@/features/prototype/PrototypeProvider';
 import { useSound } from '@/hooks/useSound';
+import { getRemainingSeconds, getServerNowMs } from '@/services/serverClock';
 
 export default function QuestionScreen() {
   const { colors } = useTheme();
@@ -67,7 +68,7 @@ export default function QuestionScreen() {
         ? Math.max(0, Math.ceil((deadline - pausedAt) / 1000))
         : deadlineCountdown?.deadline === deadline
           ? deadlineCountdown.secondsLeft
-          : totalTime
+          : getRemainingSeconds(deadline, getServerNowMs())
       : secondsLeft;
   const [fakeAnswerText, setFakeAnswerText] = useState('');
   const [fakeSubmitted, setFakeSubmitted] = useState(false);
@@ -98,7 +99,7 @@ export default function QuestionScreen() {
     const updateCountdown = () => {
       setDeadlineCountdown({
         deadline,
-        secondsLeft: Math.max(0, Math.ceil((deadline - (pausedAt ?? Date.now())) / 1000)),
+        secondsLeft: getRemainingSeconds(deadline, pausedAt ?? getServerNowMs()),
       });
     };
     const initialUpdate = setTimeout(updateCountdown, 0);
@@ -313,6 +314,8 @@ export default function QuestionScreen() {
       handleTimeExpire();
       return;
     }
+    // Live rooms use the shared server deadline; never run a second client-local countdown.
+    if (isLive) return;
     const timer = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev === 4) trigger('warning');
@@ -321,7 +324,7 @@ export default function QuestionScreen() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [displayedSecondsLeft, isGuessPhase, isGamePaused, handleTimeExpire, trigger]);
+  }, [displayedSecondsLeft, isGuessPhase, isGamePaused, isLive, handleTimeExpire, trigger]);
 
   const handleTogglePause = async () => {
     soundService.play('click');

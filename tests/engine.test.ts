@@ -17,11 +17,20 @@ import {
   freshAbilityState,
 } from '../features/game/abilities';
 import { DemoGameService } from '../services/demoAdapter';
+import { estimateServerClockOffsetMs, getRemainingSeconds } from '../services/serverClock';
 import { pickQuestions, questionsForCategory } from '../features/game/questions';
 import type { Player, RoundChoice } from '../types/game';
 import type { Question } from '../features/game/questions';
 import './soundService.test';
 import './avatar.test';
+
+test('server clock offset corrects client clock skew using request midpoint', () => {
+  // Client clock is 8.5 seconds behind server; request RTT is 1 second.
+  assert.equal(estimateServerClockOffsetMs(10_000, 1_000, 2_000), 8_500);
+  assert.equal(estimateServerClockOffsetMs(10_000, 2_000, 1_000), null);
+  assert.equal(getRemainingSeconds(20_000, 15_001), 5);
+  assert.equal(getRemainingSeconds(20_000, 20_001), 0);
+});
 
 const sampleQuestion: Question = {
   id: 'test-q1',
