@@ -31,6 +31,7 @@ import { isCategoryId, type CategoryId } from '../features/game/categories';
 import { defaultDiceBearAvatarKey } from '../features/game/players';
 import type { Question } from '../features/game/questions';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { getWebAppUrl } from '../lib/webAppUrl';
 
 interface ProfilePayload {
   id: string;
@@ -293,7 +294,7 @@ export class SupabaseGameService implements GameService {
   async signInWithGoogle(): Promise<Player> {
     const sb = ensureSupabase();
     const redirectTo = Platform.OS === 'web'
-      ? `${window.location.origin}/auth/callback`
+      ? getWebAppUrl('auth/callback')
       : Linking.createURL('auth/callback');
     const { data, error } = await sb.auth.signInWithOAuth({
       provider: 'google',
@@ -333,7 +334,7 @@ export class SupabaseGameService implements GameService {
   async sendPasswordResetEmail(email: string): Promise<void> {
     const sb = ensureSupabase();
     const redirectTo = Platform.OS === 'web'
-      ? `${window.location.origin}/auth/callback`
+      ? getWebAppUrl('auth/callback')
       : Linking.createURL('auth/callback');
     const { error } = await sb.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo });
     if (error) throw new ServiceError('PASSWORD_RESET_FAILED', this.authErrorMessage(error.message));

@@ -47,6 +47,7 @@ import { mascotImages } from '@/assets/illustrations';
 import { usePrototype } from '@/features/prototype/PrototypeProvider';
 import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
 import type { Player } from '@/types/game';
+import { getWebAppUrl } from '@/lib/webAppUrl';
 
 export default function LobbyScreen() {
   const { colors } = useTheme();
@@ -156,7 +157,7 @@ export default function LobbyScreen() {
       const queryParams: Record<string, string> = { code: roomCode };
       if (inviteToken) queryParams.invite = inviteToken;
       const inviteUrl = Platform.OS === 'web'
-        ? `${window.location.origin}/join-room?${new URLSearchParams(queryParams).toString()}`
+        ? getWebAppUrl(`join-room?${new URLSearchParams(queryParams).toString()}`)
         : Linking.createURL('join-room', { queryParams });
       await Share.share({
         message: `Kızılkuyruk partisine davetlisin! Tek dokunuşla katıl: ${inviteUrl}`,
