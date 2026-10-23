@@ -624,16 +624,23 @@ export class SupabaseGameService implements GameService {
 
   async getRoomState(code: string): Promise<GameState | null> {
     const sb = ensureSupabase();
-    const requestStartedAt = Date.now();
+    const clockRequestStartedAt = Date.now();
+    const clockPromise = sb.rpc('get_server_time_secure').then((response) => ({
+      ...response,
+      receivedAt: Date.now(),
+    }));
     const [roomResponse, clockResponse] = await Promise.all([
       sb.rpc('get_room_state_secure', {
         p_room_code: code.trim().toUpperCase(),
       }),
-      sb.rpc('get_server_time_secure'),
+      clockPromise,
     ]);
-    const responseReceivedAt = Date.now();
     if (!clockResponse.error && clockResponse.data !== null) {
-      syncServerClockFromRoundTrip(clockResponse.data, requestStartedAt, responseReceivedAt);
+      syncServerClockFromRoundTrip(
+        clockResponse.data,
+        clockRequestStartedAt,
+        clockResponse.receivedAt,
+      );
     }
     const { data, error } = roomResponse;
     if (error) {
