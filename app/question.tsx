@@ -92,6 +92,7 @@ export default function QuestionScreen() {
   const isFirstMount = useRef(true);
   const expirationRequested = useRef<string | null>(null);
   const acknowledgedQuestion = useRef<string | null>(null);
+  const choicesRequestId = useRef(0);
 
   useEffect(() => {
     if (!isLive || deadline === null || deadline === undefined) return;
@@ -164,7 +165,9 @@ export default function QuestionScreen() {
     && roomState.progress?.submissionStatus[currentPlayer.id] === true;
 
   // Determine sub-phase: 'fake_answer' or 'guess'
-  const isGuessPhase = roomState?.phase === 'guess' || choices.length > 0;
+  // Render the answer-choice stage only after the authoritative room phase says `guess`.
+  // A stale/late choices response must never advance the player out of the answer-entry stage.
+  const isGuessPhase = roomState?.phase === 'guess';
 
   // Reset timer & clock state when new question begins
   useEffect(() => {
@@ -274,19 +277,42 @@ export default function QuestionScreen() {
     }
   }, [displayedSecondsLeft, isGuessPhase, isBlocked, hasSubmittedFake, submitting, isGamePaused, soundEnabled, soundPreferenceReady]);
 
-  // Listen for phase transitions to result / scoreboard
+  // Keep answer choices strictly scoped to the authoritative guess phase.
+  // Invalidate in-flight requests when the phase changes so late responses cannot
+  // leak choices into the next question/answer-entry screen.
   useEffect(() => {
+    const requestId = ++choicesRequestId.current;
     if (roomState?.phase === 'reveal') {
       soundService.stop('clock');
       router.replace('/result');
-    } else if (roomState?.phase === 'scoreboard') {
+      return;
+    }
+    if (roomState?.phase === 'scoreboard') {
       soundService.stop('clock');
       router.replace('/scoreboard');
-    } else if (roomState?.phase === 'guess' && roomCode) {
-      service.getRoundChoices(roomCode).then((list) => {
-        if (list.length > 0) setChoices(list);
-      }).catch((e) => setError((e as Error).message));
+      return;
     }
+    if (roomState?.phase !== 'guess' || !roomCode) {
+      setChoices([]);
+      setSelectedChoiceIndex(null);
+      pickCommitted.current = false;
+      return;
+    }
+
+    setChoices([]);
+    setSelectedChoiceIndex(null);
+    pickCommitted.current = false;
+    void service.getRoundChoices(roomCode).then((list) => {
+      if (choicesRequestId.current !== requestId || roomState?.phase !== 'guess') return;
+      setChoices(list);
+    }).catch((e) => {
+      if (choicesRequestId.current === requestId) {
+        setError((e as Error).message);
+      }
+    });
+    return () => {
+      if (choicesRequestId.current === requestId) choicesRequestId.current += 1;
+    };
   }, [roomState?.phase, roomCode, service]);
 
   const handleTimeExpire = useCallback(() => {
