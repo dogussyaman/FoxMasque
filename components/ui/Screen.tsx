@@ -2,6 +2,7 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radii, spacing, typography } from '@/theme';
+import { useTheme } from '@/theme/ThemeProvider';
 import type { ReactNode } from 'react';
 
 interface ScreenProps {
@@ -21,17 +22,18 @@ export function Screen({
   edges = ['top', 'bottom'],
   style,
 }: ScreenProps) {
+  const { colors: themeColors } = useTheme();
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: themeColors.bgDarkest }]}>
       {/* Full-bleed edge-to-edge background */}
       {gradient ? (
         <LinearGradient
-          colors={[colors.bgDarkest, colors.bgDark, colors.bgDarkest]}
+          colors={[themeColors.bgDarkest, themeColors.bgDark, themeColors.bgDarkest]}
           locations={[0, 0.55, 1]}
           style={StyleSheet.absoluteFill}
         />
       ) : (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.zartoNight }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: themeColors.bgDarkest }]} />
       )}
 
       {/* Decorative diagonal game slices */}
@@ -62,11 +64,12 @@ export function ScreenHeader({
   subtitle?: string;
   right?: ReactNode;
 }) {
+  const { colors: themeColors } = useTheme();
   return (
     <View style={styles.header}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        <Text style={[styles.title, { color: themeColors.textPrimary }]}>{title}</Text>
+        {subtitle ? <Text style={[styles.subtitle, { color: themeColors.textSecondary }]}>{subtitle}</Text> : null}
       </View>
       {right}
     </View>

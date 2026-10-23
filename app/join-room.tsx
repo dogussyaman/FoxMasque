@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
@@ -21,6 +23,8 @@ import type { RoomSummary } from '@/services/types';
 import { mascotImages } from '@/assets/illustrations';
 
 export default function JoinRoomScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const {
     service,
     currentPlayer,
@@ -358,7 +362,7 @@ export default function JoinRoomScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

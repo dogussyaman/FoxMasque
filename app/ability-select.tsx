@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { router } from 'expo-router';
@@ -9,6 +11,8 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { ABILITIES, type AbilityId, canUseAbility, remainingUses } from '@/features/game/abilities';
 
 export default function AbilitySelectScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { roomCode, roomState, currentPlayer, service, refreshRoom } = useGameStore();
   const { trigger } = useHaptics();
 
@@ -266,7 +270,7 @@ export default function AbilitySelectScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     paddingVertical: 10,
   },

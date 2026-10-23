@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,6 +17,8 @@ import { useGameStore } from '@/store/gameStore';
 import type { Player } from '@/types/game';
 
 export default function AuthCallbackScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const params = useLocalSearchParams<{ code?: string; type?: string; error?: string; error_description?: string }>();
   const { service, setCurrentPlayer } = useGameStore();
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +118,7 @@ export default function AuthCallbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   flex: { flex: 1 },
   container: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl, gap: spacing.md },
   text: { ...typography.body, color: colors.textPrimary },

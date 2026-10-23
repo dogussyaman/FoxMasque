@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import {
@@ -60,6 +62,8 @@ const QUICK_SCORING_RULES = [
 ];
 
 export default function HomeScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const {
     init,
     isLive,
@@ -450,7 +454,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   recoveryOverlay: {
     flex: 1,
     justifyContent: 'center',

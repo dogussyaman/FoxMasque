@@ -10,6 +10,7 @@ import {
   type TextInputFocusEventData,
 } from 'react-native';
 import { colors, radii, spacing, typography } from '@/theme';
+import { useTheme } from '@/theme/ThemeProvider';
 
 export interface InputProps extends TextInputProps {
   focusedBorderColor?: string;
@@ -20,16 +21,17 @@ export const Input = forwardRef<TextInput, InputProps>(
   (
     {
       style,
-      focusedBorderColor = colors.orange,
+      focusedBorderColor,
       variant = 'card',
       onFocus,
       onBlur,
-      placeholderTextColor = colors.textMuted,
+      placeholderTextColor,
       ...props
     },
     ref
   ) => {
     const [isFocused, setIsFocused] = useState(false);
+    const { colors: themeColors } = useTheme();
 
     const handleFocus: NonNullable<TextInputProps['onFocus']> = (e) => {
       setIsFocused(true);
@@ -42,23 +44,23 @@ export const Input = forwardRef<TextInput, InputProps>(
     };
 
     const bgMap = {
-      card: colors.bgCard,
-      surface: colors.bgSurfaceAlt,
-      dark: colors.bgDark,
+      card: themeColors.bgCard,
+      surface: themeColors.bgSurfaceAlt,
+      dark: themeColors.bgDark,
     };
 
     return (
       <TextInput
         ref={ref}
-        placeholderTextColor={placeholderTextColor}
+        placeholderTextColor={placeholderTextColor ?? themeColors.textMuted}
         underlineColorAndroid="transparent"
         onFocus={handleFocus}
         onBlur={handleBlur}
         style={[
           styles.base,
-          { backgroundColor: bgMap[variant] },
+          { backgroundColor: bgMap[variant], color: themeColors.textPrimary },
           style,
-          isFocused && { borderColor: focusedBorderColor },
+          isFocused && { borderColor: focusedBorderColor ?? themeColors.orange },
         ]}
         {...props}
       />

@@ -8,6 +8,7 @@ import {
   defaultDiceBearAvatarKey,
   diceBearAvatarSvg,
 } from '@/features/game/players';
+import { useTheme } from '@/theme/ThemeProvider';
 
 interface AvatarProps {
   avatarKey?: string | null;
@@ -24,6 +25,7 @@ export const UserAvatar = memo(function UserAvatar({
   online,
   ring,
 }: AvatarProps) {
+  const { colors: themeColors } = useTheme();
   const av = avatarOf(avatarKey);
   const imageUri = /^(https?:|file:|content:)/.test(avatarKey ?? '') ? avatarKey ?? null : null;
   const fallbackKey =
@@ -46,7 +48,7 @@ export const UserAvatar = memo(function UserAvatar({
             borderRadius: size / 2,
             overflow: 'hidden',
             borderWidth: ring ? 2 : 0,
-            borderColor: ring ? colors.purpleSoft : 'transparent',
+            borderColor: ring ? themeColors.purpleSoft : 'transparent',
           },
         ]}
       >
@@ -68,7 +70,7 @@ export const UserAvatar = memo(function UserAvatar({
         <View
           style={[
             styles.dot,
-            { backgroundColor: online ? colors.success : colors.textMuted },
+            { backgroundColor: online ? themeColors.success : themeColors.textMuted },
           ]}
         />
       ) : null}
@@ -79,6 +81,7 @@ export const UserAvatar = memo(function UserAvatar({
 export const Avatar = UserAvatar;
 
 export function AvatarStack({ keys, max = 4, size = 32 }: { keys: string[]; max?: number; size?: number }) {
+  const { colors: themeColors } = useTheme();
   const shown = keys.slice(0, max);
   const extra = Math.max(0, keys.length - max);
   return (
@@ -89,8 +92,14 @@ export function AvatarStack({ keys, max = 4, size = 32 }: { keys: string[]; max?
         </View>
       ))}
       {extra > 0 ? (
-        <View style={[styles.extra, { width: size, height: size, borderRadius: size / 2 }]}>
-          <Text style={styles.extraText}>+{extra}</Text>
+        <View style={[styles.extra, {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: themeColors.bgElevated,
+          borderColor: themeColors.borderStrong,
+        }]}>
+          <Text style={[styles.extraText, { color: themeColors.textSecondary }]}>+{extra}</Text>
         </View>
       ) : null}
     </View>

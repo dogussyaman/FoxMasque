@@ -25,6 +25,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { colors } from '@/theme';
 import { soundService } from '@/services/soundService';
 import { useHaptics } from '@/hooks/useHaptics';
+import { useTheme } from '@/theme/ThemeProvider';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -191,6 +192,7 @@ function TabItem({
   onPress,
   onLongPress,
 }: TabItemProps) {
+  const { colors: themeColors } = useTheme();
   const iconStyle = useAnimatedStyle(() => {
     const distance = Math.abs(cx.value - center);
     const visibility = interpolate(distance, [16, 62], [0, 1], Extrapolation.CLAMP);
@@ -214,13 +216,14 @@ function TabItem({
       style={styles.tab}
     >
       <Animated.View style={[styles.inactiveIcon, iconStyle]}>
-        <Icon color="rgba(255, 247, 255, 0.78)" size={29} strokeWidth={2.2} />
+        <Icon color={themeColors.textSecondary} size={29} strokeWidth={2.2} />
       </Animated.View>
     </Pressable>
   );
 }
 
 export function LiquidGlassTabBar({ state, navigation, descriptors }: LiquidGlassTabBarProps) {
+  const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const { trigger } = useHaptics();
@@ -317,8 +320,8 @@ export function LiquidGlassTabBar({ state, navigation, descriptors }: LiquidGlas
           <AnimatedPath
             d={initialPath}
             animatedProps={pathProps}
-            fill="#20364B"
-            stroke="rgba(147, 197, 253, 0.68)"
+            fill={themeColors.bgCard}
+            stroke={themeColors.borderStrong}
             strokeWidth={1.75}
           />
         </Svg>
@@ -378,9 +381,20 @@ export function LiquidGlassTabBar({ state, navigation, descriptors }: LiquidGlas
           <Animated.View
             style={[styles.ring, { backgroundColor: activeConfig.activeColor }, ringStyle]}
           />
-          <View style={[styles.disc, { shadowColor: activeConfig.activeColor }]}>
+          <View style={[styles.disc, {
+            shadowColor: activeConfig.activeColor,
+            borderColor: themeColors.bgSurfaceMuted,
+          }]}>
             <Animated.View style={activeIconStyle}>
-              <ActiveIcon color="#FFFFFF" size={29} strokeWidth={2.5} />
+              <ActiveIcon
+                color={
+                  activeConfig.activeColor === colors.yellow || activeConfig.activeColor === colors.lime
+                    ? themeColors.textInverse
+                    : '#FFFFFF'
+                }
+                size={29}
+                strokeWidth={2.5}
+              />
             </Animated.View>
           </View>
         </Animated.View>

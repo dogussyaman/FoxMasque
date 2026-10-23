@@ -2,6 +2,8 @@ import { Pressable, StyleSheet, Text, View, ActivityIndicator, type ViewStyle } 
 import { colors, typography, radii, spacing, shadows } from '@/theme';
 import type { ReactNode } from 'react';
 import { soundService } from '@/services/soundService';
+import { useTheme } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 
 type Variant = 'primary' | 'orange' | 'secondary' | 'ghost' | 'danger' | 'success' | 'lime';
 type Size = 'sm' | 'md' | 'lg';
@@ -19,10 +21,10 @@ interface ButtonProps {
   disableSound?: boolean;
 }
 
-const VARIANTS: Record<
+const getVariants = (colors: ThemeColors): Record<
   Variant,
   { bg: string; fg: string; border: string; bottomBorder: string; shadow?: object }
-> = {
+> => ({
   primary: {
     bg: colors.purple,
     fg: colors.textOnAccent,
@@ -68,7 +70,7 @@ const VARIANTS: Record<
     bottomBorder: '#84CC16',
     shadow: shadows.glowLime,
   },
-};
+});
 
 export function Button({
   label,
@@ -82,7 +84,8 @@ export function Button({
   fullWidth,
   disableSound = false,
 }: ButtonProps) {
-  const v = VARIANTS[variant];
+  const { colors: themeColors } = useTheme();
+  const v = getVariants(themeColors)[variant];
   const height = size === 'lg' ? 56 : size === 'md' ? 48 : 38;
   const fontSize = size === 'lg' ? 17 : size === 'md' ? 15 : 13;
 
@@ -102,8 +105,8 @@ export function Button({
         v.shadow,
         {
           height,
-          backgroundColor: hovered && variant === 'orange' ? colors.orangeDeep : v.bg,
-          borderColor: hovered && variant === 'secondary' ? colors.purple : v.border,
+          backgroundColor: hovered && variant === 'orange' ? themeColors.orangeDeep : v.bg,
+          borderColor: hovered && variant === 'secondary' ? themeColors.purple : v.border,
           borderBottomColor: v.bottomBorder,
           borderBottomWidth: disabled ? 1 : 3.5,
           transform: [{ translateY: pressed ? 2.5 : 0 }, { scale: pressed ? 0.97 : 1 }],

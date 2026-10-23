@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView } from 'react-native';
 import { router } from 'expo-router';
@@ -19,6 +21,8 @@ import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 
 export default function ScoreboardScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
   const { trigger } = useHaptics();
 
@@ -210,7 +214,7 @@ export default function ScoreboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scroll: {
     paddingBottom: spacing.md,
     paddingTop: 4,

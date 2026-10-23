@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { colors, radii, spacing, typography, shadows } from '@/theme';
+import { useTheme } from '@/theme/ThemeProvider';
 import type { ReactNode } from 'react';
 
 interface CardProps {
@@ -10,27 +11,28 @@ interface CardProps {
 }
 
 export function Card({ children, style, variant = 'default', glow = 'none' }: CardProps) {
+  const { colors: themeColors } = useTheme();
   const bg =
     variant === 'elevated'
-      ? colors.bgElevated
+      ? themeColors.bgElevated
       : variant === 'outline'
       ? 'transparent'
       : variant === 'surface'
-      ? colors.bgCard
+      ? themeColors.bgCard
       : variant === 'accent'
-      ? colors.bgSurfaceAlt
+      ? themeColors.bgSurfaceAlt
       : variant === 'comic'
-      ? colors.bgCardAlt
-      : colors.bgCard;
+      ? themeColors.bgCardAlt
+      : themeColors.bgCard;
 
   const border =
     variant === 'outline'
-      ? colors.borderStrong
+      ? themeColors.borderStrong
       : variant === 'comic'
       ? colors.purple
       : variant === 'accent'
-      ? colors.borderAccent
-      : colors.border;
+      ? themeColors.borderAccent
+      : themeColors.border;
 
   const glowStyle =
     glow === 'purple'
@@ -70,11 +72,12 @@ export function CardHeader({
   subtitle?: string;
   right?: ReactNode;
 }) {
+  const { colors: themeColors } = useTheme();
   return (
     <View style={styles.header}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.headerTitle}>{title}</Text>
-        {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
+        <Text style={[styles.headerTitle, { color: themeColors.textPrimary }]}>{title}</Text>
+        {subtitle ? <Text style={[styles.headerSubtitle, { color: themeColors.textMuted }]}>{subtitle}</Text> : null}
       </View>
       {right}
     </View>

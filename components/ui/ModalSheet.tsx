@@ -2,6 +2,7 @@ import { Modal, StyleSheet, Text, View, Pressable } from 'react-native';
 import { colors, radii, spacing, typography } from '@/theme';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react-native';
+import { useTheme } from '@/theme/ThemeProvider';
 
 interface ModalSheetProps {
   visible: boolean;
@@ -12,15 +13,16 @@ interface ModalSheetProps {
 }
 
 export function ModalSheet({ visible, onClose, title, children, footer }: ModalSheetProps) {
+  const { colors: themeColors } = useTheme();
   return (
     <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={styles.sheet}>
+        <Pressable style={[styles.backdrop, { backgroundColor: themeColors.overlay }]} onPress={onClose} />
+        <View style={[styles.sheet, { backgroundColor: themeColors.bgSurface, borderColor: themeColors.border }]}>
           <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
+            <Text style={[styles.title, { color: themeColors.textPrimary }]}>{title}</Text>
             <Pressable onPress={onClose} hitSlop={12}>
-              <X color={colors.textSecondary} size={22} />
+              <X color={themeColors.textSecondary} size={22} />
             </Pressable>
           </View>
           <View style={styles.body}>{children}</View>

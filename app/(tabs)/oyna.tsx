@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { router } from 'expo-router';
 import { Image, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,6 +11,8 @@ import { mascotImages } from '@/assets/illustrations';
 import { categoryOptionImages } from '@/assets/categories/options';
 
 export default function OynaScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Screen gradient diagonalSlice padded={false} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -153,7 +157,7 @@ export default function OynaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   content: {
     paddingHorizontal: 18,
     paddingTop: 4,
@@ -200,13 +204,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   heroTitle: {
-    color: colors.textPrimary,
+    color: '#FFF7FF',
     fontFamily: 'Poppins-Bold',
     fontSize: 22,
     lineHeight: 28,
   },
   heroCopy: {
-    color: colors.textSecondary,
+    color: '#D8CCE6',
     fontFamily: 'Poppins-Regular',
     fontSize: 12,
     lineHeight: 17,
@@ -231,7 +235,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  tagText: { color: colors.textPrimary, fontFamily: 'Poppins-Medium', fontSize: 10 },
+  tagText: { color: '#FFF7FF', fontFamily: 'Poppins-Medium', fontSize: 10 },
   actions: { flexDirection: 'row', gap: 12, marginTop: spacing.lg },
   actionCard: {
     flex: 1,

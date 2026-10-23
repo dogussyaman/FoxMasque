@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   StyleSheet,
@@ -45,6 +47,8 @@ import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
 import type { Player } from '@/types/game';
 
 export default function LobbyScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const {
     roomCode,
     roomState,
@@ -401,7 +405,7 @@ export default function LobbyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Share, TextInput } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -9,6 +11,8 @@ import { useHaptics } from '@/hooks/useHaptics';
 import type { FriendRequest, SocialPlayer } from '@/services/types';
 
 export default function ArkadaslarScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { roomCode, service } = useGameStore();
   const { trigger } = useHaptics();
   const [friends, setFriends] = useState<SocialPlayer[]>([]);
@@ -341,6 +345,8 @@ function FriendRow({
   muted?: boolean;
   isLast?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <View style={[styles.row, !isLast && styles.rowBorder]}>
       <Avatar avatarKey={friend.avatarUrl ?? friend.avatarKey} userId={friend.id} size={42} />
@@ -366,7 +372,7 @@ function FriendRow({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scroll: {
     paddingHorizontal: 18,
     paddingTop: 4,

@@ -2,15 +2,17 @@ import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { Button } from './Button';
 import { mascotImages } from '@/assets/illustrations';
+import { useTheme } from '@/theme/ThemeProvider';
 
 export function LoadingState({ label = 'Hazırlanıyor…' }: { label?: string }) {
+  const { colors: themeColors } = useTheme();
   return (
-    <View style={styles.wrap}>
-      <View style={styles.mascotCircle}>
+    <View style={[styles.wrap, { backgroundColor: themeColors.bgCard, borderColor: themeColors.borderStrong }]}>
+      <View style={[styles.mascotCircle, { backgroundColor: themeColors.bgSurfaceAlt }]}>
         <Image source={mascotImages.searching} style={styles.mascotSmall} resizeMode="contain" />
       </View>
-      <ActivityIndicator size="large" color={colors.orange} style={{ marginTop: spacing.lg }} />
-      <Text style={styles.loadingText}>{label}</Text>
+      <ActivityIndicator size="large" color={themeColors.orange} style={{ marginTop: spacing.lg }} />
+      <Text style={[styles.loadingText, { color: themeColors.orange }]}>{label}</Text>
     </View>
   );
 }
@@ -26,13 +28,14 @@ export function EmptyState({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
   return (
-    <View style={styles.wrap}>
-      <View style={styles.mascotCircle}>
+    <View style={[styles.wrap, { backgroundColor: themeColors.bgCard, borderColor: themeColors.borderStrong }]}>
+      <View style={[styles.mascotCircle, { backgroundColor: themeColors.bgSurfaceAlt }]}>
         <Image source={mascotImages.lobby} style={styles.mascot} resizeMode="contain" />
       </View>
-      <Text style={styles.title}>{title}</Text>
-      {message ? <Text style={styles.text}>{message}</Text> : null}
+      <Text style={[styles.title, { color: themeColors.textPrimary }]}>{title}</Text>
+      {message ? <Text style={[styles.text, { color: themeColors.textSecondary }]}>{message}</Text> : null}
       {actionLabel && onAction ? (
         <Button label={actionLabel} onPress={onAction} variant="orange" size="md" style={styles.actionBtn} />
       ) : null}
@@ -49,13 +52,14 @@ export function ErrorState({
   message?: string;
   onRetry?: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
   return (
-    <View style={styles.wrap}>
-      <View style={[styles.mascotCircle, { borderColor: colors.danger }]}>
+    <View style={[styles.wrap, { backgroundColor: themeColors.bgCard, borderColor: themeColors.borderStrong }]}>
+      <View style={[styles.mascotCircle, { backgroundColor: themeColors.bgSurfaceAlt, borderColor: themeColors.danger }]}>
         <Image source={mascotImages.shocked} style={styles.mascot} resizeMode="contain" />
       </View>
-      <Text style={[styles.title, { color: colors.dangerSoft }]}>{title}</Text>
-      {message ? <Text style={styles.text}>{message}</Text> : null}
+      <Text style={[styles.title, { color: themeColors.dangerSoft }]}>{title}</Text>
+      {message ? <Text style={[styles.text, { color: themeColors.textSecondary }]}>{message}</Text> : null}
       {onRetry ? (
         <Button label="Tekrar Dene" onPress={onRetry} variant="primary" size="md" style={styles.actionBtn} />
       ) : null}
@@ -70,13 +74,14 @@ export function OfflineState({
   label?: string;
   onRetry?: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
   return (
-    <View style={styles.wrap}>
-      <View style={styles.mascotCircle}>
+    <View style={[styles.wrap, { backgroundColor: themeColors.bgCard, borderColor: themeColors.borderStrong }]}>
+      <View style={[styles.mascotCircle, { backgroundColor: themeColors.bgSurfaceAlt }]}>
         <Image source={mascotImages.searching} style={styles.mascot} resizeMode="contain" />
       </View>
-      <Text style={styles.title}>{label}</Text>
-      <Text style={styles.text}>İnternet bağlantını kontrol et veya tekrar dene.</Text>
+      <Text style={[styles.title, { color: themeColors.textPrimary }]}>{label}</Text>
+      <Text style={[styles.text, { color: themeColors.textSecondary }]}>İnternet bağlantını kontrol et veya tekrar dene.</Text>
       {onRetry ? (
         <Button label="Yeniden Bağlan" onPress={onRetry} variant="orange" size="md" style={styles.actionBtn} />
       ) : null}

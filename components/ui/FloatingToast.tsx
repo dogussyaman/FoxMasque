@@ -3,23 +3,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Sparkles } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeOutUp } from 'react-native-reanimated';
 import { colors, radii, shadows, spacing, typography } from '@/theme';
+import { useTheme } from '@/theme/ThemeProvider';
 
 export function FloatingToast({ title, message }: { title: string; message: string }) {
   const insets = useSafeAreaInsets();
+  const { colors: themeColors } = useTheme();
 
   return (
     <Animated.View
       entering={FadeInDown.duration(240)}
       exiting={FadeOutUp.duration(180)}
       pointerEvents="none"
-      style={[styles.container, { top: insets.top + spacing.sm }]}
+      style={[styles.container, {
+        top: insets.top + spacing.sm,
+        backgroundColor: themeColors.bgSurface,
+        borderColor: themeColors.borderStrong,
+      }]}
     >
       <View style={styles.iconWrap}>
         <Sparkles color={colors.orange} size={18} strokeWidth={2.3} />
       </View>
       <View style={styles.content}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.message}>{message}</Text>
+        <Text style={[styles.title, { color: themeColors.orange }]}>{title}</Text>
+        <Text style={[styles.message, { color: themeColors.textPrimary }]}>{message}</Text>
       </View>
     </Animated.View>
   );

@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
@@ -14,6 +16,8 @@ import {
 import { mascotImages } from '@/assets/illustrations';
 
 export default function OnboardingScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { setCurrentPlayer, service } = useGameStore();
   const { trigger } = useHaptics();
 
@@ -206,7 +210,7 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
   },

@@ -6,6 +6,8 @@ import { colors, radii, spacing, typography } from '@/theme';
 import type { Player } from '@/types/game';
 import { useGameStore } from '@/store/gameStore';
 import type { FriendRequest, RelationshipStatus } from '@/services/types';
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 
 interface PlayerProfileSheetProps {
   player: Player | null;
@@ -15,6 +17,8 @@ interface PlayerProfileSheetProps {
 }
 
 export function PlayerProfileSheet({ player, isSelf, visible, onClose }: PlayerProfileSheetProps) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { service } = useGameStore();
   const [status, setStatus] = useState<RelationshipStatus>('none');
   const [incomingRequest, setIncomingRequest] = useState<FriendRequest | null>(null);
@@ -147,7 +151,7 @@ export function PlayerProfileSheet({ player, isSelf, visible, onClose }: PlayerP
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   profile: {
     alignItems: 'center',
     paddingBottom: spacing.sm,

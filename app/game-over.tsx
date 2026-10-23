@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image, Pressable } from 'react-native';
 import { router } from 'expo-router';
@@ -23,6 +25,8 @@ import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
 import type { Player } from '@/types/game';
 
 export default function GameOverScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
   const { trigger } = useHaptics();
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
@@ -239,7 +243,7 @@ export default function GameOverScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scroll: {
     paddingBottom: spacing.md,
     paddingTop: 4,

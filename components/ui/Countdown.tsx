@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { colors, typography, radii } from '@/theme';
+import { useTheme } from '@/theme/ThemeProvider';
 
 interface CountdownProps {
   seconds: number;
@@ -10,6 +11,7 @@ interface CountdownProps {
 }
 
 export function Countdown({ seconds, onExpire, size = 64 }: CountdownProps) {
+  const { colors: themeColors } = useTheme();
   const [remaining, setRemaining] = useState(seconds);
   const progress = useSharedValue(1);
 
@@ -38,12 +40,18 @@ export function Countdown({ seconds, onExpire, size = 64 }: CountdownProps) {
   }));
 
   const tone =
-    remaining <= 5 ? colors.danger : remaining <= 10 ? colors.warning : colors.purpleSoft;
+    remaining <= 5 ? themeColors.danger : remaining <= 10 ? themeColors.warning : themeColors.purpleSoft;
 
   return (
     <View style={[styles.wrap, { width: size, height: size }]}>
       <Animated.View style={[styles.ring, { borderColor: tone }, ringStyle]} />
-      <View style={[styles.inner, { width: size - 8, height: size - 8, borderRadius: (size - 8) / 2 }]}>
+      <View style={[styles.inner, {
+        width: size - 8,
+        height: size - 8,
+        borderRadius: (size - 8) / 2,
+        backgroundColor: themeColors.bgSurface,
+        borderColor: themeColors.border,
+      }]}>
         <Text style={[styles.text, { color: tone }]}>{remaining}</Text>
       </View>
     </View>

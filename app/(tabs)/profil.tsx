@@ -3,9 +3,11 @@ import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Switch, Pressabl
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut, LoaderCircle } from 'lucide-react-native';
+import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut, LoaderCircle, Sun, Moon } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, Badge, Input } from '@/components/ui';
-import { colors, spacing, typography, radii, shadows } from '@/theme';
+import { spacing, typography, radii, shadows } from '@/theme';
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { useSound } from '@/hooks/useSound';
@@ -13,6 +15,8 @@ import { soundService } from '@/services/soundService';
 import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
 
 export default function ProfilScreen() {
+  const { colors, mode, setMode } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { currentPlayer, setCurrentPlayer, isLive, isAnonymous, connection, service } = useGameStore();
   const { trigger, enabled: hapticEnabled, ready: hapticPreferenceReady, setEnabled: setHapticEnabled } = useHaptics();
   const { enabled: soundEnabled, ready: soundPreferenceReady, setEnabled: setSoundEnabled } = useSound();
@@ -324,6 +328,42 @@ export default function ProfilScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>AYARLAR & TERCİHLER</Text>
           <Card variant="surface">
+            <Text style={styles.settingText}>Görünüm</Text>
+            <Text style={styles.settingSub}>Uygulamanın açık veya koyu temasını seç</Text>
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+              {([
+                { value: 'light', label: 'Açık', icon: Sun },
+                { value: 'dark', label: 'Koyu', icon: Moon },
+              ] as const).map(({ value, label, icon: Icon }) => {
+                const selected = mode === value;
+                return (
+                  <Pressable
+                    key={value}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => setMode(value)}
+                    style={{
+                      flex: 1,
+                      minHeight: 44,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: spacing.sm,
+                      borderRadius: radii.md,
+                      borderWidth: 1,
+                      borderColor: selected ? colors.orange : colors.borderStrong,
+                      backgroundColor: selected ? colors.orangeSurface : colors.bgSurfaceAlt,
+                    }}
+                  >
+                    <Icon size={17} color={selected ? colors.orange : colors.textSecondary} />
+                    <Text style={{ ...typography.small, color: selected ? colors.orange : colors.textPrimary }}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <View style={styles.divider} />
             <View style={styles.settingRow}>
               <View style={styles.settingLeft}>
                 <Volume2 color={colors.purpleSoft} size={20} />
@@ -432,7 +472,7 @@ export default function ProfilScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scroll: {
     paddingHorizontal: 18,
     paddingTop: 4,

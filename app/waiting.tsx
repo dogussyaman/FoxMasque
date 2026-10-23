@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image, Pressable, Modal } from 'react-native';
 import { router } from 'expo-router';
@@ -22,6 +24,8 @@ import { PlayerProfileSheet } from '@/components/PlayerProfileSheet';
 import type { Player } from '@/types/game';
 
 export default function WaitingScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const {
     roomState,
     currentPlayer,
@@ -426,7 +430,7 @@ export default function WaitingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scroll: {
     paddingBottom: spacing.md,
     paddingTop: 8,

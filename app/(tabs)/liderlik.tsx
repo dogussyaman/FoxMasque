@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -12,6 +14,8 @@ import type { LeaderboardScope } from '@/services/types';
 type FilterType = LeaderboardScope;
 
 export default function LiderlikScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { service, currentPlayer } = useGameStore();
   const { trigger } = useHaptics();
   const [filter, setFilter] = useState<FilterType>('all');
@@ -247,7 +251,7 @@ export default function LiderlikScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scroll: {
     paddingHorizontal: 18,
     paddingTop: 4,

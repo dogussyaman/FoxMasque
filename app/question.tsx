@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
@@ -35,6 +37,8 @@ import { usePrototype } from '@/features/prototype/PrototypeProvider';
 import { useSound } from '@/hooks/useSound';
 
 export default function QuestionScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const {
     roomCode,
     roomState,
@@ -796,7 +800,7 @@ export default function QuestionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   hudBar: {
     paddingVertical: 10,
   },

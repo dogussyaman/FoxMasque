@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
@@ -23,6 +25,8 @@ import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 
 export default function ResultScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
   const { trigger } = useHaptics();
   const [advanceError, setAdvanceError] = useState<string | null>(null);
@@ -321,7 +325,7 @@ export default function ResultScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   advanceError: {
     ...typography.caption,
     color: colors.dangerSoft,

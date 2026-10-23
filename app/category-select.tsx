@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Pressable, ImageBackground } from 'react-native';
 import { router } from 'expo-router';
@@ -16,6 +18,8 @@ import { soundService } from '@/services/soundService';
 import { categoryOptionImages } from '@/assets/categories/options';
 
 export default function CategorySelectScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { trigger } = useHaptics();
   const [selectedCat, setSelectedCat] = useState<CategoryOptionId>('genel-kultur');
 
@@ -152,7 +156,7 @@ export default function CategorySelectScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

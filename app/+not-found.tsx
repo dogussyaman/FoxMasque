@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { Stack, router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { Screen, Button } from '@/components/ui';
@@ -5,6 +7,8 @@ import { colors, typography, spacing } from '@/theme';
 import { Home, AlertCircle } from 'lucide-react-native';
 
 export default function NotFoundScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Bulunamadı', headerShown: false }} />
@@ -26,7 +30,7 @@ export default function NotFoundScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',

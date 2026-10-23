@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useRef, useState } from 'react';
 import {
   StyleSheet,
@@ -33,6 +35,8 @@ const ROUND_OPTIONS = [3, 5, 7, 10];
 const TIME_OPTIONS = [10, 15, 20, 30];
 
 export default function CreateRoomScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { service, currentPlayer, setCurrentPlayer, setRoomCode, setRoomState } = useGameStore();
   const { trigger } = useHaptics();
 
@@ -452,7 +456,7 @@ export default function CreateRoomScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',

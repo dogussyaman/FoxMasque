@@ -1,10 +1,12 @@
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { colors, radii, spacing, typography } from '@/theme';
 import type { ReactNode } from 'react';
+import { useTheme } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 
 type Tone = 'purple' | 'orange' | 'yellow' | 'lime' | 'blue' | 'coral' | 'success' | 'warning' | 'danger' | 'neutral';
 
-const TONES: Record<Tone, { bg: string; fg: string; border: string }> = {
+const getTones = (colors: ThemeColors): Record<Tone, { bg: string; fg: string; border: string }> => ({
   purple: { bg: 'rgba(139, 92, 246, 0.25)', fg: colors.purpleSoft, border: colors.purple },
   orange: { bg: 'rgba(255, 113, 59, 0.25)', fg: colors.orange, border: colors.orange },
   yellow: { bg: 'rgba(255, 209, 102, 0.25)', fg: colors.yellow, border: colors.yellow },
@@ -15,7 +17,7 @@ const TONES: Record<Tone, { bg: string; fg: string; border: string }> = {
   warning: { bg: 'rgba(255, 209, 102, 0.25)', fg: colors.warning, border: colors.warning },
   danger: { bg: 'rgba(239, 68, 68, 0.25)', fg: colors.dangerSoft, border: colors.danger },
   neutral: { bg: colors.bgSurfaceAlt, fg: colors.textSecondary, border: colors.borderStrong },
-};
+});
 
 interface BadgeProps {
   children: ReactNode;
@@ -25,7 +27,21 @@ interface BadgeProps {
 }
 
 export function Badge({ children, tone = 'neutral', sticker = false, style }: BadgeProps) {
-  const t = TONES[tone];
+  const { colors, mode } = useTheme();
+  const darkTone = getTones(colors)[tone];
+  const lightTone: Record<Tone, { bg: string; fg: string }> = {
+    purple: { bg: 'rgba(117, 71, 196, 0.10)', fg: '#6640AA' },
+    orange: { bg: 'rgba(217, 86, 43, 0.10)', fg: '#B8441B' },
+    yellow: { bg: 'rgba(255, 209, 102, 0.24)', fg: '#72500B' },
+    lime: { bg: 'rgba(122, 164, 36, 0.13)', fg: '#435B17' },
+    blue: { bg: 'rgba(59, 130, 246, 0.10)', fg: '#1D4ED8' },
+    coral: { bg: 'rgba(217, 86, 43, 0.10)', fg: '#B8441B' },
+    success: { bg: 'rgba(16, 185, 129, 0.10)', fg: '#087247' },
+    warning: { bg: 'rgba(255, 209, 102, 0.24)', fg: '#72500B' },
+    danger: { bg: 'rgba(239, 68, 68, 0.10)', fg: '#B42318' },
+    neutral: { bg: colors.bgSurfaceAlt, fg: colors.textSecondary },
+  };
+  const t = mode === 'light' ? { ...darkTone, ...lightTone[tone] } : darkTone;
   return (
     <View
       style={[

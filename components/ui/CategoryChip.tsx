@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radii, spacing, typography } from '@/theme';
 import type { CategoryId } from '@/features/game/categories';
+import { useTheme } from '@/theme/ThemeProvider';
 
 interface CategoryChipProps {
   id: CategoryId;
@@ -12,6 +13,7 @@ interface CategoryChipProps {
 }
 
 export function CategoryChip({ name, emoji, selected, onPress, disabled }: CategoryChipProps) {
+  const { colors } = useTheme();
   return (
     <Pressable
       onPress={onPress}

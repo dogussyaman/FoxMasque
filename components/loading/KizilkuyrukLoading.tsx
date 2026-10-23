@@ -10,6 +10,8 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { mascotImages } from '@/assets/illustrations';
 import { Card } from '@/components/ui/Card';
 import { colors } from '@/theme';
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 
 const SLIDES = [
   { image: mascotImages.searching, message: 'Oyun dünyası hazırlanıyor...' },
@@ -25,6 +27,8 @@ interface KizilkuyrukLoadingProps {
 }
 
 export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const reduceMotion = useReducedMotion();
   const [progress, setProgress] = useState(0);
   const [slideIndex, setSlideIndex] = useState(0);
@@ -65,7 +69,7 @@ export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) 
       accessibilityValue={{ min: 0, max: 100, now: percent }}
     >
       <LinearGradient
-        colors={['#110D1B', '#211333', '#150D27']}
+        colors={[colors.bgDarkest, colors.bgDark, colors.bgDarkest]}
         locations={[0, 0.52, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -121,7 +125,7 @@ export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
     position: 'relative',
@@ -180,7 +184,7 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 247, 255, 0.14)',
+    borderColor: colors.borderStrong,
     backgroundColor: colors.bgSurface,
     shadowColor: colors.orange,
     shadowOpacity: 0.2,
@@ -209,8 +213,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 247, 255, 0.11)',
-    backgroundColor: 'rgba(40, 24, 61, 0.76)',
+    borderColor: colors.border,
+    backgroundColor: colors.bgSurface,
     gap: 5,
   },
   statusRow: {

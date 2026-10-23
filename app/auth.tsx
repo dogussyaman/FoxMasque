@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +20,8 @@ import { useGameStore } from '@/store/gameStore';
 import type { Player } from '@/types/game';
 
 export default function AuthScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { service, setCurrentPlayer, isLive } = useGameStore();
   const params = useLocalSearchParams<{
     returnTo?: string;
@@ -259,7 +263,7 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   flex: { flex: 1 },
   scroll: { flexGrow: 1, justifyContent: 'center', paddingVertical: spacing.xl },
   content: { width: '100%', maxWidth: 460, alignSelf: 'center' },

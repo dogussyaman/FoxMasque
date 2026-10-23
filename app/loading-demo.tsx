@@ -1,3 +1,5 @@
+import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
+import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
@@ -7,6 +9,8 @@ import { KizilkuyrukLoading } from '@/components/loading/KizilkuyrukLoading';
 import { colors, radii } from '@/theme';
 
 export default function LoadingDemoScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const insets = useSafeAreaInsets();
   const [finished, setFinished] = useState(false);
   const [loadingDone, setLoadingDone] = useState(false);
@@ -66,7 +70,7 @@ export default function LoadingDemoScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#150D27',
