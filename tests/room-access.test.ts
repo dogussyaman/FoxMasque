@@ -46,17 +46,67 @@ describe('Room access rules in local demo mode', () => {
 
   it('keeps open-room joining public and rejects new players after the match starts', async () => {
     const { service, code, hostId } = await createDemoRoom(false);
-    assert.equal((await service.listOpenRooms()).some((room) => room.code === code), true);
+    const listedRoom = (await service.listOpenRooms()).find((room) => room.code === code);
+    assert.ok(listedRoom);
+    assert.deepEqual(listedRoom.categoryIds, ['genel-kultur']);
+    assert.equal(listedRoom.categoryStatus, 'selected');
+    assert.equal(listedRoom.maxPlayers, 10);
     assert.equal(await service.checkRoomAccess(code), 'open');
 
     await service.startGame(code);
     await assert.rejects(service.checkRoomAccess(code));
     assert.equal((await service.getRoomState(code))?.players[hostId]?.isHost, true);
-
-    await service.signInAnonymously('Geç Katılan', 'fox');
+    await service.signInAnonymously('Misafir', 'fox');
     await assert.rejects(
-      service.joinRoom(code, 'Geç Katılan', 'fox'),
+      service.joinRoom(code, 'Misafir', 'fox'),
       (error: unknown) => error instanceof ServiceError && error.code === 'GAME_ALREADY_STARTED'
+    );
+  });
+
+  it('joins a listed open room directly without a password', async () => {
+    const { service, code } = await createDemoRoom(false);
+    assert.ok((await service.listOpenRooms()).some((room) => room.code === code));
+    await service.signInAnonymously('Misafir', 'fox');
+    const joined = await service.joinRoom(code, 'Misafir', 'fox');
+    assert.ok(joined.playerId);
+    assert.equal((await service.getRoomState(code))?.players[joined.playerId]?.name, 'Misafir');
+  });
+
+  it('rejects a full room when the server-side join is attempted', async () => {
+    const { service, code } = await createDemoRoom(false);
+    for (let i = 0; i < 6; i += 1) {
+      await service.signInAnonymously(`Misafir ${i}`, 'fox');
+      await service.joinRoom(code, `Misafir ${i}`, 'fox');
+    }
+    await service.signInAnonymously('Son Misafir', 'fox');
+    await assert.rejects(
+      service.joinRoom(code, 'Son Misafir', 'fox'),
+      (error: unknown) => error instanceof ServiceError && error.code === 'ROOM_FULL'
+    );
+  });
+
+  it('lets the room host remove a lobby player and blocks non-host kick attempts', async () => {
+    const { service, code } = await createDemoRoom(false);
+    const before = await service.getRoomState(code);
+    assert.ok(before);
+    const target = Object.values(before.players).find((player) => !player.isHost);
+    assert.ok(target);
+
+    await service.kickPlayer(code, target.id);
+    const after = await service.getRoomState(code);
+    assert.ok(after);
+    assert.equal(after.players[target.id], undefined);
+    await assert.rejects(
+      service.kickPlayer(code, target.id),
+      (error: unknown) => error instanceof ServiceError && error.code === 'ROOM_PLAYER_NOT_FOUND'
+    );
+
+    const remainingTarget = Object.values(after.players).find((player) => !player.isHost);
+    assert.ok(remainingTarget);
+    await service.signInAnonymously('Misafir', 'fox');
+    await assert.rejects(
+      service.kickPlayer(code, remainingTarget.id),
+      (error: unknown) => error instanceof ServiceError && error.code === 'HOST_ONLY'
     );
   });
 

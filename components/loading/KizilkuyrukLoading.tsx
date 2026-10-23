@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Image,
+  Platform,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Asset } from 'expo-asset';
 import { useReducedMotion } from 'react-native-reanimated';
+import { WebView } from 'react-native-webview';
 import { mascotImages } from '@/assets/illustrations';
 import { Card } from '@/components/ui/Card';
 import { colors } from '@/theme';
@@ -30,9 +34,29 @@ export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) 
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
   const reduceMotion = useReducedMotion();
+  const compact = useWindowDimensions().height < 700;
   const [progress, setProgress] = useState(0);
   const [slideIndex, setSlideIndex] = useState(0);
+  const [footerAnimationUri, setFooterAnimationUri] = useState<string | null>(null);
   const didFinish = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    void Asset.fromModule(require('@/assets/loading/yrYVBPzGJG.svg'))
+      .downloadAsync()
+      .then((asset) => {
+        if (!asset.localUri) {
+          throw new Error('Loading alt animasyonu için yerel dosya URI bilgisi alınamadı.');
+        }
+        if (active) setFooterAnimationUri(asset.localUri);
+      })
+      .catch((error: unknown) => {
+        console.error('Loading alt animasyonu yüklenemedi:', error);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -76,8 +100,8 @@ export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) 
       <View pointerEvents="none" style={styles.topGlow} />
       <View pointerEvents="none" style={styles.bottomGlow} />
 
-      <View style={styles.content}>
-        <View style={styles.logoStage}>
+      <View style={[styles.content, compact && styles.contentCompact]}>
+        <View style={[styles.logoStage, compact && styles.logoStageCompact]}>
           <View style={styles.logoGlow} />
           <Image
             source={require('@/assets/illustrations/kızılkuyruk.png')}
@@ -87,7 +111,7 @@ export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) 
           />
         </View>
 
-        <View style={styles.mascotFrame}>
+        <View style={[styles.mascotFrame, compact && styles.mascotFrameCompact]}>
           <Image
             key={slideIndex}
             source={slide.image}
@@ -101,7 +125,7 @@ export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) 
           />
         </View>
 
-        <Card variant="surface" style={styles.captionCard}>
+        <Card variant="surface" style={[styles.captionCard, compact && styles.captionCardCompact]}>
           <View style={styles.statusRow}>
             <View style={styles.statusDot} />
             <Text style={styles.statusText}>HAZIRLANIYOR</Text>
@@ -121,6 +145,30 @@ export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) 
           </View>
         </View>
       </View>
+      {footerAnimationUri ? (
+        <View pointerEvents="none" style={styles.footerAnimationContainer}>
+          {Platform.OS === 'web' ? (
+            <Image
+              source={{ uri: footerAnimationUri }}
+              resizeMode="contain"
+              accessibilityLabel="Kızılkuyruk loading animasyonu"
+              style={styles.footerAnimation}
+            />
+          ) : (
+            <WebView
+              source={{ uri: footerAnimationUri }}
+              style={styles.footerAnimation}
+              containerStyle={styles.webViewContainer}
+              originWhitelist={['*']}
+              scrollEnabled={false}
+              bounces={false}
+              javaScriptEnabled={false}
+              allowFileAccess
+              accessibilityLabel="Kızılkuyruk loading animasyonu"
+            />
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -158,6 +206,43 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 18,
     paddingHorizontal: 24,
     paddingVertical: 24,
+    paddingBottom: 104,
+  },
+  contentCompact: {
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    paddingBottom: 76,
+  },
+  logoStageCompact: {
+    height: 76,
+  },
+  mascotFrameCompact: {
+    width: 124,
+    height: 124,
+  },
+  captionCardCompact: {
+    minHeight: 64,
+    paddingVertical: 8,
+  },
+  footerAnimationContainer: {
+    position: 'absolute',
+    bottom: 0,
+    alignSelf: 'center',
+    width: 168,
+    height: 94,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    zIndex: 2,
+  },
+  footerAnimation: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'transparent',
+  },
+  webViewContainer: {
+    flex: 1,
+    backgroundColor: 'transparent',
   },
   logoStage: {
     width: '100%',

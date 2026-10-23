@@ -58,7 +58,10 @@ export default function LoadingDemoScreen() {
             accessibilityRole="button"
             onPress={() => setLoadingDone(true)}
             disabled={loadingDone}
-            style={[styles.completeButton, { bottom: insets.bottom + 12 }]}
+            style={[
+              styles.completeButton,
+              { top: insets.top + 12, right: 18, alignSelf: 'auto' },
+            ]}
           >
             <Text style={styles.completeText}>
               {loadingDone ? 'Tamamlanıyor...' : 'Yüklemeyi tamamla'}

@@ -21,6 +21,7 @@ import {
   Circle,
   Crown,
   UserPlus,
+  UserMinus,
   Flame,
   Vibrate,
   FlaskConical,
@@ -37,8 +38,9 @@ import {
   PulseView,
   MascotFloat,
   StickyActionBar,
+  ModalSheet,
 } from '@/components/ui';
-import { colors, spacing, typography, radii, shadows } from '@/theme';
+import { spacing, typography, radii } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { mascotImages } from '@/assets/illustrations';
@@ -65,6 +67,8 @@ export default function LobbyScreen() {
   const [dismissedNudgeAt, setDismissedNudgeAt] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [playerToKick, setPlayerToKick] = useState<Player | null>(null);
+  const [kickingPlayer, setKickingPlayer] = useState(false);
   const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
   const [testMode, setTestMode] = useState(!isLive);
   const lobbySessionId = useId();
@@ -174,6 +178,20 @@ export default function LobbyScreen() {
     } catch (e) {
       setError((e as Error).message);
       setStarting(false);
+    }
+  };
+
+  const handleKickPlayer = async () => {
+    if (!roomCode || !playerToKick || kickingPlayer) return;
+    setKickingPlayer(true);
+    setError(null);
+    try {
+      await service.kickPlayer(roomCode, playerToKick.id);
+      setPlayerToKick(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Oyuncu lobiden çıkarılamadı.');
+    } finally {
+      setKickingPlayer(false);
     }
   };
 
@@ -311,6 +329,16 @@ export default function LobbyScreen() {
                       )}
                     </View>
                   )}
+                  {isHost && roomState?.phase === 'lobby' && !isSelf ? (
+                    <Pressable
+                      onPress={() => setPlayerToKick(player)}
+                      style={styles.kickButton}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${player.name} oyuncusunu lobiden çıkar`}
+                    >
+                      <UserMinus color={colors.dangerSoft} size={18} />
+                    </Pressable>
+                  ) : null}
                 </Card>
               </StaggerRow>
             );
@@ -401,6 +429,31 @@ export default function LobbyScreen() {
         visible={profilePlayer !== null}
         onClose={() => setProfilePlayer(null)}
       />
+      <ModalSheet
+        visible={playerToKick !== null}
+        onClose={() => setPlayerToKick(null)}
+        title="Oyuncuyu lobiden çıkar?"
+      >
+        <Text style={styles.kickConfirmation}>
+          {playerToKick?.name} bu odadan çıkarılacak ve tekrar katılamayacak.
+        </Text>
+        <View style={styles.kickActions}>
+          <Button
+            label="Vazgeç"
+            variant="secondary"
+            onPress={() => setPlayerToKick(null)}
+            disabled={kickingPlayer}
+            style={{ flex: 1 }}
+          />
+          <Button
+            label="Oyuncuyu Çıkar"
+            variant="danger"
+            onPress={() => void handleKickPlayer()}
+            loading={kickingPlayer}
+            style={{ flex: 1 }}
+          />
+        </View>
+      </ModalSheet>
     </Screen>
   );
 }
@@ -601,6 +654,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.bgSurfaceAlt,
     borderColor: colors.border,
   },
+  kickButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.dangerSurface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    marginLeft: spacing.xs,
+  },
   playerIdentity: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -691,5 +755,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: spacing.md,
     textAlign: 'center',
     fontFamily: 'Poppins-Medium',
+  },
+  kickConfirmation: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  kickActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
   },
 });

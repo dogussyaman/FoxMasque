@@ -49,9 +49,10 @@ interface ProfilePayload {
 
 interface OpenRoomRow {
   code: string;
-  host_name: string;
   player_count: number;
+  max_players: number;
   phase: GameState['phase'];
+  selected_categories: string[];
   created_at: string;
 }
 
@@ -602,6 +603,14 @@ export class SupabaseGameService implements GameService {
     this.emit({ type: 'player_left', payload: { code } });
   }
 
+  async kickPlayer(code: string, playerId: string): Promise<void> {
+    const { error } = await ensureSupabase().rpc('kick_room_player_secure', {
+      p_room_code: code.trim().toUpperCase(),
+      p_target_id: playerId,
+    });
+    if (error) throw new ServiceError('KICK_PLAYER_FAILED', error.message);
+  }
+
   async setRoomPaused(code: string, paused: boolean): Promise<void> {
     const sb = ensureSupabase();
     const { error } = await sb.rpc('set_room_paused_secure', {
@@ -701,15 +710,35 @@ export class SupabaseGameService implements GameService {
     const sb = ensureSupabase();
     const { data, error } = await sb.rpc('list_open_rooms_secure');
     if (error) throw new ServiceError('ROOM_LIST_FAILED', error.message);
-    if (!data) return [];
+    if (!Array.isArray(data)) {
+      throw new ServiceError('ROOM_LIST_INVALID', 'Sunucudan geçersiz açık oda listesi alındı.');
+    }
 
-    return data.map((r: OpenRoomRow) => ({
-      code: r.code,
-      hostName: r.host_name,
-      playerCount: r.player_count,
-      phase: r.phase,
-      createdAt: new Date(r.created_at).getTime(),
-    }));
+    return data.map((row: OpenRoomRow) => {
+      if (
+        typeof row.code !== 'string' ||
+        !Number.isInteger(row.player_count) ||
+        !Number.isInteger(row.max_players) ||
+        typeof row.phase !== 'string' ||
+        !Array.isArray(row.selected_categories) ||
+        !row.selected_categories.every(isCategoryId) ||
+        typeof row.created_at !== 'string'
+      ) {
+        throw new ServiceError('ROOM_LIST_INVALID', 'Açık oda listesinde geçersiz oda bilgisi var.');
+      }
+      const categoryIds = row.selected_categories;
+      return {
+        code: row.code,
+        playerCount: row.player_count,
+        maxPlayers: row.max_players,
+        phase: row.phase,
+        categoryIds,
+        categoryStatus: row.phase === 'category_select'
+          ? 'selecting'
+          : categoryIds.length > 0 ? 'selected' : 'not_selected',
+        createdAt: new Date(row.created_at).getTime(),
+      };
+    });
   }
 
   async setReady(code: string, ready: boolean): Promise<void> {

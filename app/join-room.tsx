@@ -1,26 +1,27 @@
 import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/theme/ThemeProvider';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   StyleSheet,
   Text,
   View,
   ScrollView,
   Pressable,
+  RefreshControl,
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ChevronLeft, LogIn, Users, KeyRound, Sparkles, Eye, EyeOff } from 'lucide-react-native';
 import { Screen, Button, Card, Avatar, Badge, StickyActionBar, Input } from '@/components/ui';
-import { colors, spacing, typography, radii, shadows } from '@/theme';
+import { spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
+import { CATEGORIES } from '@/features/game/categories';
 import type { RoomSummary } from '@/services/types';
-import { mascotImages } from '@/assets/illustrations';
 
 export default function JoinRoomScreen() {
   const { colors } = useTheme();
@@ -56,7 +57,12 @@ export default function JoinRoomScreen() {
   const name = nameOverride ?? currentPlayer?.name ?? 'Oyuncu';
   const avatarKey = avatarOverride ?? currentPlayer?.avatarKey ?? 'fox';
   const [openRooms, setOpenRooms] = useState<RoomSummary[]>([]);
+  const [joinMode, setJoinMode] = useState<'open' | 'code'>(
+    initialCode || initialInvite ? 'code' : 'open'
+  );
   const [loadingRooms, setLoadingRooms] = useState(true);
+  const [refreshingRooms, setRefreshingRooms] = useState(false);
+  const [roomListError, setRoomListError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(invalidInitialLink);
   const [isFocused, setIsFocused] = useState(false);
@@ -75,23 +81,51 @@ export default function JoinRoomScreen() {
     }
   }, [authStatus, params.code, params.invite]);
 
+  const loadOpenRooms = useCallback(async () => {
+    try {
+      const rooms = await service.listOpenRooms();
+      setOpenRooms(rooms);
+      setRoomListError(null);
+    } catch (cause) {
+      setRoomListError((cause as Error).message || 'Açık odalar yüklenemedi.');
+    } finally {
+      setLoadingRooms(false);
+      setRefreshingRooms(false);
+    }
+  }, [service]);
+
   useEffect(() => {
     if (authStatus !== 'signed_in') return;
     let active = true;
     service.listOpenRooms()
       .then((rooms) => {
-        if (active) setOpenRooms(rooms);
+        if (!active) return;
+        setOpenRooms(rooms);
+        setRoomListError(null);
       })
-      .catch((e) => {
-        if (active) setError(`Açık odalar yüklenemedi: ${(e as Error).message}`);
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setRoomListError((cause as Error).message || 'Açık odalar yüklenemedi.');
       })
       .finally(() => {
-        if (active) setLoadingRooms(false);
+        if (!active) return;
+        setLoadingRooms(false);
+        setRefreshingRooms(false);
       });
     return () => {
       active = false;
     };
   }, [authStatus, service]);
+
+  const refreshOpenRooms = useCallback(() => {
+    setRefreshingRooms(true);
+    void loadOpenRooms();
+  }, [loadOpenRooms]);
+
+  const retryOpenRooms = useCallback(() => {
+    setLoadingRooms(true);
+    void loadOpenRooms();
+  }, [loadOpenRooms]);
 
   const handleJoin = async (targetCode?: string) => {
     if (submitting.current) return;
@@ -100,14 +134,14 @@ export default function JoinRoomScreen() {
       setError('Lütfen geçerli 5-6 karakterli bir oda kodu gir.');
       return;
     }
+    const hasInvite = !!inviteToken && finalCode === code;
+    const passwordConfirmed = requiresPassword && finalCode === code;
     submitting.current = true;
     setCode(finalCode);
     trigger('medium');
     setLoading(true);
     setError(null);
     try {
-      const hasInvite = !!inviteToken && finalCode === code;
-      const passwordConfirmed = requiresPassword && finalCode === code;
       if (!hasInvite && !passwordConfirmed) {
         const access = await service.checkRoomAccess(finalCode);
         if (access === 'password_required') {
@@ -134,6 +168,31 @@ export default function JoinRoomScreen() {
       router.replace('/lobby');
     } catch (e) {
       const cause = e as { code?: string; message?: string };
+      if (targetCode && !hasInvite && !passwordConfirmed && cause.code === 'ROOM_ACCESS_DENIED') {
+        try {
+          const access = await service.checkRoomAccess(finalCode);
+          if (access === 'password_required') {
+            setJoinMode('code');
+            setCode(finalCode);
+            setRequiresPassword(true);
+            setRoomPassword('');
+            setError('Oda artık kilitli. Şifreyi girerek katılabilirsin.');
+            return;
+          }
+        } catch (accessError) {
+          const accessCause = accessError as { code?: string; message?: string };
+          if (accessCause.code === 'ROOM_FULL') {
+            setError('Oda dolu. Başka bir odayı deneyebilirsin.');
+          } else if (accessCause.code === 'GAME_ALREADY_STARTED') {
+            setError('Oyun başladı; yeni oyuncu kabul edilmiyor.');
+          } else if (accessCause.code === 'ROOM_UNAVAILABLE') {
+            setError('Oda bulunamadı veya yeni katılıma açık değil. Oda kodunu kontrol et.');
+          } else {
+            setError(accessCause.message || cause.message || 'Odaya katılırken bir hata oluştu.');
+          }
+          return;
+        }
+      }
       if (requiresPassword && finalCode === code && cause.code === 'ROOM_ACCESS_DENIED') {
         setRoomPassword('');
         setError('Oda şifresi yanlış. Yeniden dene.');
@@ -178,22 +237,43 @@ export default function JoinRoomScreen() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-        >
-          {/* Mascot Banner */}
-          <View style={styles.mascotBanner}>
-            <Image
-              source={mascotImages.searching}
-              style={styles.mascotImage}
-              resizeMode="contain"
+          refreshControl={joinMode === 'open' ? (
+            <RefreshControl
+              refreshing={refreshingRooms}
+              onRefresh={refreshOpenRooms}
+              tintColor={colors.orange}
             />
-            <View style={{ flex: 1, paddingLeft: 10 }}>
-              <Text style={styles.mascotTitle}>Partiye Katılmaya Hazır mısın?</Text>
-              <Text style={styles.mascotDesc}>
-                Arkadaşının verdiği 5-6 karakterli oda kodunu yaz ve lobiye ışınlan!
-              </Text>
-            </View>
+          ) : undefined}
+        >
+          <View style={styles.modeSwitch}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: joinMode === 'open' }}
+              onPress={() => {
+                setJoinMode('open');
+                setError(null);
+              }}
+              style={[styles.modeButton, joinMode === 'open' && styles.modeButtonActive]}
+            >
+              <Users color={joinMode === 'open' ? colors.orange : colors.textSecondary} size={17} />
+              <Text style={[styles.modeText, joinMode === 'open' && styles.modeTextActive]}>Açık Odalar</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: joinMode === 'code' }}
+              onPress={() => {
+                setJoinMode('code');
+                setError(null);
+              }}
+              style={[styles.modeButton, joinMode === 'code' && styles.modeButtonActive]}
+            >
+              <KeyRound color={joinMode === 'code' ? colors.orange : colors.textSecondary} size={17} />
+              <Text style={[styles.modeText, joinMode === 'code' && styles.modeTextActive]}>Oda Kodu ile Katıl</Text>
+            </Pressable>
           </View>
 
+          {joinMode === 'code' ? (
+            <>
           {/* Giant Code Input Card */}
           <Card
             variant="surface"
@@ -311,52 +391,91 @@ export default function JoinRoomScreen() {
               </ScrollView>
             </Card>
           ) : null}
-
-          {/* Open Rooms Section */}
-          {loadingRooms ? (
-            <Text style={styles.roomPasswordHint}>Açık odalar aranıyor...</Text>
-          ) : null}
-          {openRooms.length > 0 && (
+            </>
+          ) : (
             <View style={styles.openRoomsWrap}>
               <View style={styles.openRoomsHeader}>
                 <Sparkles color={colors.yellow} size={16} />
-                <Text style={styles.openRoomsTitle}>Açık Odalar ({openRooms.length})</Text>
-              </View>
-
-              {openRooms.map((room) => (
+                <Text style={styles.openRoomsTitle}>Katılmaya Uygun Odalar</Text>
                 <Pressable
-                  key={room.code}
-                  onPress={() => handleJoin(room.code)}
-                  disabled={loading}
-                  style={styles.roomRow}
+                  accessibilityRole="button"
+                  accessibilityLabel="Açık oda listesini yenile"
+                  onPress={refreshOpenRooms}
+                  disabled={loadingRooms || refreshingRooms}
+                  style={styles.refreshButton}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.roomCode}>{room.code}</Text>
-                    <Text style={styles.roomHost}>Kurucu: {room.hostName}</Text>
-                  </View>
-                  <Badge tone="purple">
-                    <Users size={12} color="#FFF" /> {room.playerCount} Oyuncu
-                  </Badge>
+                  <Text style={styles.refreshText}>Yenile</Text>
                 </Pressable>
-              ))}
+              </View>
+              {loadingRooms ? (
+                <View style={styles.roomListState}>
+                  <ActivityIndicator color={colors.orange} />
+                  <Text style={styles.roomPasswordHint}>Açık odalar yükleniyor...</Text>
+                </View>
+              ) : roomListError ? (
+                <View style={styles.roomListState}>
+                  <Text style={styles.errorText}>{roomListError}</Text>
+                  <Button label="Tekrar Dene" size="sm" variant="secondary" onPress={retryOpenRooms} />
+                </View>
+              ) : openRooms.length === 0 ? (
+                <View style={styles.emptyRooms}>
+                  <Text style={styles.emptyRoomsTitle}>Şu an açık oda yok</Text>
+                  <Text style={styles.roomPasswordHint}>Bir oda oluşturabilir ya da oda koduyla katılabilirsin.</Text>
+                </View>
+              ) : null}
+              {openRooms.map((room) => {
+                const categoryLabel = room.categoryStatus === 'selecting'
+                  ? 'Kategori seçiliyor'
+                  : room.categoryStatus === 'not_selected'
+                    ? 'Kategori seçilmedi'
+                    : CATEGORIES
+                        .filter((category) => room.categoryIds.includes(category.id))
+                        .map((category) => category.name)
+                        .join(', ');
+                return (
+                  <Pressable
+                    key={room.code}
+                    onPress={() => handleJoin(room.code)}
+                    disabled={loading}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${room.code}, ${categoryLabel}, ${room.playerCount} / ${room.maxPlayers} oyuncu, herkese açık. Katıl`}
+                    style={styles.roomRow}
+                  >
+                    <View style={styles.roomInfo}>
+                      <Text style={styles.roomCode}>{room.code}</Text>
+                      <Text style={styles.roomMeta}>{categoryLabel}</Text>
+                      <Text style={styles.roomMeta}>{room.playerCount} / {room.maxPlayers} oyuncu · Herkese açık</Text>
+                    </View>
+                    <View style={styles.roomJoinButton}>
+                      <Text style={styles.roomJoinText}>{loading ? 'Katılıyor...' : 'Katıl'}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
           )}
         </ScrollView>
-        <StickyActionBar>
-          {error ? (
-            <View style={styles.errorWrap}>
-              <Text style={styles.errorText}>⚠️ {error}</Text>
-            </View>
-          ) : null}
-          <Button
-            label={requiresPassword ? 'Şifreyle Katıl' : 'Lobiye Katıl'}
-            onPress={() => handleJoin()}
-            variant="orange"
-            loading={loading}
-            fullWidth
-            icon={<LogIn color="#FFF" size={20} />}
-          />
-        </StickyActionBar>
+        {joinMode === 'code' ? (
+          <StickyActionBar>
+            {error ? (
+              <View style={styles.errorWrap}>
+                <Text style={styles.errorText}>⚠️ {error}</Text>
+              </View>
+            ) : null}
+            <Button
+              label={requiresPassword ? 'Şifreyle Katıl' : 'Lobiye Katıl'}
+              onPress={() => handleJoin()}
+              variant="orange"
+              loading={loading}
+              fullWidth
+              icon={<LogIn color="#FFF" size={20} />}
+            />
+          </StickyActionBar>
+        ) : error ? (
+          <View style={styles.errorWrap}>
+            <Text style={styles.errorText}>⚠️ {error}</Text>
+          </View>
+        ) : null}
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -385,6 +504,37 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontFamily: 'Poppins-Bold',
   },
   scroll: { paddingBottom: spacing.md },
+  modeSwitch: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  modeButton: {
+    flex: 1,
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgCard,
+    paddingHorizontal: spacing.sm,
+  },
+  modeButtonActive: {
+    borderColor: colors.orange,
+    backgroundColor: colors.orangeSurface,
+  },
+  modeText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  modeTextActive: {
+    color: colors.orange,
+    fontFamily: 'Poppins-Bold',
+  },
   mascotBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -522,6 +672,30 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 6,
     marginBottom: spacing.sm,
   },
+  refreshButton: {
+    marginLeft: 'auto',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    backgroundColor: colors.bgSurfaceAlt,
+  },
+  refreshText: { ...typography.caption, color: colors.orange },
+  roomListState: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  emptyRooms: {
+    alignItems: 'center',
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  emptyRoomsTitle: { ...typography.bodyMedium, color: colors.textPrimary },
   openRoomsTitle: {
     ...typography.h4,
     color: colors.textPrimary,
@@ -531,6 +705,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.md,
     backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
     padding: spacing.md,
@@ -544,9 +719,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.purpleSoft,
     letterSpacing: 2,
   },
-  roomHost: {
+  roomInfo: { flex: 1 },
+  roomMeta: {
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
   },
+  roomJoinButton: {
+    minWidth: 70,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.md,
+    backgroundColor: colors.orange,
+  },
+  roomJoinText: { ...typography.small, color: '#FFFFFF', fontFamily: 'Poppins-Bold' },
 });

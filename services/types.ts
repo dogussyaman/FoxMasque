@@ -14,9 +14,11 @@ import type { Question } from '../features/game/questions';
 
 export interface RoomSummary {
   code: string;
-  hostName: string;
   playerCount: number;
+  maxPlayers: number;
   phase: RoomPhase;
+  categoryIds: CategoryId[];
+  categoryStatus: 'selected' | 'not_selected' | 'selecting';
   createdAt: number;
 }
 
@@ -116,6 +118,7 @@ export interface GameService {
   checkRoomAccess(code: string): Promise<RoomAccessPreflight>;
   createRoomInvite(code: string): Promise<string>;
   leaveRoom(code: string): Promise<void>;
+  kickPlayer(code: string, playerId: string): Promise<void>;
   setRoomPaused(code: string, paused: boolean): Promise<void>;
   getRoomState(code: string): Promise<GameState | null>;
   restoreRoom(code: string, subscribe?: boolean): Promise<GameState | null>;

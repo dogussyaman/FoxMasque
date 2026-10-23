@@ -60,6 +60,7 @@ interface DemoRoom {
   phaseDeadlineAt: number | null;
   pausedAt: number | null;
   abilityReadyRound: Record<string, number>;
+  kickedPlayerIds: Set<string>;
 }
 
 export class DemoGameService implements GameService {
@@ -237,6 +238,7 @@ export class DemoGameService implements GameService {
       phaseDeadlineAt: null,
       pausedAt: null,
       abilityReadyRound: {},
+      kickedPlayerIds: new Set(),
     };
     this.rooms.set(code, room);
     this.currentPlayer = hostPlayer;
@@ -248,6 +250,9 @@ export class DemoGameService implements GameService {
     const cleanCode = code.trim().toUpperCase();
     const room = this.rooms.get(cleanCode);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (this.currentPlayer && room.kickedPlayerIds.has(this.currentPlayer.id)) {
+      throw new ServiceError('ROOM_PLAYER_KICKED', 'Oda sahibi seni bu lobiden çıkardı.');
+    }
     if (inviteToken) {
       throw new ServiceError('INVITE_UNAVAILABLE', 'Bu davet canlı oyun odasına ait; demo modunda kullanılamaz.');
     }
@@ -325,6 +330,27 @@ export class DemoGameService implements GameService {
     this.emit({ type: 'state', payload: this.snapshot(code) });
   }
 
+  async kickPlayer(code: string, playerId: string): Promise<void> {
+    const room = this.rooms.get(code.trim().toUpperCase());
+    if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
+    if (!this.currentPlayer || room.config.hostId !== this.currentPlayer.id) {
+      throw new ServiceError('HOST_ONLY', 'Yalnızca oda sahibi oyuncu çıkarabilir.');
+    }
+    if (room.phase !== 'lobby') {
+      throw new ServiceError('WRONG_PHASE', 'Oyuncular yalnızca lobide çıkarılabilir.');
+    }
+    if (playerId === room.config.hostId) {
+      throw new ServiceError('HOST_CANNOT_BE_KICKED', 'Oda sahibi kendini çıkaramaz.');
+    }
+    if (!room.players[playerId]) {
+      throw new ServiceError('ROOM_PLAYER_NOT_FOUND', 'Bu oyuncu artık lobide değil.');
+    }
+    room.kickedPlayerIds.add(playerId);
+    delete room.players[playerId];
+    this.emit({ type: 'player_left', payload: { code, playerId, kicked: true } });
+    this.emit({ type: 'state', payload: this.snapshot(code) });
+  }
+
   async setRoomPaused(code: string, paused: boolean): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
@@ -368,12 +394,13 @@ export class DemoGameService implements GameService {
       if (room.password || room.phase !== 'lobby' || Object.keys(room.players).length >= room.config.maxPlayers) {
         continue;
       }
-      const host = Object.values(room.players).find((p) => p.isHost);
       list.push({
         code: room.config.code,
-        hostName: host?.name ?? 'Bilinmiyor',
         playerCount: Object.keys(room.players).length,
+        maxPlayers: room.config.maxPlayers,
         phase: room.phase,
+        categoryIds: [...room.config.selectedCategoryIds],
+        categoryStatus: room.config.selectedCategoryIds.length > 0 ? 'selected' : 'not_selected',
         createdAt: room.createdAt,
       });
     }
