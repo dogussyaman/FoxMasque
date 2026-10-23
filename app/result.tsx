@@ -20,7 +20,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { QUESTIONS, type Question } from '@/features/game/questions';
 import { resolveZartoRound } from '@/features/game/engine';
-import type { RoundResultRow } from '@/types/game';
+import type { RoundResultRow } from '@/types/game';\nimport type { RoundRevealChoice } from '@/services/types';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 
@@ -31,7 +31,7 @@ export default function ResultScreen() {
   const { trigger } = useHaptics();
   const [advanceError, setAdvanceError] = useState<string | null>(null);
   const [advancing, setAdvancing] = useState(false);
-  const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
+  const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);\n  const [revealChoices, setRevealChoices] = useState<RoundRevealChoice[]>([]);\n  const [revealLoadError, setRevealLoadError] = useState<string | null>(null);
   const playedResultSound = useRef<string | null>(null);
 
   const currentQId = roomState?.currentQuestionId || QUESTIONS[0].id;
@@ -39,7 +39,7 @@ export default function ResultScreen() {
   const question: Question = loadedQuestion?.id === currentQId
     ? loadedQuestion
     : localQuestion || QUESTIONS[0];
-  const currentRoomPhase = roomState?.phase;
+  const currentRoomPhase = roomState?.phase;\n\n  useEffect(() => {\n    if (!roomCode || !['reveal','scoreboard','game_over'].includes(currentRoomPhase ?? '')) { setRevealChoices([]); return; }\n    let cancelled=false;\n    void service.getRoundReveal(roomCode).then(rows=>{if(!cancelled)setRevealChoices(rows);}).catch((e:unknown)=>{if(!cancelled)setRevealLoadError(e instanceof Error?e.message:'Tur seçimleri yüklenemedi.');});\n    return ()=>{cancelled=true;};\n  },[currentRoomPhase,roomCode,service]);
 
   useEffect(() => {
     if (!roomCode || !currentRoomPhase || currentRoomPhase === 'lobby') return;
@@ -276,6 +276,21 @@ export default function ResultScreen() {
           ) : null}
         </Card>
 
+        <Card variant="surface" style={styles.reviewCard}>
+          <Text style={styles.sectionTitle}>KİM HANGİ ŞIKKI SEÇTİ?</Text>
+          {revealLoadError ? <Text style={styles.explanationText}>{revealLoadError}</Text> : null}
+          {revealChoices.map(choice => {
+            const author=choice.authorId?playersList.find(p=>p.id===choice.authorId):null;
+            const pickers=choice.pickedBy.map(id=>playersList.find(p=>p.id===id)).filter(Boolean);
+            return <View key={choice.choiceIndex} style={[styles.revealChoice,choice.isCorrect&&styles.revealCorrectChoice,choice.authorId&&styles.revealTrapChoice]}>
+              <View style={styles.revealChoiceHeading}><Text style={styles.revealChoiceText}>{choice.text}</Text>{choice.isCorrect?<Badge tone="lime">DOĞRU CEVAP</Badge>:null}</View>
+              {author?<View style={styles.revealMetaRow}><Text style={styles.revealMetaLabel}>Tuzağın sahibi:</Text><Avatar avatarKey={author.avatarUrl??author.avatarKey} userId={author.id} size={24}/><Text style={styles.revealMetaName}>{author.name}</Text></View>:null}
+              <View style={styles.revealMetaRow}><Text style={styles.revealMetaLabel}>Seçenler ({pickers.length}):</Text>
+                {pickers.length?pickers.map(p=><View key={p!.id} style={styles.revealPicker}><Avatar avatarKey={p!.avatarUrl??p!.avatarKey} userId={p!.id} size={24}/><Text style={styles.revealMetaName}>{p!.name}</Text></View>):<Text style={styles.explanationText}>Kimse seçmedi</Text>}
+              </View>
+            </View>;
+          })}
+        </Card>
         {/* Other Players Summary */}
         <Text style={styles.sectionTitle}>TÜM OYUNCULARIN TUR PUANLARI</Text>
         <View style={styles.playersListWrap}>
@@ -501,6 +516,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: spacing.xs,
     marginTop: spacing.sm,
   },
+  revealChoice:{borderWidth:1,borderColor:colors.border,borderRadius:radii.md,padding:spacing.md,marginTop:spacing.sm,gap:8,backgroundColor:colors.bgSurfaceAlt},
+  revealCorrectChoice:{borderColor:colors.lime}, revealTrapChoice:{borderColor:colors.orange},
+  revealChoiceHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},
+  revealChoiceText:{...typography.bodyMedium,color:colors.textPrimary,flex:1,fontFamily:'Poppins-SemiBold'},
+  revealMetaRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6},
+  revealMetaLabel:{...typography.caption,color:colors.textMuted},revealMetaName:{...typography.caption,color:colors.textPrimary,fontFamily:'Poppins-SemiBold'},
+  revealPicker:{flexDirection:'row',alignItems:'center',gap:4,marginRight:4},
   playersListWrap: {
     gap: 8,
     marginBottom: spacing.lg,
