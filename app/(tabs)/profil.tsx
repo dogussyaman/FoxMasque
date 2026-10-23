@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput, Platform } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput, Platform, Modal, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -177,30 +177,12 @@ export default function ProfilScreen() {
               ring
             />
             <View style={{ flex: 1 }}>
-              {editingName ? (
-                <View style={styles.editRow}>
-                  <Input
-                    value={tempName}
-                    onChangeText={setTempName}
-                    style={styles.nameInput}
-                    placeholder="İsmin"
-                    placeholderTextColor={colors.textMuted}
-                    maxLength={16}
-                    variant="surface"
-                    focusedBorderColor={colors.orange}
-                  />
-                  <Pressable onPress={handleSaveProfile} style={styles.saveBtn}>
-                    <Check color="#FFF" size={18} strokeWidth={2.5} />
-                  </Pressable>
-                </View>
-              ) : (
-                <View style={styles.nameDisplayRow}>
-                  <Text style={styles.playerName}>{currentPlayer?.name ?? 'Kızılkuyruk Ustası'}</Text>
-                  <Pressable onPress={() => setEditingName(true)} style={styles.editIconBtn}>
-                    <Edit2 color={colors.orange} size={16} />
-                  </Pressable>
-                </View>
-              )}
+              <View style={styles.nameDisplayRow}>
+                <Text style={styles.playerName}>{currentPlayer?.name ?? 'Kızılkuyruk Ustası'}</Text>
+                <Pressable onPress={() => {setTempName(currentPlayer?.name ?? '');setProfileError(null);setEditingName(true);}} style={styles.editIconBtn}>
+                  <Edit2 color={colors.orange} size={16} />
+                </Pressable>
+              </View>
               <View style={styles.rolePill}>
                 <Flame color={colors.yellow} size={12} />
                 <Text style={styles.playerRole}>
@@ -481,6 +463,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 16,
     marginBottom: spacing.md,
   },
+  modalBackdrop:{flex:1,backgroundColor:'rgba(8,7,18,0.72)',justifyContent:'center',padding:spacing.lg},
+  nameModal:{backgroundColor:colors.bgCard,borderRadius:radii.xl,borderWidth:1,borderColor:colors.borderStrong,padding:spacing.lg,gap:spacing.sm},
+  nameModalTitle:{...typography.h3,color:colors.textPrimary,fontFamily:'Poppins-Bold'},
+  nameModalHint:{...typography.caption,color:colors.textSecondary},
+  nameModalInput:{minHeight:48,borderWidth:1.5,borderColor:colors.orange,borderRadius:radii.md,paddingHorizontal:spacing.md,color:colors.textPrimary,backgroundColor:colors.bgSurfaceAlt,fontFamily:'Poppins-SemiBold',fontSize:16},
+  nameModalActions:{flexDirection:'row',justifyContent:'flex-end',gap:spacing.sm,marginTop:spacing.sm},
   nameDisplayRow: {
     flexDirection: 'row',
     alignItems: 'center',
