@@ -16,6 +16,7 @@ export type AuthStatus = 'loading' | 'signed_in' | 'signed_out';
 interface GameStoreValue {
   service: GameService;
   isLive: boolean;
+  isInitialized: boolean;
   authStatus: AuthStatus;
   isAnonymous: boolean;
   currentPlayer: Player | null;
@@ -44,6 +45,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
   const isLive = supabaseConfigured;
 
   const [currentPlayer, setPlayer] = useState<Player | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>(isLive ? 'loading' : 'signed_in');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>('connecting');
@@ -237,6 +239,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     } finally {
       initCompleted.current = true;
       initFlight.current = null;
+      setIsInitialized(true);
     }
   }, [service, isLive]);
 
@@ -297,6 +300,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
     () => ({
       service,
       isLive,
+      isInitialized,
       authStatus,
       isAnonymous,
       currentPlayer,
@@ -317,7 +321,7 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
       continueSavedRoom,
       dismissRecoveryOffer,
     }),
-    [service, isLive, authStatus, isAnonymous, currentPlayer, connection, roomCode, roomState, lastNudge, error, recoveryStatus, recoveryCode, recoveryRoom, init, setCurrentPlayer, updateRoomCode, applyRoomState, refreshRoom, continueSavedRoom, dismissRecoveryOffer]
+    [service, isLive, isInitialized, authStatus, isAnonymous, currentPlayer, connection, roomCode, roomState, lastNudge, error, recoveryStatus, recoveryCode, recoveryRoom, init, setCurrentPlayer, updateRoomCode, applyRoomState, refreshRoom, continueSavedRoom, dismissRecoveryOffer]
   );
 
   return <GameStoreContext.Provider value={value}>{children}</GameStoreContext.Provider>;

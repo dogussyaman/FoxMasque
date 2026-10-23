@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Switch, Pressabl
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut, LoaderCircle, Sun, Moon } from 'lucide-react-native';
+import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut, Sun, Moon } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, Badge, Input } from '@/components/ui';
 import { spacing, typography, radii, shadows } from '@/theme';
 import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
@@ -424,22 +424,6 @@ export default function ProfilScreen() {
               </Badge>
             </View>
 
-            <View style={styles.divider} />
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/loading-demo')}
-              style={styles.loadingSetting}
-            >
-              <View style={styles.settingLeft}>
-                <LoaderCircle color={colors.orange} size={20} />
-                <View>
-                  <Text style={styles.settingText}>Loading</Text>
-                  <Text style={styles.settingSub}>Yükleme animasyonunu test et</Text>
-                </View>
-              </View>
-              <Text style={styles.loadingSettingAction}>Test et</Text>
-            </Pressable>
           </Card>
         </View>
 
@@ -693,17 +677,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 6,
-  },
-  loadingSetting: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  loadingSettingAction: {
-    ...typography.caption,
-    color: colors.orange,
-    fontFamily: 'Poppins-Bold',
   },
   settingLeft: {
     flexDirection: 'row',

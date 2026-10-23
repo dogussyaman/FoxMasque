@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -14,7 +14,8 @@ import {
 import { SplashScreen } from 'expo-router';
 import { colors } from '@/theme';
 import { ActivityIndicator, Platform, View } from 'react-native';
-import { GameStoreProvider } from '@/store/gameStore';
+import { GameStoreProvider, useGameStore } from '@/store/gameStore';
+import { KizilkuyrukLoading } from '@/components/loading/KizilkuyrukLoading';
 import { soundService } from '@/services/soundService';
 import { PrototypeProvider } from '@/features/prototype/PrototypeProvider';
 import { ThemeProvider, useTheme } from '@/theme/ThemeProvider';
@@ -79,6 +80,19 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { mode } = useTheme();
+  const { isInitialized } = useGameStore();
+  const [showStartupLoading, setShowStartupLoading] = useState(true);
+  const finishStartupLoading = useCallback(() => setShowStartupLoading(false), []);
+
+  if (showStartupLoading) {
+    return (
+      <KizilkuyrukLoading
+        done={isInitialized}
+        onFinish={finishStartupLoading}
+      />
+    );
+  }
+
   return (
     <>
       <Stack
@@ -114,7 +128,6 @@ function RootNavigator() {
         <Stack.Screen name="result" options={{ animation: 'fade_from_bottom' }} />
         <Stack.Screen name="scoreboard" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="game-over" options={{ animation: 'fade' }} />
-        <Stack.Screen name="loading-demo" options={{ animation: 'fade' }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style={mode === 'light' ? 'dark' : 'light'} />

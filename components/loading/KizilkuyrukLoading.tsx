@@ -13,16 +13,15 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 import { mascotImages } from '@/assets/illustrations';
 import { Card } from '@/components/ui/Card';
-import { colors } from '@/theme';
 import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/theme/ThemeProvider';
 
 const SLIDES = [
   { image: mascotImages.searching, message: 'Oyun dünyası hazırlanıyor...' },
-  { image: mascotImages.cunning, message: 'Rakiplerini şaşırtmaya hazır ol!' },
-  { image: mascotImages.lobby, message: 'Arkadaşların oyun odasına çağrılıyor.' },
-  { image: mascotImages.shocked, message: 'Bakalım bu tur kim tuzağa düşecek?' },
-  { image: mascotImages.winner, message: 'Zafer için son hazırlıklar yapılıyor!' },
+  { image: mascotImages.cunning, message: 'Oturum bilgileri güvenle kontrol ediliyor.' },
+  { image: mascotImages.lobby, message: 'Kayıtlı oyun durumun kontrol ediliyor.' },
+  { image: mascotImages.shocked, message: 'Son hazırlıklar tamamlanıyor...' },
+  { image: mascotImages.winner, message: 'Birazdan oyuna hazırsın!' },
 ];
 
 interface KizilkuyrukLoadingProps {
@@ -137,7 +136,7 @@ export function KizilkuyrukLoading({ done, onFinish }: KizilkuyrukLoadingProps) 
 
         <View style={styles.progressContainer}>
           <View style={styles.progressLabels}>
-            <Text style={styles.progressLabel}>Oyun yükleniyor</Text>
+            <Text style={styles.progressLabel}>Uygulama hazırlanıyor</Text>
             <Text style={styles.progressPercent}>%{percent}</Text>
           </View>
           <View style={styles.track}>
