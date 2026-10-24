@@ -8,6 +8,7 @@ import { Screen, Button, Badge, Avatar, StaggerRow, StickyActionBar } from '@/co
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
+import { getRemainingSeconds, getServerNowMs } from '@/services/serverClock';
 import { ABILITIES, type AbilityId, canUseAbility, remainingUses } from '@/features/game/abilities';
 
 export default function AbilitySelectScreen() {
@@ -22,7 +23,6 @@ export default function AbilitySelectScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const expirationRequested = useRef<number | null>(null);
   const submitting = useRef(false);
 
   // Transition to question screen once room enters 'fake_answer' or 'question' phase
@@ -35,30 +35,66 @@ export default function AbilitySelectScreen() {
   useEffect(() => {
     const deadline = roomState?.phaseDeadlineAt;
     if (deadline === null || deadline === undefined) return;
-    expirationRequested.current = null;
     const updateCountdown = () => {
-      setSecondsLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+      setSecondsLeft(getRemainingSeconds(deadline));
     };
     updateCountdown();
     const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
   }, [roomState?.phaseDeadlineAt]);
 
+  // Reconcile from the server while this screen is open. Realtime can miss an event
+  // during a temporary disconnect; polling prevents one player being stranded on a
+  // stale phase after the other players have already moved on.
   useEffect(() => {
-    const deadline = roomState?.phaseDeadlineAt;
-    if (
-      roomState?.phase !== 'ability_select' ||
-      deadline === null ||
-      deadline === undefined ||
-      Date.now() < deadline ||
-      !roomCode ||
-      expirationRequested.current === deadline
-    ) return;
-    expirationRequested.current = deadline;
-    service.advanceExpiredPhase(roomCode)
-      .then(() => refreshRoom())
-      .catch((e) => setError((e as Error).message));
-  }, [roomState?.phase, roomState?.phaseDeadlineAt, secondsLeft, roomCode, service, refreshRoom]);
+    if (roomState?.phase !== 'ability_select' || !roomCode) return;
+
+    let disposed = false;
+    let requestInFlight = false;
+
+    const reconcileAbilityPhase = async () => {
+      if (requestInFlight || disposed) return;
+      requestInFlight = true;
+      let phaseAdvanceFailed = false;
+
+      try {
+        const deadline = roomState.phaseDeadlineAt;
+        if (deadline !== null && deadline !== undefined && getServerNowMs() >= deadline) {
+          try {
+            // This RPC is idempotent against concurrent clients and checks the
+            // current server phase/deadline under a row lock.
+            await service.advanceExpiredPhase(roomCode);
+          } catch (cause) {
+            phaseAdvanceFailed = true;
+            if (!disposed) {
+              setError((cause as Error).message || 'Tur süresi tamamlanamadı. Sunucu yeniden kontrol ediliyor.');
+            }
+          }
+        }
+
+        try {
+          await refreshRoom();
+          if (!disposed && !phaseAdvanceFailed) setError(null);
+        } catch (cause) {
+          if (!disposed) {
+            setError((cause as Error).message || 'Oyun durumu eşitlenemedi. Yeniden deneniyor.');
+          }
+        }
+      } finally {
+        requestInFlight = false;
+      }
+    };
+
+    void reconcileAbilityPhase();
+    const timer = setInterval(() => {
+      void reconcileAbilityPhase();
+    }, 3500);
+
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+    };
+  }, [roomState?.phase, roomState?.phaseDeadlineAt, roomCode, service, refreshRoom]);
 
   const playersList = roomState ? Object.values(roomState.players) : [];
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
@@ -118,6 +154,10 @@ export default function AbilitySelectScreen() {
       }
       await service.confirmAbilitySelection(roomCode);
       setConfirmed(true);
+      // Force a fresh authoritative read even if this client's Realtime event is missed.
+      await refreshRoom();
+      // Do not rely exclusively on the Realtime event to navigate this player.
+      await refreshRoom();
     } catch (e) {
       setError((e as Error).message);
     } finally {
