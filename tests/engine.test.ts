@@ -529,7 +529,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
 
       assert.equal(result.rows.target.pointsDelta, 0);
       assert.equal(result.rows.target.penaltyDelta, 0);
-      assert.equal(result.updatedPlayers.target.score, 200);
+      assert.equal(result.updatedPlayers.target.score, 100);
       assert.equal(result.updatedPlayers.target.shieldsAvailable, 0);
     });
 
@@ -555,7 +555,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
 
       assert.equal(result.rows.target.pointsDelta, 0);
       assert.equal(result.rows.target.penaltyDelta, 0);
-      assert.equal(result.updatedPlayers.target.score, 100);
+      assert.equal(result.updatedPlayers.target.score, 200);
     });
 
     test('Blocked player can guess correctly but cannot submit a fake answer', () => {

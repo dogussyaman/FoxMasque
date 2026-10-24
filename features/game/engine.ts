@@ -177,7 +177,6 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
   }
 
   // 2. Calculate picks and fake answer traps
-  // 2. Calculate picks and fake answer traps
   // Count how many players picked each fake answer author
   const victimCountsByAuthor = new Map<PlayerId, number>();
   for (const p of players) {

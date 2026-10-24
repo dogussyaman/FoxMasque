@@ -29,7 +29,7 @@ export const POINTS = {
   zartalandınPenalty: 0,
   tuzağaDüştünPenalty: 0,
   wrong: 0,
-} as const;} as const;
+} as const;
 
 /**
  * Compute the outcome for a single player in a TUZAK round.

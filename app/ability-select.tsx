@@ -118,7 +118,7 @@ export default function AbilitySelectScreen() {
     const check = canUseAbility(
       abilityState,
       id,
-      targetId ?? (id === 'block' || id === 'penalty' ? defaultTargetId : undefined)
+      targetId ?? (id === 'block' ? defaultTargetId : undefined)
     );
     if (!check.allowed) {
       trigger('heavy');

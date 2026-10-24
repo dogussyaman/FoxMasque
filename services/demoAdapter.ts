@@ -583,7 +583,7 @@ export class DemoGameService implements GameService {
       throw new ServiceError('INSUFFICIENT_CREDITS', `Bu yetenek için ${creditCost} kredi gerekiyor.`);
     }
     room.players[player.id] = { ...room.players[player.id], credits: (room.players[player.id].credits ?? 0) - creditCost };
-    this.currentPlayer = { ...this.currentPlayer, credits: room.players[player.id].credits };
+    this.currentPlayer = { ...player, credits: room.players[player.id].credits };
     room.abilityActions.push(action);
     this.emit({ type: 'ability_used', payload: { code, action } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
