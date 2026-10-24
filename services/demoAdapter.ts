@@ -616,10 +616,16 @@ export class DemoGameService implements GameService {
         .map(([, answer]) => answer)
     );
     if (validation === 'correct_answer') {
-      throw new ServiceError('FAKE_ANSWER_IS_CORRECT', 'Gerçek cevabı sahte cevap olarak gönderemezsin. Başka bir cevap yaz.');
+      throw new ServiceError(
+        'FAKE_ANSWER_IS_CORRECT',
+        'Cevabınız doğru cevap veya arkadaşınızın yazdığı bir cevap ile uyuşuyor, lütfen farklı bir cevap yazınız.'
+      );
     }
     if (validation === 'duplicate_answer') {
-      throw new ServiceError('FAKE_ANSWER_DUPLICATE', 'Bu cevap başka bir oyuncu tarafından gönderildi. Farklı bir cevap yaz.');
+      throw new ServiceError(
+        'FAKE_ANSWER_DUPLICATE',
+        'Cevabınız doğru cevap veya arkadaşınızın yazdığı bir cevap ile uyuşuyor, lütfen farklı bir cevap yazınız.'
+      );
     }
     if (room.fakeAnswers[meId] !== undefined) {
       if (room.fakeAnswers[meId] !== clean) {

@@ -25,6 +25,7 @@ import {
   PulseView,
   StickyActionBar,
   Input,
+  FloatingToast,
 } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
@@ -76,11 +77,21 @@ export default function QuestionScreen() {
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [topToast, setTopToast] = useState<{ title: string; message: string; tone?: 'warning' | 'danger' } | null>(null);
   const [pauseUpdating, setPauseUpdating] = useState(false);
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const [leavingGame, setLeavingGame] = useState(false);
   const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
   const isGamePaused = roomState?.pausedAt != null;
+
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showTopToast = useCallback((message: string, title = 'Dikkat', tone: 'warning' | 'danger' = 'danger') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setTopToast({ title, message, tone });
+    toastTimeoutRef.current = setTimeout(() => {
+      setTopToast(null);
+    }, 5000);
+  }, []);
 
   const pickSubmissionInProgress = useRef(false);
   const pickCommitted = useRef(false);
@@ -227,6 +238,7 @@ export default function QuestionScreen() {
     return () => {
       clockRequestId.current += 1;
       soundService.stop('clock');
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
   }, []);
 
@@ -395,7 +407,9 @@ export default function QuestionScreen() {
   const handleFakeSubmit = () => {
     const clean = fakeAnswerText.trim();
     if (!clean) {
-      setError('Lütfen inandırıcı bir sahte cevap yaz.');
+      const emptyMsg = 'Lütfen inandırıcı bir sahte cevap yaz.';
+      setError(emptyMsg);
+      showTopToast(emptyMsg, 'Cevap Boş Olamaz', 'warning');
       return;
     }
     soundService.stop('clock');
@@ -415,7 +429,18 @@ export default function QuestionScreen() {
       if (currentPlayer) prototype.beginWaiting(stageId, 'fake_answer', currentPlayer.id);
       router.replace('/waiting');
     } catch (e) {
-      setError((e as Error).message);
+      const rawMsg = (e as Error).message || '';
+      let friendlyMsg = rawMsg;
+      if (
+        rawMsg.includes('başka bir oyuncu') ||
+        rawMsg.includes('Gerçek cevabı') ||
+        rawMsg.includes('uyuşuyor') ||
+        rawMsg.includes('FAKE_ANSWER')
+      ) {
+        friendlyMsg = 'Cevabınız doğru cevap veya arkadaşınızın yazdığı bir cevap ile uyuşuyor, lütfen farklı bir cevap yazınız.';
+      }
+      setError(friendlyMsg);
+      showTopToast(friendlyMsg, 'Farklı Bir Cevap Yazın', 'danger');
     } finally {
       setSubmitting(false);
     }
@@ -460,6 +485,13 @@ export default function QuestionScreen() {
 
   return (
     <Screen gradient diagonalSlice>
+      {topToast ? (
+        <FloatingToast
+          title={topToast.title}
+          message={topToast.message}
+          tone={topToast.tone}
+        />
+      ) : null}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -577,6 +609,7 @@ export default function QuestionScreen() {
                       onChangeText={(t) => {
                         setFakeAnswerText(t);
                         if (error) setError(null);
+                        if (topToast) setTopToast(null);
                       }}
                       placeholder="Bu soruya vereceğin sahte cevap..."
                       placeholderTextColor={colors.textMuted}

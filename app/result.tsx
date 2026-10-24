@@ -270,30 +270,59 @@ export default function ResultScreen() {
             <Text style={styles.summaryMessage}>Tur özeti yükleniyor...</Text>
           ) : trapSummaries.length > 0 ? (
             <View style={styles.trapList}>
-              {trapSummaries.map(({ choiceIndex, author, victims }) => (
-                <View key={choiceIndex} style={styles.trapRow}>
-                  <View style={styles.trapAuthor}>
-                    <Avatar avatarKey={author.avatarUrl ?? author.avatarKey} userId={author.id} size={38} />
-                    <View style={styles.trapAuthorDetails}>
-                      <Text style={styles.trapPlayerName} numberOfLines={1}>{author.name}</Text>
-                      <Text style={styles.trapRole}>TUZAĞI KURDU</Text>
+              {trapSummaries.map(({ choiceIndex, author, victims }) => {
+                const isMyTrap = author.id === me?.id;
+                return (
+                  <View
+                    key={choiceIndex}
+                    style={[
+                      styles.trapRow,
+                      isMyTrap && styles.trapRowMyTrap,
+                    ]}
+                  >
+                    <View style={styles.trapAuthor}>
+                      <Avatar avatarKey={author.avatarUrl ?? author.avatarKey} userId={author.id} size={38} />
+                      <View style={styles.trapAuthorDetails}>
+                        <Text style={styles.trapPlayerName} numberOfLines={1}>
+                          {author.name}{isMyTrap ? ' (Sen)' : ''}
+                        </Text>
+                        <View style={[styles.trapRoleBadge, isMyTrap && styles.trapRoleBadgeMine]}>
+                          <Text style={[styles.trapRole, isMyTrap && styles.trapRoleMine]}>
+                            {isMyTrap ? 'TUZAĞA DÜŞÜRDÜN' : 'TUZAĞI KURDU'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    <ArrowRight
+                      color={isMyTrap ? '#22C55E' : (mode === 'light' ? '#15803D' : '#4ADE80')}
+                      size={18}
+                    />
+                    <View style={styles.trapVictims}>
+                      {victims.map((victim) => {
+                        const isMe = victim.id === me?.id;
+                        return (
+                          <View
+                            key={victim.id}
+                            style={[
+                              styles.trapVictim,
+                              isMe && styles.trapVictimMe,
+                            ]}
+                          >
+                            <Avatar
+                              avatarKey={victim.avatarUrl ?? victim.avatarKey}
+                              userId={victim.id}
+                              size={28}
+                            />
+                            <Text style={styles.trapVictimName} numberOfLines={1}>
+                              {victim.name}{isMe ? ' (Sen)' : ''}
+                            </Text>
+                          </View>
+                        );
+                      })}
                     </View>
                   </View>
-                  <ArrowRight color={mode === 'light' ? '#B8441B' : colors.orange} size={18} />
-                  <View style={styles.trapVictims}>
-                    {victims.map((victim) => (
-                      <View key={victim.id} style={styles.trapVictim}>
-                        <Avatar
-                          avatarKey={victim.avatarUrl ?? victim.avatarKey}
-                          userId={victim.id}
-                          size={30}
-                        />
-                        <Text style={styles.trapVictimName} numberOfLines={1}>{victim.name}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           ) : (
             <Text style={styles.summaryMessage}>Bu tur kimse tuzağa düşmedi.</Text>
@@ -454,7 +483,14 @@ const createStyles = (colors: ThemeColors, mode: 'dark' | 'light') => StyleSheet
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.xs + 2,
+    borderRadius: radii.md,
+  },
+  trapRowMyTrap: {
+    backgroundColor: mode === 'light' ? 'rgba(34, 197, 94, 0.12)' : 'rgba(34, 197, 94, 0.14)',
+    borderWidth: 1.5,
+    borderColor: mode === 'light' ? 'rgba(21, 128, 61, 0.5)' : 'rgba(74, 222, 128, 0.5)',
   },
   trapAuthor: {
     flex: 1,
@@ -466,17 +502,34 @@ const createStyles = (colors: ThemeColors, mode: 'dark' | 'light') => StyleSheet
   trapAuthorDetails: {
     flex: 1,
     minWidth: 0,
+    gap: 2,
   },
   trapPlayerName: {
     ...typography.caption,
     color: colors.textPrimary,
     fontFamily: 'Poppins-Bold',
   },
+  trapRoleBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: mode === 'light' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.20)',
+    borderColor: mode === 'light' ? 'rgba(21, 128, 61, 0.4)' : 'rgba(34, 197, 94, 0.4)',
+    borderWidth: 1,
+    borderRadius: radii.xs,
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+  },
+  trapRoleBadgeMine: {
+    backgroundColor: mode === 'light' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(34, 197, 94, 0.35)',
+    borderColor: '#22C55E',
+  },
   trapRole: {
     fontFamily: 'Poppins-Bold',
     fontSize: 9,
-    color: mode === 'light' ? '#B8441B' : colors.orange,
+    color: mode === 'light' ? '#15803D' : '#4ADE80',
     letterSpacing: 0.5,
+  },
+  trapRoleMine: {
+    color: mode === 'light' ? '#166534' : '#86EFAC',
   },
   trapVictims: {
     flex: 1.3,
@@ -490,16 +543,21 @@ const createStyles = (colors: ThemeColors, mode: 'dark' | 'light') => StyleSheet
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.bgSurfaceAlt,
+    backgroundColor: mode === 'light' ? 'rgba(239, 68, 68, 0.12)' : 'rgba(239, 68, 68, 0.18)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: mode === 'light' ? 'rgba(220, 38, 38, 0.45)' : 'rgba(239, 68, 68, 0.5)',
     borderRadius: radii.pill,
     paddingVertical: 3,
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
+  },
+  trapVictimMe: {
+    backgroundColor: mode === 'light' ? 'rgba(220, 38, 38, 0.22)' : 'rgba(239, 68, 68, 0.32)',
+    borderColor: '#EF4444',
   },
   trapVictimName: {
     ...typography.caption,
-    color: colors.textPrimary,
+    color: mode === 'light' ? '#991B1B' : '#FCA5A5',
+    fontFamily: 'Poppins-Medium',
     maxWidth: 90,
   },
   playersListWrap: {

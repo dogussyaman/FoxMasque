@@ -13,6 +13,7 @@ import {
   DICEBEAR_AVATAR_KEYS,
   createRandomDiceBearAvatarKey,
 } from '@/features/game/players';
+import { SPECIAL_AVATAR_KEYS } from '@/features/game/specialAvatars';
 import { mascotImages } from '@/assets/illustrations';
 
 export default function OnboardingScreen() {
@@ -24,14 +25,16 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState('');
   const [avatarOptions] = useState(() => [
+    ...SPECIAL_AVATAR_KEYS,
     createRandomDiceBearAvatarKey(),
     ...AVATAR_KEYS,
     ...DICEBEAR_AVATAR_KEYS,
   ]);
   const [selectedAvatar, setSelectedAvatar] = useState(avatarOptions[0]);
-  const [avatarCategory, setAvatarCategory] = useState<'all' | 'people' | 'robots' | 'emoji' | 'animals' | 'fashion' | 'streetwear'>('all');
+  const [avatarCategory, setAvatarCategory] = useState<'special' | 'all' | 'people' | 'robots' | 'emoji' | 'animals' | 'fashion' | 'streetwear'>('special');
   const filteredAvatarOptions = avatarOptions.filter((key) => {
     if (avatarCategory === 'all') return true;
+    if (avatarCategory === 'special') return key.startsWith('special:');
     if (avatarCategory === 'animals') return AVATAR_KEYS.includes(key as (typeof AVATAR_KEYS)[number]);
     if (!key.startsWith('db:')) return false;
     const style = key.split(':')[1];
@@ -159,6 +162,7 @@ export default function OnboardingScreen() {
             <Text style={styles.sectionLabel}>AVATARINI SEÇ · {filteredAvatarOptions.length} SEÇENEK</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.avatarFilters}>
               {([
+                { key: 'special', label: '⭐ Özel Avatarlar' },
                 { key: 'all', label: 'Tümü' },
                 { key: 'people', label: 'Portreler' },
                 { key: 'robots', label: 'Robotlar' },

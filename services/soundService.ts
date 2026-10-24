@@ -144,7 +144,12 @@ class SoundService {
     }
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.Audio !== 'undefined') {
-      const resolved = resolveAudioAssetUri(source, Image.resolveAssetSource);
+      const resolver = typeof (Image as any).resolveAssetSource === 'function'
+        ? (Image as any).resolveAssetSource
+        : typeof (Image as any).default?.resolveAssetSource === 'function'
+        ? (Image as any).default.resolveAssetSource
+        : () => null;
+      const resolved = resolveAudioAssetUri(source, resolver);
       if (!resolved) return null;
 
       const audio = new window.Audio(resolved);

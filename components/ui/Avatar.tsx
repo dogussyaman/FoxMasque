@@ -8,6 +8,7 @@ import {
   defaultDiceBearAvatarKey,
   diceBearAvatarSvg,
 } from '@/features/game/players';
+import { getSpecialAvatar } from '@/features/game/specialAvatars';
 import { useTheme } from '@/theme/ThemeProvider';
 
 interface AvatarProps {
@@ -26,6 +27,43 @@ export const UserAvatar = memo(function UserAvatar({
   ring,
 }: AvatarProps) {
   const { colors: themeColors } = useTheme();
+  const special = getSpecialAvatar(avatarKey);
+
+  if (special) {
+    return (
+      <View style={{ position: 'relative' }}>
+        <View
+          style={[
+            styles.avatar,
+            {
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              overflow: 'hidden',
+              borderWidth: ring ? 2 : 0,
+              borderColor: ring ? themeColors.purpleSoft : 'transparent',
+              backgroundColor: themeColors.bgSurfaceAlt,
+            },
+          ]}
+        >
+          <Image
+            source={special.source}
+            style={{ width: size, height: size }}
+            resizeMode="cover"
+          />
+        </View>
+        {online !== undefined ? (
+          <View
+            style={[
+              styles.dot,
+              { backgroundColor: online ? themeColors.success : themeColors.textMuted },
+            ]}
+          />
+        ) : null}
+      </View>
+    );
+  }
+
   const av = avatarOf(avatarKey);
   const imageUri = /^(https?:|file:|content:)/.test(avatarKey ?? '') ? avatarKey ?? null : null;
   const fallbackKey =

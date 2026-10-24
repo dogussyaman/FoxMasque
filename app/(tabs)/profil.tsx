@@ -13,6 +13,7 @@ import { useHaptics } from '@/hooks/useHaptics';
 import { useSound } from '@/hooks/useSound';
 import { soundService } from '@/services/soundService';
 import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
+import { SPECIAL_AVATAR_KEYS } from '@/features/game/specialAvatars';
 
 export default function ProfilScreen() {
   const { colors, mode, setMode } = useTheme();
@@ -26,7 +27,7 @@ export default function ProfilScreen() {
   const [selectedAvatar, setSelectedAvatar] = useState(currentPlayer?.avatarKey ?? 'fox');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showAllAvatars, setShowAllAvatars] = useState(false);
-  const [selectedAvatarCategory, setSelectedAvatarCategory] = useState<'all' | 'people' | 'robots' | 'emoji' | 'animals' | 'fashion' | 'streetwear'>('all');
+  const [selectedAvatarCategory, setSelectedAvatarCategory] = useState<'all' | 'special' | 'people' | 'robots' | 'emoji' | 'animals' | 'fashion' | 'streetwear'>('all');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [statsPlayer, setStatsPlayer] = useState(currentPlayer);
@@ -146,10 +147,11 @@ export default function ProfilScreen() {
     }
   };
 
-  const avatarChoices: string[] = [...DICEBEAR_AVATAR_KEYS, ...AVATAR_KEYS];
+  const avatarChoices: string[] = [...SPECIAL_AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS, ...AVATAR_KEYS];
   if (!avatarChoices.includes(selectedAvatar)) avatarChoices.push(selectedAvatar);
   const filteredAvatarChoices = avatarChoices.filter((key) => {
     if (selectedAvatarCategory === 'all') return true;
+    if (selectedAvatarCategory === 'special') return key.startsWith('special:');
     if (selectedAvatarCategory === 'animals') return AVATAR_KEYS.includes(key as (typeof AVATAR_KEYS)[number]);
     if (!key.startsWith('db:')) return false;
     const style = key.split(':')[1];
@@ -160,7 +162,7 @@ export default function ProfilScreen() {
     if (selectedAvatarCategory === 'streetwear') return style === 'streetwear';
     return false;
   });
-  const visibleAvatarChoices = showAllAvatars
+  const visibleAvatarChoices = showAllAvatars || selectedAvatarCategory === 'special'
     ? filteredAvatarChoices
     : [
         ...filteredAvatarChoices.slice(0, 12),
@@ -267,6 +269,7 @@ export default function ProfilScreen() {
               <View style={styles.avatarFilters}>
                 {([
                   { key: 'all', label: 'Tümü' },
+                  { key: 'special', label: '⭐ Özel Avatarlar' },
                   { key: 'people', label: 'Portreler' },
                   { key: 'robots', label: 'Robotlar' },
                   { key: 'emoji', label: 'Emoji' },
