@@ -14,6 +14,7 @@ import { useSound } from '@/hooks/useSound';
 import { soundService } from '@/services/soundService';
 import { AVATAR_KEYS, DICEBEAR_AVATAR_KEYS } from '@/features/game/players';
 import { SPECIAL_AVATAR_KEYS } from '@/features/game/specialAvatars';
+import { getPlayerAchievements } from '@/features/game/achievements';
 
 export default function ProfilScreen() {
   const { colors, mode, setMode } = useTheme();
@@ -146,6 +147,9 @@ export default function ProfilScreen() {
       setSigningOut(false);
     }
   };
+
+  const achievements = getPlayerAchievements(statsPlayer);
+  const unlockedAchievementCount = achievements.filter((achievement) => achievement.unlocked).length;
 
   const avatarChoices: string[] = [...SPECIAL_AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS, ...AVATAR_KEYS];
   if (!avatarChoices.includes(selectedAvatar)) avatarChoices.push(selectedAvatar);
@@ -376,6 +380,64 @@ export default function ProfilScreen() {
               </Text>
               <Text style={styles.statLabel}>Tamamlanan Oyun</Text>
             </Card>
+          </View>
+        </View>
+
+        {/* Achievements — derived from the saved profile stats */}
+        <View style={styles.section}>
+          <View style={styles.achievementHeading}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>BAŞARIMLAR</Text>
+            <Badge tone="lime" sticker>
+              {unlockedAchievementCount}/{achievements.length} AÇILDI
+            </Badge>
+          </View>
+          <View style={styles.achievementGrid}>
+            {achievements.map((achievement) => (
+              <Card
+                key={achievement.id}
+                variant="surface"
+                style={[
+                  styles.achievementCard,
+                  !achievement.unlocked && styles.achievementCardLocked,
+                ]}
+              >
+                <View style={styles.achievementTopRow}>
+                  <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+                  <Text
+                    style={[
+                      styles.achievementStatus,
+                      achievement.unlocked
+                        ? styles.achievementStatusUnlocked
+                        : styles.achievementStatusLocked,
+                    ]}
+                  >
+                    {achievement.unlocked ? 'AÇILDI' : 'KİLİTLİ'}
+                  </Text>
+                </View>
+                <Text style={styles.achievementTitle}>{achievement.title}</Text>
+                <Text style={styles.achievementDescription}>{achievement.description}</Text>
+                <View
+                  accessibilityRole="progressbar"
+                  accessibilityLabel={`${achievement.title} ilerlemesi`}
+                  accessibilityValue={{
+                    min: 0,
+                    max: achievement.target,
+                    now: achievement.progress,
+                  }}
+                  style={styles.achievementProgressTrack}
+                >
+                  <View
+                    style={[
+                      styles.achievementProgressFill,
+                      { width: `${achievement.progressPercent}%` as `${number}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.achievementProgressText}>
+                  {achievement.progress}/{achievement.target}
+                </Text>
+              </Card>
+            ))}
           </View>
         </View>
 
@@ -915,6 +977,80 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     color: colors.textPrimary,
     marginTop: 2,
     fontFamily: 'Poppins-SemiBold',
+  },
+  achievementHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  achievementGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  achievementCard: {
+    width: '48%',
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    gap: spacing.xs,
+  },
+  achievementCardLocked: {
+    borderColor: colors.border,
+    opacity: 0.84,
+  },
+  achievementTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.xs,
+  },
+  achievementIcon: {
+    fontSize: 25,
+    lineHeight: 32,
+  },
+  achievementStatus: {
+    ...typography.caption,
+    fontSize: 9,
+    fontFamily: 'Poppins-Bold',
+    letterSpacing: 0.3,
+  },
+  achievementStatusUnlocked: {
+    color: colors.lime,
+  },
+  achievementStatusLocked: {
+    color: colors.textMuted,
+  },
+  achievementTitle: {
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    minHeight: 38,
+  },
+  achievementDescription: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    minHeight: 36,
+  },
+  achievementProgressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+    marginTop: spacing.xs,
+  },
+  achievementProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.orange,
+  },
+  achievementProgressText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: 'right',
+    fontSize: 10,
   },
   aboutSub: {
     ...typography.caption,
