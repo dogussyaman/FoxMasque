@@ -121,6 +121,8 @@ export class DemoGameService implements GameService {
       isReady: false,
       isOnline: true,
       score: 0,
+      credits: 0,
+      creditMilestonesAwarded: 0,
       abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
       consecutiveCorrect: 0,
       shieldsAvailable: 0,
@@ -485,6 +487,11 @@ export class DemoGameService implements GameService {
     const readyCount = Object.values(room.players).filter((p) => p.isReady).length;
     if (readyCount < 2) throw new ServiceError('NOT_ENOUGH_READY', 'En az 2 oyuncu hazır olmalı.');
 
+    room.players = Object.fromEntries(Object.entries(room.players).map(([id, player]) => [
+      id,
+      { ...player, score: 0, credits: 0, creditMilestonesAwarded: 0 },
+    ]));
+    if (this.currentPlayer && room.players[this.currentPlayer.id]) this.currentPlayer = room.players[this.currentPlayer.id];
     this.prepareRoundQuestions(room);
     this.setPhase(room, 'ability_select', room.config.roundSeconds);
     room.currentRound = 1;
@@ -546,15 +553,14 @@ export class DemoGameService implements GameService {
       await this.advanceExpiredPhase(code);
       throw new ServiceError('PHASE_EXPIRED', 'Yetenek seçimi süresi doldu.');
     }
-    if (room.abilityActions.some((used) =>
-      used.playerId === action.playerId && used.abilityId === action.abilityId
-    )) {
-      throw new ServiceError('ABILITY_ALREADY_USED', 'Bu yeteneği bu tur zaten kullandın.');
+    if (room.abilityActions.some((used) => used.playerId === action.playerId)) {
+      throw new ServiceError('ABILITY_ALREADY_USED', 'Bu tur yalnızca bir yetenek satın alıp kullanabilirsin.');
     }
     const allowance = canUseAbility(
       {
         playerId: player.id,
         usedCounts: player.abilityUsedCounts,
+        credits: player.credits ?? 0,
         shieldsAvailable: player.shieldsAvailable,
         blocksAvailable: player.blocksAvailable,
         isBlockedCurrentRound: player.isBlockedCurrentRound,
@@ -572,6 +578,12 @@ export class DemoGameService implements GameService {
     } else if (action.targetId) {
       throw new ServiceError('ABILITY_TARGET_INVALID', 'Bu yetenek hedef kabul etmiyor.');
     }
+    const creditCost = action.abilityId === 'block' || action.abilityId === 'shield' ? 2 : 0;
+    if ((room.players[player.id].credits ?? 0) < creditCost) {
+      throw new ServiceError('INSUFFICIENT_CREDITS', `Bu yetenek için ${creditCost} kredi gerekiyor.`);
+    }
+    room.players[player.id] = { ...room.players[player.id], credits: (room.players[player.id].credits ?? 0) - creditCost };
+    this.currentPlayer = { ...this.currentPlayer, credits: room.players[player.id].credits };
     room.abilityActions.push(action);
     this.emit({ type: 'ability_used', payload: { code, action } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
@@ -762,6 +774,7 @@ export class DemoGameService implements GameService {
 
     room.roundResults = rows;
     room.players = updatedPlayers;
+    if (this.currentPlayer && room.players[this.currentPlayer.id]) this.currentPlayer = room.players[this.currentPlayer.id];
     this.setPhase(room, 'reveal');
 
     this.emit({ type: 'round_resolved', payload: { code, rows } });
@@ -794,6 +807,11 @@ export class DemoGameService implements GameService {
       this.setPhase(room, 'scoreboard');
     } else if (room.phase === 'scoreboard') {
       if (room.currentRound >= room.config.totalRounds) {
+        room.players = Object.fromEntries(Object.entries(room.players).map(([id, player]) => [
+          id,
+          { ...player, credits: (player.credits ?? 0) + 1 },
+        ]));
+        if (this.currentPlayer && room.players[this.currentPlayer.id]) this.currentPlayer = room.players[this.currentPlayer.id];
         this.setPhase(room, 'game_over');
         this.emit({ type: 'game_over', payload: { code } });
       } else {
@@ -835,6 +853,8 @@ export class DemoGameService implements GameService {
       room.players[id] = {
         ...room.players[id],
         score: 0,
+        credits: 0,
+        creditMilestonesAwarded: 0,
         isReady: room.players[id].isHost,
         abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
         consecutiveCorrect: 0,

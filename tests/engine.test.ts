@@ -210,7 +210,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         choseRivalFake: false,
       });
 
-      assert.equal(outcome.pointsEarned, 100);
+      assert.equal(outcome.pointsEarned, 2);
       assert.equal(outcome.correct, true);
       assert.equal(outcome.zartaladın, false);
       assert.equal(outcome.zartalandın, false);
@@ -225,7 +225,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         choseRivalFake: false,
       });
 
-      assert.equal(outcome.pointsEarned, 100); // 2 * 50 = 100
+      assert.equal(outcome.pointsEarned, 2); // two successful traps = two points
       assert.equal(outcome.correct, false);
       assert.equal(outcome.zartaladın, true);
       assert.equal(outcome.victimsCount, 2);
@@ -241,7 +241,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         choseRivalFake: true,
       });
 
-      assert.equal(outcome.pointsEarned, -40);
+      assert.equal(outcome.pointsEarned, 0);
       assert.equal(outcome.correct, false);
       assert.equal(outcome.zartalandın, true);
       assert.equal(outcome.labels.length, 1);
@@ -256,7 +256,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         choseRivalFake: false,
       });
 
-      assert.equal(outcome.pointsEarned, 200); // 100 + 100
+      assert.equal(outcome.pointsEarned, 4); // two base points + two trap points
       assert.equal(outcome.correct, true);
       assert.equal(outcome.zartaladın, true);
       assert.equal(outcome.labels.length, 2);
@@ -303,19 +303,19 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       });
 
       // p1: +100 (correct) + 100 (2 victims) = +200
-      assert.equal(res.rows['p1'].pointsDelta, 200);
+      assert.equal(res.rows['p1'].pointsDelta, 4);
       assert.equal(res.rows['p1'].outcome.correct, true);
       assert.equal(res.rows['p1'].victimsCount, 2);
-      assert.equal(res.updatedPlayers['p1'].score, 250); // 50 + 200
+      assert.equal(res.updatedPlayers['p1'].score, 54); // 50 + 4
 
       // p2: -40 (tuzağa düştü by p1)
-      assert.equal(res.rows['p2'].pointsDelta, -40);
+      assert.equal(res.rows['p2'].pointsDelta, 0);
       assert.equal(res.rows['p2'].outcome.zartalandın, true);
-      assert.equal(res.updatedPlayers['p2'].score, 60); // 100 - 40
+      assert.equal(res.updatedPlayers['p2'].score, 100);
 
       // p3: -40 (tuzağa düştü by p1)
-      assert.equal(res.rows['p3'].pointsDelta, -40);
-      assert.equal(res.updatedPlayers['p3'].score, 40); // 80 - 40
+      assert.equal(res.rows['p3'].pointsDelta, 0);
+      assert.equal(res.updatedPlayers['p3'].score, 80);
     });
 
     test('Clamps score to 0 when penalty exceeds player current score', () => {
@@ -333,8 +333,8 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         picks,
       });
 
-      assert.equal(res.rows['p1'].pointsDelta, -40);
-      assert.equal(res.updatedPlayers['p1'].score, 0); // 20 - 40 clamped to 0
+      assert.equal(res.rows['p1'].pointsDelta, 0);
+      assert.equal(res.updatedPlayers['p1'].score, 20); // wrong picks do not subtract points
     });
   });
 
@@ -425,8 +425,8 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       });
       assert.equal(res.updatedPlayers.p2.isBlockedCurrentRound, true);
       assert.equal(res.updatedPlayers.p2.isBlockedNextRound, false);
-      assert.equal(res.rows.p2.pointsDelta, 100);
-      assert.equal(res.updatedPlayers.p2.score, 100);
+      assert.equal(res.rows.p2.pointsDelta, 2);
+      assert.equal(res.updatedPlayers.p2.score, 2);
       assert.equal(res.updatedPlayers.p3.isBlockedCurrentRound, false);
       assert.equal(res.updatedPlayers.p3.shieldsAvailable, 0);
       assert.equal(res.updatedPlayers.p1.blocksAvailable, 0);
@@ -472,7 +472,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(result.updatedPlayers.unanswered.blocksAvailable, 0);
     });
 
-    test('Penalty applies on a wrong pick and counter reflects it to the attacker', () => {
+    test('Legacy penalty/counter actions never subtract points', () => {
       const attacker = createPlayer('attacker', 'Attacker', 100);
       const target = createPlayer('target', 'Target', 100);
       const choices: RoundChoice[] = [
@@ -487,9 +487,9 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         picks,
         abilityActions: [{ playerId: 'attacker', abilityId: 'penalty', targetId: 'target' }],
       });
-      assert.equal(penalty.rows.target.pointsDelta, -30);
-      assert.equal(penalty.rows.target.penaltyDelta, -30);
-      assert.equal(penalty.updatedPlayers.target.score, 70);
+      assert.equal(penalty.rows.target.pointsDelta, 0);
+      assert.equal(penalty.rows.target.penaltyDelta, 0);
+      assert.equal(penalty.updatedPlayers.target.score, 100);
 
       const counter = resolveZartoRound({
         question: sampleQuestion,
@@ -502,16 +502,17 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         ],
       });
       assert.equal(counter.rows.target.pointsDelta, 0);
-      assert.equal(counter.rows.attacker.pointsDelta, 70);
-      assert.equal(counter.rows.attacker.penaltyDelta, -30);
-      assert.equal(counter.updatedPlayers.attacker.score, 170);
+      assert.equal(counter.rows.attacker.pointsDelta, 2);
+      assert.equal(counter.rows.attacker.penaltyDelta, 0);
+      assert.equal(counter.updatedPlayers.attacker.score, 102);
       assert.equal(counter.updatedPlayers.target.score, 100);
     });
 
-    test('Shield absorbs a penalty without changing the target score', () => {
+    test('A wrong fake pick does not subtract score when a legacy penalty action is present', () => {
       const attacker = createPlayer('attacker', 'Attacker', 100);
       const target = createPlayer('target', 'Target', 100);
       target.shieldsAvailable = 1;
+      target.credits = 2;
       const result = resolveZartoRound({
         question: sampleQuestion,
         players: [attacker, target],
@@ -526,13 +527,13 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         ],
       });
 
-      assert.equal(result.rows.target.pointsDelta, -40);
+      assert.equal(result.rows.target.pointsDelta, 0);
       assert.equal(result.rows.target.penaltyDelta, 0);
-      assert.equal(result.updatedPlayers.target.score, 60);
+      assert.equal(result.updatedPlayers.target.score, 200);
       assert.equal(result.updatedPlayers.target.shieldsAvailable, 0);
     });
 
-    test('Multiple penalties stack on an incorrect answer', () => {
+    test('Legacy multiple penalties never subtract points', () => {
       const target = createPlayer('target', 'Target', 200);
       const result = resolveZartoRound({
         question: sampleQuestion,
@@ -552,8 +553,8 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         ],
       });
 
-      assert.equal(result.rows.target.pointsDelta, -100);
-      assert.equal(result.rows.target.penaltyDelta, -60);
+      assert.equal(result.rows.target.pointsDelta, 0);
+      assert.equal(result.rows.target.penaltyDelta, 0);
       assert.equal(result.updatedPlayers.target.score, 100);
     });
 
@@ -576,8 +577,8 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
 
       assert.equal(res.rows['p1'].isBlocked, true);
       assert.equal(res.rows['p1'].outcome.correct, true);
-      assert.equal(res.rows['p1'].pointsDelta, 100);
-      assert.equal(res.updatedPlayers['p1'].score, 200);
+      assert.equal(res.rows['p1'].pointsDelta, 2);
+      assert.equal(res.updatedPlayers['p1'].score, 102);
       assert.equal(res.updatedPlayers['p1'].consecutiveCorrect, 1);
       assert.equal(res.updatedPlayers['p1'].isBlockedCurrentRound, true);
       assert.equal(res.updatedPlayers['p1'].blockedByPlayerId, 'attacker');
@@ -586,6 +587,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
     test('canUseAbility enforces constraints (cannot block self, cannot block same target consecutively)', () => {
       const state = freshAbilityState('p1');
       state.blocksAvailable = 1;
+      state.credits = 2;
 
       // Cannot block self
       const selfBlock = canUseAbility(state, 'block', 'p1');

@@ -9,7 +9,7 @@ import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { getRemainingSeconds, getServerNowMs } from '@/services/serverClock';
-import { ABILITIES, type AbilityId, canUseAbility, remainingUses } from '@/features/game/abilities';
+import { ABILITIES, type AbilityId, canUseAbility } from '@/features/game/abilities';
 
 export default function AbilitySelectScreen() {
   const { colors } = useTheme();
@@ -105,6 +105,7 @@ export default function AbilitySelectScreen() {
 
   const abilityState = {
     playerId: me?.id ?? '',
+    credits: me?.credits ?? 0,
     usedCounts: me?.abilityUsedCounts ?? { block: 0, shield: 0, penalty: 0, counter: 0 },
     shieldsAvailable: me?.shieldsAvailable ?? 0,
     blocksAvailable: me?.blocksAvailable ?? 0,
@@ -203,6 +204,11 @@ export default function AbilitySelectScreen() {
             <Text style={styles.timerText}>{secondsLeft}s</Text>
           </View>
         ) : null}
+        <View style={styles.creditBalance}>
+          <Sparkles color={colors.lime} size={16} />
+          <Text style={styles.creditBalanceText}>{me?.credits ?? 0} KREDİ</Text>
+          <Text style={styles.creditBalanceHint}>· 2 kredi / yetenek</Text>
+        </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
 
@@ -218,7 +224,6 @@ export default function AbilitySelectScreen() {
               ab.id,
               targetId ?? (ab.targetRequired ? defaultTargetId : undefined)
             );
-            const left = remainingUses(abilityState, ab.id);
             const isSelected = selectedAbility === ab.id;
 
             return (
@@ -243,7 +248,7 @@ export default function AbilitySelectScreen() {
                       <Text style={styles.name}>{ab.name}</Text>
                     </View>
                     <Badge tone={check.allowed ? (isSelected ? 'orange' : 'lime') : 'neutral'} sticker>
-                      {check.allowed ? `${left} HAK` : 'KİLİTLİ'}
+                      {check.allowed ? `${ab.creditCost} KREDİ` : 'KİLİTLİ'}
                     </Badge>
                   </View>
                   <Text style={styles.desc}>{ab.description}</Text>
@@ -251,7 +256,7 @@ export default function AbilitySelectScreen() {
                   {!check.allowed ? (
                     <Text style={styles.disabledReason}>{check.reason}</Text>
                   ) : (
-                    <Text style={styles.usesRemaining}>{left} kullanım hakkı kaldı</Text>
+                    <Text style={styles.usesRemaining}>Bu tur satın alınır · {ab.creditCost} kredi</Text>
                   )}
                 </Pressable>
               </StaggerRow>
@@ -314,6 +319,21 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     paddingVertical: 10,
   },
+  creditBalance: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 7,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radii.pill,
+    marginTop: 10,
+  },
+  creditBalanceText: { ...typography.caption, color: colors.lime, fontFamily: 'Poppins-Bold' },
+  creditBalanceHint: { ...typography.caption, color: colors.textSecondary },
   roundBadge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.bgSurface,
