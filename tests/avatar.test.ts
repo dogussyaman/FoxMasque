@@ -36,4 +36,11 @@ describe('DiceBear avatars', () => {
     assert.equal(DICEBEAR_AVATAR_KEYS.length, 96);
     assert.equal(avatarOf(null).key, 'fox');
   });
+
+  test('shows a mix of every avatar style in the initial picker choices', () => {
+    const initialChoices = DICEBEAR_AVATAR_KEYS.slice(0, 12);
+    const visibleStyles = new Set(initialChoices.map((key) => key.split(':')[1]));
+
+    assert.deepEqual([...visibleStyles], DICEBEAR_STYLES);
+  });
 });

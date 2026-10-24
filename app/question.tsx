@@ -917,7 +917,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   promptText: {
     ...typography.h3,
-    color: '#FFF',
+    color: colors.textPrimary,
     lineHeight: 28,
     fontFamily: 'Poppins-Bold',
   },

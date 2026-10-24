@@ -29,11 +29,11 @@ export function createDiceBearAvatarKey(style: DiceBearStyle, seed: string): str
   return `db:${style}:${seed}`;
 }
 
-export const DICEBEAR_AVATAR_KEYS = DICEBEAR_STYLES.flatMap((style) =>
-  Array.from({ length: 16 }, (_, index) =>
+export const DICEBEAR_AVATAR_KEYS = Array.from({ length: 16 }, (_, index) =>
+  DICEBEAR_STYLES.map((style) =>
     createDiceBearAvatarKey(style, `foxmasque-${(index + 1).toString().padStart(2, '0')}`)
   )
-);
+).flat();
 
 function hashSeed(value: string, initialValue: number): string {
   let hash = initialValue;
