@@ -88,19 +88,6 @@ interface FriendRequestRow {
   created_at: string;
 }
 
-function createCharacterUsername(name: string): string {
-  const base = name
-    .normalize('NFKD')
-    .replace(/[\\u0300-\\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 18) || 'oyuncu';
-  // This is a public display handle, not an authentication secret.
-  const suffix = Math.random().toString(36).slice(2, 10).padEnd(8, '0');
-  return `${base}_${suffix}`;
-}
-
 function decodeBase64(value: string): Uint8Array {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const output = new Uint8Array(Math.ceil((value.length * 3) / 4));
@@ -216,6 +203,27 @@ export class SupabaseGameService implements GameService {
     return this.connection;
   }
 
+  async listTakenPresetCharacters(): Promise<string[]> {
+    const sb = ensureSupabase();
+    const { data, error } = await sb.rpc('list_taken_preset_characters');
+    if (error) {
+      const missingFunction = error.message.toLowerCase().includes('list_taken_preset_characters')
+        || error.code === 'PGRST202';
+      throw new ServiceError(
+        'PRESET_AVAILABILITY_FAILED',
+        missingFunction
+          ? 'Karakter kataloğu henüz veritabanına kurulmamış. Karakter güncellemesini uyguladıktan sonra tekrar dene.'
+          : `Karakterlerin uygunluğu kontrol edilemedi: ${error.message}`
+      );
+    }
+    if (!Array.isArray(data)) {
+      throw new ServiceError('PRESET_AVAILABILITY_INVALID', 'Karakter kullanılabilirlik bilgisi geçersiz.');
+    }
+    return data
+      .map((row: { avatar_key?: unknown }) => row.avatar_key)
+      .filter((value: unknown): value is string => typeof value === 'string' && value.length > 0);
+  }
+
   private emit(event: ServiceEvent) {
     for (const h of this.handlers) h(event);
   }
@@ -259,40 +267,74 @@ export class SupabaseGameService implements GameService {
 
   async signInAnonymously(name: string, avatarKey: string): Promise<Player> {
     const sb = ensureSupabase();
+    void name; // The server owns the canonical display name for each preset.
 
-    // Reuse an existing persisted identity. Calling signInAnonymously again would
-    // create a different auth user and detach this browser from its saved games.
+    // Reuse persisted sessions, including a pending session from a failed claim.
+    // Never create a new auth user just because a character was already taken.
     const { data: sessionData, error: sessionError } = await sb.auth.getSession();
     if (sessionError) throw new ServiceError('AUTH_SESSION_FAILED', sessionError.message);
-    if (sessionData.session?.user) {
-      const existingProfile = await this.loadProfile(sessionData.session.user.id);
-      if (!existingProfile) {
-        throw new ServiceError('PROFILE_NOT_FOUND', 'Mevcut oturumun profili bulunamadı. Tekrar giriş yapmayı dene.');
+
+    let user = sessionData.session?.user ?? null;
+    if (user && !user.is_anonymous) {
+      const registeredProfile = await this.loadProfile(user.id);
+      if (!registeredProfile) {
+        throw new ServiceError('PROFILE_NOT_FOUND', 'Mevcut hesabın profili bulunamadı.');
       }
-      this.cachedPlayer = existingProfile;
-      return existingProfile;
+      this.cachedPlayer = registeredProfile;
+      return registeredProfile;
     }
 
-    const displayName = name.trim().slice(0, 32) || 'Oyuncu';
-    const username = createCharacterUsername(displayName);
-    const characterKey = avatarKey.trim().slice(0, 128) || 'fox';
-    const { data, error } = await sb.auth.signInAnonymously({
-      options: {
-        data: {
-          name: displayName,
-          avatarKey: characterKey,
-          characterKey,
-          username,
-          accountType: 'character',
+    if (!user) {
+      const { data, error } = await sb.auth.signInAnonymously({
+        options: {
+          data: {
+            name: 'Karakter seçilmedi',
+            avatarKey: 'pending_character',
+            accountType: 'pending_character',
+          },
         },
-      },
-    });
-    if (error) throw new ServiceError('AUTH_FAILED', error.message);
-    const user = data.user;
+      });
+      if (error) throw new ServiceError('AUTH_FAILED', error.message);
+      user = data.user ?? null;
+    }
+
     if (!user) throw new ServiceError('AUTH_FAILED', 'Anonim oturum açılamadı.');
 
+    // The server enforces the unique claim atomically even if two browsers race.
+    const { data: claimData, error: claimError } = await sb.rpc(
+      'claim_preset_character_secure',
+      { p_avatar_key: avatarKey }
+    );
+    if (claimError) {
+      const missingFunction = claimError.message.toLowerCase().includes('claim_preset_character_secure')
+        || claimError.code === 'PGRST202';
+      throw new ServiceError(
+        'PRESET_CHARACTER_CLAIM_FAILED',
+        missingFunction
+          ? 'Karakter rezervasyon güncellemesi veritabanına henüz uygulanmamış.'
+          : `Karakter seçimi kaydedilemedi: ${claimError.message}`
+      );
+    }
+
+    const claim = claimData as { success?: boolean; reason?: string } | null;
+    if (!claim?.success) {
+      if (claim?.reason === 'taken') {
+        throw new ServiceError(
+          'PRESET_CHARACTER_TAKEN',
+          'Bu karakter az önce başka bir oyuncu tarafından seçildi. Lütfen boş bir karakter seç.'
+        );
+      }
+      if (claim?.reason === 'already_claimed') {
+        throw new ServiceError(
+          'PRESET_CHARACTER_ALREADY_CLAIMED',
+          'Bu oturumun zaten başka bir karakteri var. Mevcut karakterinle devam et.'
+        );
+      }
+      throw new ServiceError('PRESET_CHARACTER_CLAIM_FAILED', 'Karakter seçimi tamamlanamadı. Tekrar dene.');
+    }
+
     const profile = await this.loadProfile(user.id);
-    if (!profile) throw new ServiceError('PROFILE_NOT_FOUND', 'Yeni profil oluşturulamadı.');
+    if (!profile) throw new ServiceError('PROFILE_NOT_FOUND', 'Karakter profili oluşturulamadı.');
     this.cachedPlayer = profile;
     return profile;
   }
