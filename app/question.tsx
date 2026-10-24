@@ -78,6 +78,7 @@ export default function QuestionScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [topToast, setTopToast] = useState<{ title: string; message: string; tone?: 'warning' | 'danger' } | null>(null);
+  const [blockedPrankRevealed, setBlockedPrankRevealed] = useState(false);
   const [pauseUpdating, setPauseUpdating] = useState(false);
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const [leavingGame, setLeavingGame] = useState(false);
@@ -85,6 +86,8 @@ export default function QuestionScreen() {
   const isGamePaused = roomState?.pausedAt != null;
 
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blockedPrankTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blockedFeedbackRoundRef = useRef<string | null>(null);
   const showTopToast = useCallback((message: string, title = 'Dikkat', tone: 'warning' | 'danger' = 'danger') => {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setTopToast({ title, message, tone });
@@ -195,6 +198,9 @@ export default function QuestionScreen() {
     clockAttemptedGuess.current = false;
     setFakeSubmitted(false);
     setFakeAnswerText('');
+    setBlockedPrankRevealed(false);
+    blockedFeedbackRoundRef.current = null;
+    if (blockedPrankTimeoutRef.current) clearTimeout(blockedPrankTimeoutRef.current);
     setChoices([]);
     setSelectedChoiceIndex(null);
     pickCommitted.current = false;
@@ -212,6 +218,20 @@ export default function QuestionScreen() {
       router.replace('/waiting');
     }
   }, [currentPlayer?.id, roomState?.phase, roomState?.progress]);
+
+  // If the blocked player lets the bluff timer expire, reveal why no answer was submitted.
+  useEffect(() => {
+    if (!isBlocked || !isGuessPhase || !roomCode) return;
+    const roundKey = `${roomCode}:${roomState?.currentRound ?? 1}`;
+    if (blockedFeedbackRoundRef.current === roundKey) return;
+    blockedFeedbackRoundRef.current = roundKey;
+    setBlockedPrankRevealed(true);
+    showTopToast(
+      'Süre doldu! Aynen aynen, bu tur bloklandığın için blöfün gönderilmedi. Şimdi gerçek cevabı seçebilirsin.',
+      'Tilki seni işletti! 🦊',
+      'danger',
+    );
+  }, [isBlocked, isGuessPhase, roomCode, roomState?.currentRound, showTopToast]);
 
   // Transition from fake_answer to guess phase: stop previous clock & reset timer
   useEffect(() => {
@@ -239,6 +259,7 @@ export default function QuestionScreen() {
       clockRequestId.current += 1;
       soundService.stop('clock');
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+      if (blockedPrankTimeoutRef.current) clearTimeout(blockedPrankTimeoutRef.current);
     };
   }, []);
 
@@ -421,6 +442,29 @@ export default function QuestionScreen() {
     }
     soundService.stop('clock');
     trigger('medium');
+
+    // A blocked player can type normally, but the bluff is never sent to the server.
+    // Briefly imitate a successful send, then reveal the playful block message.
+    if (isBlocked) {
+      const roundKey = `${roomCode ?? ''}:${roomState?.currentRound ?? 1}`;
+      if (blockedFeedbackRoundRef.current === roundKey) return;
+      blockedFeedbackRoundRef.current = roundKey;
+      setError(null);
+      setSubmitting(true);
+      showTopToast('Cevabın havuza gidiyor… gözünü kırpma! 🙈', 'Cevap gönderiliyor', 'warning');
+      if (blockedPrankTimeoutRef.current) clearTimeout(blockedPrankTimeoutRef.current);
+      blockedPrankTimeoutRef.current = setTimeout(() => {
+        setSubmitting(false);
+        setBlockedPrankRevealed(true);
+        showTopToast(
+          'Aynen aynen… cevap gitti sandın 😏 Bu tur bloklandın; blöfün sunucuya gönderilmedi.',
+          'Tilki seni işletti! 🦊',
+          'danger',
+        );
+      }, 950);
+      return;
+    }
+
     submitFake(clean);
   };
 
@@ -437,17 +481,25 @@ export default function QuestionScreen() {
       router.replace('/waiting');
     } catch (e) {
       const rawMsg = (e as Error).message || '';
+      const normalizedMessage = rawMsg.toLocaleLowerCase('tr-TR');
       let friendlyMsg = rawMsg;
-      if (
+      if (normalizedMessage.includes('bloklan') || normalizedMessage.includes('blöf gönderemez')) {
+        friendlyMsg = 'Aynen aynen, cevap gitti sandın 😏 Bu tur bloklandın; blöfün gönderilmedi. Gerçek cevabı seçme aşamasında devam edebilirsin.';
+        setBlockedPrankRevealed(true);
+        showTopToast(friendlyMsg, 'Tilki seni işletti! 🦊', 'danger');
+      } else if (
         rawMsg.includes('başka bir oyuncu') ||
         rawMsg.includes('Gerçek cevabı') ||
         rawMsg.includes('uyuşuyor') ||
         rawMsg.includes('FAKE_ANSWER')
       ) {
-        friendlyMsg = 'Cevabınız doğru cevap veya arkadaşınızın yazdığı bir cevap ile uyuşuyor, lütfen farklı bir cevap yazınız.';
+        friendlyMsg = 'Cevabın gerçek cevapla veya başka bir oyuncunun blöfüyle çakıştı. Farklı bir cevap dene.';
+        setError(friendlyMsg);
+        showTopToast(friendlyMsg, 'Farklı Bir Cevap Yaz', 'danger');
+      } else {
+        setError(friendlyMsg);
+        showTopToast(friendlyMsg, 'Cevap Gönderilemedi', 'danger');
       }
-      setError(friendlyMsg);
-      showTopToast(friendlyMsg, 'Farklı Bir Cevap Yazın', 'danger');
     } finally {
       setSubmitting(false);
     }
@@ -590,7 +642,7 @@ export default function QuestionScreen() {
           {/* STAGE 1: ENTER FAKE ANSWER */}
           {!isGuessPhase ? (
             <View style={styles.stageWrap}>
-              {isBlocked ? (
+              {isBlocked && blockedPrankRevealed ? (
                 <View style={styles.blockedStage}>
                   <Image
                     source={mascotImages.shocked}
@@ -599,11 +651,9 @@ export default function QuestionScreen() {
                     accessibilityLabel="Bloklandığı için şaşırmış tilki"
                   />
                   <View style={styles.blockedStageCopy}>
-                    <Text style={styles.blockNoticeTitle}>
-                      {blockerName ? `${blockerName} seni blokladı!` : 'Bu tur bloklandın!'}
-                    </Text>
+                    <Text style={styles.blockNoticeTitle}>Aynen aynen… cevap gitti sandın! 😏</Text>
                     <Text style={styles.blockNoticeText}>
-                      Bu tur blöf yazamazsın. Seçenekler açılınca gerçek cevabı seçebilirsin.
+                      {blockerName ? `${blockerName} seni blokladı. ` : ''}Kusura bakma, bu tur blöfün sunucuya gönderilmedi. Şıklar açılınca gerçek cevabı seçerek devam edebilirsin.
                     </Text>
                   </View>
                 </View>
@@ -626,6 +676,11 @@ export default function QuestionScreen() {
                       onSubmitEditing={handleFakeSubmit}
                       focusedBorderColor={colors.purple}
                     />
+                    {isBlocked ? (
+                      <Text style={styles.blockNoticeText}>
+                        Tilki bu tur biraz fazla sinsi… Cevabını yaz, Gönder’e bas ve gör bakalım. 🦊
+                      </Text>
+                    ) : null}
                   </View>
                 </>
               ) : (
@@ -647,16 +702,18 @@ export default function QuestionScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.cunningTitle}>Şıkları dikkatle incele!</Text>
                   <Text style={styles.cunningDesc}>
-                    Doğru cevap +100 puan kazandırır. Başkasının sahte cevabına kanarsan -40 puan kaybedersin.
+                    Gerçek cevap +2 puan kazandırır. Her rakip senin blöfünü seçerse +1 puan alırsın; yanlış tahminde puan kaybetmezsin.
                   </Text>
                 </View>
               </View>
 
-              {!fakeAnswerText.trim() && (
+              {(isBlocked || !fakeAnswerText.trim()) && (
                 <View style={styles.noFakeNotice}>
                   <Info color={colors.orange} size={16} />
                   <Text style={styles.noFakeNoticeText}>
-                    Cevap yazamadığın için bu tur blöf puanı alamazsın, ama doğru cevabı bularak +100 puan kazanabilirsin!
+                    {isBlocked
+                      ? 'Aynen aynen, blöfün gitmedi! 🦊 Bu tur bloklandın; gerçek cevabı seçersen +2 puan kazanabilirsin.'
+                      : 'Bu tur blöf gönderemediğin için tuzak puanı alamazsın, ama gerçek cevabı bulup +2 puan kazanabilirsin!'}
                   </Text>
                 </View>
               )}
@@ -746,14 +803,15 @@ export default function QuestionScreen() {
               icon={<CheckCircle2 color="#FFF" size={20} />}
             />
           </StickyActionBar>
-        ) : !hasSubmittedFake && !isBlocked ? (
+        ) : !hasSubmittedFake ? (
           <StickyActionBar>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <Button
-              label="Sahte Cevabını Kilitle!"
+              label={submitting ? 'Tilki cevabını kontrol ediyor…' : 'Sahte Cevabını Kilitle!'}
               onPress={handleFakeSubmit}
               variant="orange"
               loading={submitting}
+              disabled={submitting || fakeAnswerText.trim().length === 0}
               fullWidth
               icon={<Send color="#FFF" size={18} />}
             />
