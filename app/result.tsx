@@ -3,31 +3,28 @@ import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { CheckCircle2, AlertTriangle, Zap, ShieldAlert, ArrowRight, HelpCircle } from 'lucide-react-native';
+import { ArrowRight } from 'lucide-react-native';
 import {
   Screen,
   Button,
   Card,
-  Badge,
   Avatar,
   PopView,
-  ShakeView,
   StaggerRow,
   StickyActionBar,
 } from '@/components/ui';
-import { colors, spacing, typography, radii, shadows } from '@/theme';
+import { spacing, typography, radii } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { QUESTIONS, type Question } from '@/features/game/questions';
 import { resolveZartoRound } from '@/features/game/engine';
-import type { RoundResultRow } from '@/types/game';
 import type { RoundRevealChoice } from '@/services/types';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 
 export default function ResultScreen() {
-  const { colors } = useTheme();
-  const styles = useThemeStyles(createStyles);
+  const { colors, mode } = useTheme();
+  const styles = useThemeStyles((themeColors) => createStyles(themeColors, mode));
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
   const params = useLocalSearchParams<{ round?: string | string[]; questionId?: string | string[] }>();
   const initialResultRef = useRef({
@@ -50,7 +47,7 @@ export default function ResultScreen() {
   const [advanceError, setAdvanceError] = useState<string | null>(null);
   const [advancing, setAdvancing] = useState(false);
   const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
-  const [revealChoices, setRevealChoices] = useState<RoundRevealChoice[]>([]);
+  const [revealChoices, setRevealChoices] = useState<RoundRevealChoice[] | null>(null);
   const [revealLoadError, setRevealLoadError] = useState<string | null>(null);
   const playedResultSound = useRef<string | null>(null);
 
@@ -86,11 +83,27 @@ export default function ResultScreen() {
   }, [isStaleResult, roomState]);
 
   useEffect(() => {
-    if (!roomCode || !['reveal','scoreboard','game_over'].includes(currentRoomPhase ?? '')) { setRevealChoices([]); return; }
-    let cancelled=false;
-    void service.getRoundReveal(roomCode).then(rows=>{if(!cancelled)setRevealChoices(rows);}).catch((e:unknown)=>{if(!cancelled)setRevealLoadError(e instanceof Error?e.message:'Tur seçimleri yüklenemedi.');});
-    return ()=>{cancelled=true;};
-  },[currentRoomPhase,roomCode,service]);
+    if (!roomCode || !['reveal', 'scoreboard', 'game_over'].includes(currentRoomPhase ?? '')) {
+      return;
+    }
+    let cancelled = false;
+    void service.getRoundReveal(roomCode)
+      .then((rows) => {
+        if (!cancelled) {
+          setRevealChoices(rows);
+          setRevealLoadError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setRevealChoices([]);
+          setRevealLoadError(error instanceof Error ? error.message : 'Tur özeti yüklenemedi.');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentRoomPhase, roomCode, service]);
 
   useEffect(() => {
     if (!roomCode || !currentRoomPhase || currentRoomPhase === 'lobby') return;
@@ -109,20 +122,28 @@ export default function ResultScreen() {
   const me = playersList.find((p) => p.id === currentPlayer?.id) || currentPlayer;
   const isHost = me?.isHost ?? false;
 
-  // Use authoritative roundResults from server/store or resolve locally
-  let myResult: RoundResultRow | undefined = me ? roomState?.roundResults?.[me.id] : undefined;
-
-  if (!myResult && roomState) {
-    const res = resolveZartoRound({
+  const resolvedRound = roomState && playersList.some((player) => !roomState.roundResults?.[player.id])
+    ? resolveZartoRound({
       question,
       players: playersList,
       choices: roomState.choices || [],
       picks: roomState.picks || {},
       fakeAnswers: roomState.fakeAnswers || {},
       abilityActions: roomState.abilityActions || [],
-    });
-    myResult = me ? res.rows[me.id] : undefined;
-  }
+    })
+    : null;
+  const roundResults = { ...resolvedRound?.rows, ...roomState?.roundResults };
+  const myResult = me ? roundResults[me.id] : undefined;
+  const trapSummaries = (revealChoices ?? []).flatMap((choice) => {
+    if (!choice.authorId) return [];
+    const author = playersList.find((player) => player.id === choice.authorId);
+    const victims = choice.pickedBy
+      .map((id) => playersList.find((player) => player.id === id))
+      .filter((player) => player !== undefined);
+    return author && victims.length > 0
+      ? [{ choiceIndex: choice.choiceIndex, author, victims }]
+      : [];
+  });
 
   const outcome = myResult?.outcome;
   const pointsDelta = myResult?.pointsDelta ?? 0;
@@ -131,6 +152,8 @@ export default function ResultScreen() {
   const zartaladın = !!outcome?.zartaladın || victimsCount > 0;
   const zartalandın = !!outcome?.zartalandın;
   const didPick = myResult?.pickedText !== undefined && myResult?.pickedText !== null;
+  const positiveScoreColor = mode === 'light' ? '#435B17' : colors.lime;
+  const negativeScoreColor = mode === 'light' ? '#B42318' : colors.dangerSoft;
 
   useEffect(() => {
     if (isStaleResult || !myResult) return;
@@ -181,8 +204,6 @@ export default function ResultScreen() {
     );
   }
 
-  const trueAnswerText = question.correctAnswer;
-
   const headerTitle = zartaladın && isCorrect
     ? 'ÇİFTE BAŞARI! HEM BİLDİN HEM TUZAĞA DÜŞÜRDÜN!'
     : zartaladın
@@ -229,9 +250,9 @@ export default function ResultScreen() {
                 style={[
                   styles.mainScoreText,
                   pointsDelta > 0
-                    ? { color: colors.lime }
+                    ? { color: positiveScoreColor }
                     : pointsDelta < 0
-                    ? { color: colors.dangerSoft }
+                    ? { color: negativeScoreColor }
                     : { color: colors.textSecondary },
                 ]}
               >
@@ -241,144 +262,81 @@ export default function ResultScreen() {
           </PopView>
         </View>
 
-        {/* Outcome Cards */}
-        <View style={styles.outcomesList}>
-          {/* 1. DOĞRU BİLDİN */}
-          {isCorrect ? (
-            <PopView delay={200} duration={380}>
-              <Card variant="surface" glow="lime" style={styles.outcomeSuccessCard}>
-                <View style={styles.outcomeRow}>
-                  <View style={[styles.outcomeIconWrap, { backgroundColor: colors.lime }]}>
-                    <CheckCircle2 color="#171026" size={24} strokeWidth={2.5} />
+        <Text style={styles.sectionTitle}>KİM KİMİ TUZAĞA DÜŞÜRDÜ?</Text>
+        <Card variant="surface" style={styles.summaryCard}>
+          {revealLoadError ? (
+            <Text accessibilityRole="alert" style={styles.summaryMessage}>{revealLoadError}</Text>
+          ) : revealChoices === null ? (
+            <Text style={styles.summaryMessage}>Tur özeti yükleniyor...</Text>
+          ) : trapSummaries.length > 0 ? (
+            <View style={styles.trapList}>
+              {trapSummaries.map(({ choiceIndex, author, victims }) => (
+                <View key={choiceIndex} style={styles.trapRow}>
+                  <View style={styles.trapAuthor}>
+                    <Avatar avatarKey={author.avatarUrl ?? author.avatarKey} userId={author.id} size={38} />
+                    <View style={styles.trapAuthorDetails}>
+                      <Text style={styles.trapPlayerName} numberOfLines={1}>{author.name}</Text>
+                      <Text style={styles.trapRole}>TUZAĞI KURDU</Text>
+                    </View>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.outcomeSuccessTitle}>DOĞRU BİLDİN!</Text>
-                    <Text style={styles.outcomeDesc}>Gerçek cevabı buldun</Text>
+                  <ArrowRight color={mode === 'light' ? '#B8441B' : colors.orange} size={18} />
+                  <View style={styles.trapVictims}>
+                    {victims.map((victim) => (
+                      <View key={victim.id} style={styles.trapVictim}>
+                        <Avatar
+                          avatarKey={victim.avatarUrl ?? victim.avatarKey}
+                          userId={victim.id}
+                          size={30}
+                        />
+                        <Text style={styles.trapVictimName} numberOfLines={1}>{victim.name}</Text>
+                      </View>
+                    ))}
                   </View>
-                  <Badge tone="lime" sticker>+100</Badge>
                 </View>
-              </Card>
-            </PopView>
-          ) : !zartalandın ? (
-            <PopView delay={200} duration={380}>
-              <Card variant="surface" style={styles.outcomeWrongCard}>
-                <View style={styles.outcomeRow}>
-                  <View style={[styles.outcomeIconWrap, { backgroundColor: colors.bgSurfaceAlt }]}>
-                    <AlertTriangle color={colors.textMuted} size={22} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.outcomeWrongTitle}>
-                      {didPick ? 'YANLIŞ TAHMİN' : 'CEVAP VERMEDİN'}
-                    </Text>
-                    <Text style={styles.outcomeDesc}>
-                      {didPick ? 'Doğru cevabı bulamadın' : 'Seçim yapmadığın için bu tur puan kazanmadın'}
-                    </Text>
-                  </View>
-                  <Badge tone="neutral">0 P</Badge>
-                </View>
-              </Card>
-            </PopView>
-          ) : null}
-
-          {/* 2. ZARTALADIN */}
-          {zartaladın && (
-            <PopView delay={320} duration={380}>
-              <Card variant="surface" glow="orange" style={styles.outcomeZartalaCard}>
-                <View style={styles.outcomeRow}>
-                  <View style={[styles.outcomeIconWrap, { backgroundColor: colors.orange }]}>
-                    <Zap color="#FFF" size={24} strokeWidth={2.5} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.outcomeZartalaTitle}>TUZAĞA DÜŞÜRDÜN!</Text>
-                    <Text style={styles.outcomeDesc}>
-                      {victimsCount} rakip senin tuzağına düştü!
-                    </Text>
-                  </View>
-                  <Badge tone="orange" sticker>+{victimsCount * 50}</Badge>
-                </View>
-              </Card>
-            </PopView>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.summaryMessage}>Bu tur kimse tuzağa düşmedi.</Text>
           )}
-
-          {/* 3. ZARTALANDIN */}
-          {zartalandın && (
-            <ShakeView delay={250} intensity={7}>
-              <Card variant="surface" style={styles.outcomeZartalandinCard}>
-                <View style={styles.outcomeRow}>
-                  <View style={[styles.outcomeIconWrap, { backgroundColor: colors.danger }]}>
-                    <ShieldAlert color="#FFF" size={24} strokeWidth={2.5} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.outcomeZartalandinTitle}>TUZAĞA DÜŞTÜN!</Text>
-                    <Text style={styles.outcomeDesc}>
-                      Başka bir oyuncunun tuzağına düştün
-                    </Text>
-                  </View>
-                  <Badge tone="danger" sticker>-40</Badge>
-                </View>
-              </Card>
-            </ShakeView>
-          )}
-        </View>
-
-        {/* Question Review Card */}
-        <Card variant="surface" style={styles.reviewCard}>
-          <View style={styles.reviewHeader}>
-            <HelpCircle color={colors.yellow} size={18} />
-            <Text style={styles.reviewLabel}>Soru ve Gerçek Cevap</Text>
-          </View>
-          <Text style={styles.reviewPrompt}>{question.prompt}</Text>
-
-          <View style={styles.answerBox}>
-            <Text style={styles.answerLabel}>Doğru Cevap:</Text>
-            <Text style={styles.answerText}>{trueAnswerText}</Text>
-          </View>
-
-          {question.explanation ? (
-            <Text style={styles.explanationText}>💡 {question.explanation}</Text>
-          ) : null}
         </Card>
 
-        <Card variant="surface" style={styles.reviewCard}>
-          <Text style={styles.sectionTitle}>KİM HANGİ ŞIKKI SEÇTİ?</Text>
-          {revealLoadError ? <Text style={styles.explanationText}>{revealLoadError}</Text> : null}
-          {revealChoices.map(choice => {
-            const author=choice.authorId?playersList.find(p=>p.id===choice.authorId):null;
-            const pickers=choice.pickedBy.map(id=>playersList.find(p=>p.id===id)).filter(Boolean);
-            return <View key={choice.choiceIndex} style={[styles.revealChoice,choice.isCorrect&&styles.revealCorrectChoice,choice.authorId&&styles.revealTrapChoice]}>
-              <View style={styles.revealChoiceHeading}><Text style={styles.revealChoiceText}>{choice.text}</Text>{choice.isCorrect?<Badge tone="lime">DOĞRU CEVAP</Badge>:null}</View>
-              {author?<View style={styles.revealMetaRow}><Text style={styles.revealMetaLabel}>Tuzağın sahibi:</Text><Avatar avatarKey={author.avatarUrl??author.avatarKey} userId={author.id} size={24}/><Text style={styles.revealMetaName}>{author.name}</Text></View>:null}
-              <View style={styles.revealMetaRow}><Text style={styles.revealMetaLabel}>Seçenler ({pickers.length}):</Text>
-                {pickers.length?pickers.map(p=><View key={p!.id} style={styles.revealPicker}><Avatar avatarKey={p!.avatarUrl??p!.avatarKey} userId={p!.id} size={24}/><Text style={styles.revealMetaName}>{p!.name}</Text></View>):<Text style={styles.explanationText}>Kimse seçmedi</Text>}
-              </View>
-            </View>;
-          })}
-        </Card>
-        {/* Other Players Summary */}
-        <Text style={styles.sectionTitle}>TÜM OYUNCULARIN TUR PUANLARI</Text>
+        <Text style={styles.sectionTitle}>TUR PUANLARI</Text>
         <View style={styles.playersListWrap}>
           {playersList
-            .filter((p) => p.id !== me?.id)
+            .slice()
+            .sort((first, second) =>
+              (roundResults[second.id]?.pointsDelta ?? 0) - (roundResults[first.id]?.pointsDelta ?? 0)
+            )
             .map((player, idx) => {
-              const res = roomState?.roundResults?.[player.id];
+              const result = roundResults[player.id];
+              const delta = result?.pointsDelta ?? 0;
+              const deltaColor = delta > 0
+                ? positiveScoreColor
+                : delta < 0
+                ? negativeScoreColor
+                : colors.textSecondary;
               return (
-                <StaggerRow key={player.id} index={idx} delay={70}>
-                  <Card variant="surface" style={styles.playerRow}>
+                <StaggerRow key={player.id} index={idx} delay={50}>
+                  <View style={[styles.playerRow, player.id === me?.id && styles.currentPlayerRow]}>
                     <Avatar avatarKey={player.avatarUrl ?? player.avatarKey} userId={player.id} size={38} />
-                    <Text style={styles.playerName}>{player.name}</Text>
-                    <View style={styles.badgesWrap}>
-                      {res?.outcome.correct ? (
-                        <Badge tone="lime">+100</Badge>
-                      ) : res?.outcome.zartalandın ? (
-                        <Badge tone="danger">-40</Badge>
-                      ) : (
-                        <Badge tone="neutral">0</Badge>
-                      )}
-                      {res?.victimsCount && res.victimsCount > 0 ? (
-                        <Badge tone="orange">+{res.victimsCount * 50}</Badge>
+                    <View style={styles.playerDetails}>
+                      <Text style={styles.playerName} numberOfLines={1}>
+                        {player.name}{player.id === me?.id ? ' (Sen)' : ''}
+                      </Text>
+                      {result?.victimsCount ? (
+                        <Text style={styles.playerPointsHint}>
+                          {result.victimsCount} oyuncuyu tuzağa düşürdü
+                        </Text>
+                      ) : result?.deceivedByAuthorId ? (
+                        <Text style={styles.playerPointsHint}>
+                          {playersList.find((candidate) => candidate.id === result.deceivedByAuthorId)?.name ?? 'Bir oyuncunun'} tuzağına düştü
+                        </Text>
                       ) : null}
                     </View>
-                  </Card>
+                    <Text style={[styles.playerPoints, { color: deltaColor }]}>
+                      {delta > 0 ? '+' : ''}{delta} P
+                    </Text>
+                  </View>
                 </StaggerRow>
               );
             })}
@@ -403,7 +361,7 @@ export default function ResultScreen() {
   );
 }
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
+const createStyles = (colors: ThemeColors, mode: 'dark' | 'light') => StyleSheet.create({
   advanceError: {
     ...typography.caption,
     color: colors.dangerSoft,
@@ -453,11 +411,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginTop: 8,
   },
   scorePillPos: {
-    backgroundColor: 'rgba(198, 243, 107, 0.15)',
-    borderColor: colors.lime,
+    backgroundColor: mode === 'light' ? 'rgba(122, 164, 36, 0.13)' : 'rgba(198, 243, 107, 0.15)',
+    borderColor: mode === 'light' ? '#7AA424' : colors.lime,
   },
   scorePillNeg: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: mode === 'light' ? 'rgba(180, 35, 24, 0.08)' : 'rgba(239, 68, 68, 0.15)',
     borderColor: colors.danger,
   },
   scorePillZero: {
@@ -469,108 +427,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 22,
     letterSpacing: 1,
   },
-  outcomesList: {
-    gap: 10,
-    marginVertical: spacing.md,
-  },
-  outcomeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  outcomeIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outcomeSuccessCard: {
-    borderWidth: 1.5,
-    borderColor: colors.lime,
-  },
-  outcomeSuccessTitle: {
-    ...typography.bodyMedium,
-    color: colors.lime,
-    fontFamily: 'Poppins-Bold',
-  },
-  outcomeWrongCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  outcomeWrongTitle: {
-    ...typography.bodyMedium,
-    color: colors.textMuted,
-    fontFamily: 'Poppins-Bold',
-  },
-  outcomeZartalaCard: {
-    borderWidth: 1.5,
-    borderColor: colors.orange,
-  },
-  outcomeZartalaTitle: {
-    ...typography.bodyMedium,
-    color: colors.orange,
-    fontFamily: 'Poppins-Bold',
-  },
-  outcomeZartalandinCard: {
-    borderWidth: 1.5,
-    borderColor: colors.danger,
-  },
-  outcomeZartalandinTitle: {
-    ...typography.bodyMedium,
-    color: colors.dangerSoft,
-    fontFamily: 'Poppins-Bold',
-  },
-  outcomeDesc: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  reviewCard: {
-    marginBottom: spacing.md,
-  },
-  reviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-  },
-  reviewLabel: {
-    ...typography.caption,
-    color: colors.yellow,
-    fontFamily: 'Poppins-Bold',
-  },
-  reviewPrompt: {
-    ...typography.bodyMedium,
-    color: colors.textPrimary,
-    lineHeight: 22,
-    marginBottom: 10,
-    fontFamily: 'Poppins-Medium',
-  },
-  answerBox: {
-    backgroundColor: colors.bgSurfaceAlt,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(198, 243, 107, 0.3)',
-  },
-  answerLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
-  answerText: {
-    ...typography.bodyMedium,
-    color: colors.lime,
-    fontFamily: 'Poppins-Bold',
-    marginTop: 2,
-  },
-  explanationText: {
-    ...typography.small,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
   sectionTitle: {
     fontFamily: 'Poppins-Bold',
     fontSize: 11,
@@ -579,13 +435,73 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: spacing.xs,
     marginTop: spacing.sm,
   },
-  revealChoice:{borderWidth:1,borderColor:colors.border,borderRadius:radii.md,padding:spacing.md,marginTop:spacing.sm,gap:8,backgroundColor:colors.bgSurfaceAlt},
-  revealCorrectChoice:{borderColor:colors.lime}, revealTrapChoice:{borderColor:colors.orange},
-  revealChoiceHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8},
-  revealChoiceText:{...typography.bodyMedium,color:colors.textPrimary,flex:1,fontFamily:'Poppins-SemiBold'},
-  revealMetaRow:{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:6},
-  revealMetaLabel:{...typography.caption,color:colors.textMuted},revealMetaName:{...typography.caption,color:colors.textPrimary,fontFamily:'Poppins-SemiBold'},
-  revealPicker:{flexDirection:'row',alignItems:'center',gap:4,marginRight:4},
+  summaryCard: {
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  summaryMessage: {
+    ...typography.small,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: spacing.sm,
+  },
+  trapList: {
+    gap: spacing.sm,
+  },
+  trapRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  trapAuthor: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  trapAuthorDetails: {
+    flex: 1,
+    minWidth: 0,
+  },
+  trapPlayerName: {
+    ...typography.caption,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+  },
+  trapRole: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 9,
+    color: mode === 'light' ? '#B8441B' : colors.orange,
+    letterSpacing: 0.5,
+  },
+  trapVictims: {
+    flex: 1.3,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  trapVictim: {
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.bgSurfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.pill,
+    paddingVertical: 3,
+    paddingHorizontal: 5,
+  },
+  trapVictimName: {
+    ...typography.caption,
+    color: colors.textPrimary,
+    maxWidth: 90,
+  },
   playersListWrap: {
     gap: 8,
     marginBottom: spacing.lg,
@@ -595,15 +511,33 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     padding: spacing.md,
     gap: 10,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgCard,
+  },
+  currentPlayerRow: {
+    borderColor: colors.borderAccent,
+    backgroundColor: colors.orangeSurface,
+  },
+  playerDetails: {
+    flex: 1,
+    minWidth: 0,
   },
   playerName: {
     ...typography.bodyMedium,
     color: colors.textPrimary,
-    flex: 1,
     fontFamily: 'Poppins-Bold',
   },
-  badgesWrap: {
-    flexDirection: 'row',
-    gap: 6,
+  playerPointsHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  playerPoints: {
+    ...typography.bodyMedium,
+    fontFamily: 'Poppins-Bold',
+    minWidth: 54,
+    textAlign: 'right',
   },
 });

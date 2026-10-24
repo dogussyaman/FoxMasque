@@ -570,25 +570,15 @@ export default function QuestionScreen() {
                 </View>
               ) : !hasSubmittedFake ? (
                 <>
-                  <View style={styles.cunningBanner}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.cunningTitle}>
-                        İnandırıcı ol!
-                        {'\n'}Kimse gerçeği anlamasın.
-                      </Text>
-                      <Text style={styles.cunningDesc}>
-                        Sahte cevabına düşen her rakip için +50 puan kaparsın!
-                      </Text>
-                    </View>
-                  </View>
                   <View style={styles.inputContainer}>
+                    <Text style={styles.answerInputLabel}>CEVABINI YAZ</Text>
                     <Input
                       value={fakeAnswerText}
                       onChangeText={(t) => {
                         setFakeAnswerText(t);
                         if (error) setError(null);
                       }}
-                      placeholder="İnandırıcı uydurma cevabın..."
+                      placeholder="Bu soruya vereceğin sahte cevap..."
                       placeholderTextColor={colors.textMuted}
                       style={styles.fakeInput}
                       maxLength={48}
@@ -950,6 +940,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   inputContainer: {
     marginTop: spacing.xs,
+  },
+  answerInputLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'Poppins-Bold',
+    marginBottom: spacing.xs,
   },
   blockedStage: {
     alignItems: 'center',
