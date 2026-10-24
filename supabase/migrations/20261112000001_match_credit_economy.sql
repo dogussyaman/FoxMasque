@@ -442,9 +442,6 @@ BEGIN
                 times_trapped = public.user_stats.times_trapped + EXCLUDED.times_trapped,
                 total_score = public.user_stats.total_score + EXCLUDED.total_score,
                 updated_at = now();
-            UPDATE public.room_players
-            SET credits = credits + 1
-            WHERE room_id = v_room.id AND is_active;
             UPDATE public.rooms SET finished_at = now() WHERE id = v_room.id;
             PERFORM public._set_room_phase(v_room.id, 'game_over', NULL);
         ELSE
@@ -525,7 +522,7 @@ BEGIN
         RAISE EXCEPTION 'Bu tur yalnızca bir yetenek satın alıp kullanabilirsin';
     END IF;
 
-    v_ability_cost := 2;
+    v_ability_cost := 1;
     IF v_player.credits < v_ability_cost THEN
         RAISE EXCEPTION 'Yetersiz kredi. Bu yetenek % kredi gerektiriyor', v_ability_cost;
     END IF;

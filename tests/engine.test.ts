@@ -77,7 +77,7 @@ async function createDemoBlockRound(roundSeconds = 30) {
   const targetId = Object.keys(state.players).find((id) => id !== room.playerId);
   assert.ok(targetId);
   state.players[room.playerId].blocksAvailable = 1;
-  state.players[room.playerId].credits = 2;
+  state.players[room.playerId].credits = 1;
   await host.useAbility(room.code, {
     playerId: room.playerId,
     abilityId: 'block',
@@ -546,7 +546,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       const attacker = createPlayer('attacker', 'Attacker', 100);
       const target = createPlayer('target', 'Target', 100);
       target.shieldsAvailable = 1;
-      target.credits = 2;
+      target.credits = 1;
       const result = resolveZartoRound({
         question: sampleQuestion,
         players: [attacker, target],
@@ -621,7 +621,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
     test('canUseAbility enforces constraints (cannot block self, cannot block same target consecutively)', () => {
       const state = freshAbilityState('p1');
       state.blocksAvailable = 1;
-      state.credits = 2;
+      state.credits = 1;
 
       // Cannot block self
       const selfBlock = canUseAbility(state, 'block', 'p1');

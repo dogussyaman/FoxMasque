@@ -117,7 +117,7 @@ export default function GameOverScreen() {
               <View style={styles.matchCreditPill}>
                 <Sparkles color={colors.lime} size={16} />
                 <Text style={styles.matchCreditText}>Maç kredin: {myCredits}</Text>
-                <Text style={styles.matchCreditHint}>· Yeni maçta sıfırlanır</Text>
+                <Text style={styles.matchCreditHint}>· Harcanmayan kredi sıfırlanır</Text>
               </View>
             </View>
           </PopView>

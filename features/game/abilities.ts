@@ -17,7 +17,7 @@ export const ABILITIES: readonly Ability[] = [
     emoji: '🛑',
     description: 'Hedef rakip bu tur sahte cevap yazamaz ama gerçek cevabı seçebilir. Aynı hedef art arda bloklanamaz.',
     targetRequired: true,
-    creditCost: 2,
+    creditCost: 1,
     unlockRule: 'Bu tur kullanmak için 2 kredi harcanır.',
   },
   {
@@ -26,7 +26,7 @@ export const ABILITIES: readonly Ability[] = [
     emoji: '🛡️',
     description: 'Seni bu tur bloklamaya karşı korur. Kullanıldığında harcanır.',
     targetRequired: false,
-    creditCost: 2,
+    creditCost: 1,
     unlockRule: 'Bu tur kullanmak için 2 kredi harcanır.',
   },
 ] as const;
@@ -68,7 +68,7 @@ export function canUseAbility(
     return { allowed: false, reason: 'Bu yetenek kredi mağazasından kaldırıldı.' };
   }
 
-  const cost = id === 'block' || id === 'shield' ? 2 : 0;
+  const cost = id === 'block' || id === 'shield' ? 1 : 0;
   if (state.credits < cost) {
     return { allowed: false, reason: `Yetersiz kredi. Bu hamle ${cost} kredi gerektiriyor.` };
   }

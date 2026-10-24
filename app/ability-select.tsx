@@ -196,7 +196,7 @@ export default function AbilitySelectScreen() {
         </View>
         <Text style={styles.screenTitle}>Strateji & Yetenek</Text>
         <Text style={styles.subtitle}>
-          Bu tur 2 krediyle bir hamle satın alabilir ya da kredini sonraki turlar için saklayabilirsin.
+          Bu tur 1 krediyle bir hamle satın alabilir ya da kredini sonraki turlar için saklayabilirsin.
         </Text>
         {roomState?.phaseDeadlineAt ? (
           <View style={styles.timer}>
@@ -207,7 +207,7 @@ export default function AbilitySelectScreen() {
         <View style={styles.creditBalance}>
           <Sparkles color={colors.lime} size={16} />
           <Text style={styles.creditBalanceText}>{me?.credits ?? 0} KREDİ</Text>
-          <Text style={styles.creditBalanceHint}>· 2 kredi / yetenek</Text>
+          <Text style={styles.creditBalanceHint}>· 1 kredi / yetenek</Text>
         </View>
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>

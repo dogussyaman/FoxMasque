@@ -582,7 +582,7 @@ export class DemoGameService implements GameService {
     } else if (action.targetId) {
       throw new ServiceError('ABILITY_TARGET_INVALID', 'Bu yetenek hedef kabul etmiyor.');
     }
-    const creditCost = action.abilityId === 'block' || action.abilityId === 'shield' ? 2 : 0;
+    const creditCost = action.abilityId === 'block' || action.abilityId === 'shield' ? 1 : 0;
     if ((room.players[player.id].credits ?? 0) < creditCost) {
       throw new ServiceError('INSUFFICIENT_CREDITS', `Bu yetenek için ${creditCost} kredi gerekiyor.`);
     }
@@ -811,11 +811,6 @@ export class DemoGameService implements GameService {
       this.setPhase(room, 'scoreboard');
     } else if (room.phase === 'scoreboard') {
       if (room.currentRound >= room.config.totalRounds) {
-        room.players = Object.fromEntries(Object.entries(room.players).map(([id, player]) => [
-          id,
-          { ...player, credits: (player.credits ?? 0) + 1 },
-        ]));
-        if (this.currentPlayer && room.players[this.currentPlayer.id]) this.currentPlayer = room.players[this.currentPlayer.id];
         this.setPhase(room, 'game_over');
         this.emit({ type: 'game_over', payload: { code } });
       } else {
