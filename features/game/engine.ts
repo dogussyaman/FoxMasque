@@ -68,7 +68,24 @@ export function clearRoundBlockState(players: Player[]): Record<PlayerId, Player
 }
 
 export function normalizeChoiceText(text: string): string {
-  return text.trim().normalize('NFKC').toLocaleLowerCase('tr-TR');
+  return text.trim().normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR');
+}
+
+export type FakeAnswerValidationError = 'correct_answer' | 'duplicate_answer' | null;
+
+/** Validate submitted bluff text against the actual answer and other players' submissions. */
+export function validateFakeAnswer(
+  question: Question,
+  fakeAnswer: string,
+  otherFakeAnswers: Iterable<string>
+): FakeAnswerValidationError {
+  const normalized = normalizeChoiceText(fakeAnswer);
+  if (!normalized) return null;
+  if (normalized === normalizeChoiceText(question.correctAnswer ?? '')) return 'correct_answer';
+  for (const answer of otherFakeAnswers) {
+    if (normalizeChoiceText(answer) === normalized) return 'duplicate_answer';
+  }
+  return null;
 }
 
 /**

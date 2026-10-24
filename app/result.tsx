@@ -20,7 +20,8 @@ import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import { QUESTIONS, type Question } from '@/features/game/questions';
 import { resolveZartoRound } from '@/features/game/engine';
-import type { RoundResultRow } from '@/types/game';\nimport type { RoundRevealChoice } from '@/services/types';
+import type { RoundResultRow } from '@/types/game';
+import type { RoundRevealChoice } from '@/services/types';
 import { mascotImages } from '@/assets/illustrations';
 import { soundService } from '@/services/soundService';
 
@@ -31,7 +32,9 @@ export default function ResultScreen() {
   const { trigger } = useHaptics();
   const [advanceError, setAdvanceError] = useState<string | null>(null);
   const [advancing, setAdvancing] = useState(false);
-  const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);\n  const [revealChoices, setRevealChoices] = useState<RoundRevealChoice[]>([]);\n  const [revealLoadError, setRevealLoadError] = useState<string | null>(null);
+  const [loadedQuestion, setLoadedQuestion] = useState<Question | null>(null);
+  const [revealChoices, setRevealChoices] = useState<RoundRevealChoice[]>([]);
+  const [revealLoadError, setRevealLoadError] = useState<string | null>(null);
   const playedResultSound = useRef<string | null>(null);
 
   const currentQId = roomState?.currentQuestionId || QUESTIONS[0].id;
@@ -39,7 +42,14 @@ export default function ResultScreen() {
   const question: Question = loadedQuestion?.id === currentQId
     ? loadedQuestion
     : localQuestion || QUESTIONS[0];
-  const currentRoomPhase = roomState?.phase;\n\n  useEffect(() => {\n    if (!roomCode || !['reveal','scoreboard','game_over'].includes(currentRoomPhase ?? '')) { setRevealChoices([]); return; }\n    let cancelled=false;\n    void service.getRoundReveal(roomCode).then(rows=>{if(!cancelled)setRevealChoices(rows);}).catch((e:unknown)=>{if(!cancelled)setRevealLoadError(e instanceof Error?e.message:'Tur seçimleri yüklenemedi.');});\n    return ()=>{cancelled=true;};\n  },[currentRoomPhase,roomCode,service]);
+  const currentRoomPhase = roomState?.phase;
+
+  useEffect(() => {
+    if (!roomCode || !['reveal','scoreboard','game_over'].includes(currentRoomPhase ?? '')) { setRevealChoices([]); return; }
+    let cancelled=false;
+    void service.getRoundReveal(roomCode).then(rows=>{if(!cancelled)setRevealChoices(rows);}).catch((e:unknown)=>{if(!cancelled)setRevealLoadError(e instanceof Error?e.message:'Tur seçimleri yüklenemedi.');});
+    return ()=>{cancelled=true;};
+  },[currentRoomPhase,roomCode,service]);
 
   useEffect(() => {
     if (!roomCode || !currentRoomPhase || currentRoomPhase === 'lobby') return;

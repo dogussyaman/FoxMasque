@@ -7,6 +7,7 @@ import {
 import {
   blendChoices,
   normalizeChoiceText,
+  validateFakeAnswer,
   resolveZartoRound,
   applyRoundToPlayers,
   applyRoundBlockEffects,
@@ -90,6 +91,21 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
     assert.equal(normalizeChoiceText('  İSTANBUL  '), normalizeChoiceText('İstanbul'));
     assert.equal(normalizeChoiceText('Ａ'), normalizeChoiceText('A'));
     assert.notEqual(normalizeChoiceText('1.000'), normalizeChoiceText('1000'));
+  });
+
+  test('Rejects the real answer as a fake answer after normalization', () => {
+    assert.equal(validateFakeAnswer(sampleQuestion, '  1923  ', []), 'correct_answer');
+  });
+
+  test('Rejects another player’s duplicate fake answer case- and whitespace-insensitively', () => {
+    assert.equal(
+      validateFakeAnswer(sampleQuestion, ' İSTANBUL   ', ['İstanbul']),
+      'duplicate_answer'
+    );
+  });
+
+  test('Allows a unique fake answer', () => {
+    assert.equal(validateFakeAnswer(sampleQuestion, '1881', ['1920', '1938']), null);
   });
 
   describe('Question selection history', () => {
