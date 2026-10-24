@@ -54,7 +54,11 @@ export default function ScoreboardScreen() {
     trigger('medium');
     if (!roomCode) return;
     if (isFinalRound) {
-      await service.advancePhase(roomCode);
+      try {
+        await service.advancePhase(roomCode);
+      } catch {
+        // Non-host might not have advance authority, continue to game-over
+      }
       router.replace('/game-over');
     } else {
       await service.advancePhase(roomCode);
@@ -194,18 +198,26 @@ export default function ScoreboardScreen() {
 
       </ScrollView>
       <StickyActionBar>
-        {isHost ? (
+        {isFinalRound ? (
           <Button
-            label={isFinalRound ? 'Final Podyumunu Aç!' : `Sonraki Tura Geç (Tur ${currentRound + 1})`}
+            label="Final Podyumunu Aç!"
             onPress={handleNextRound}
             variant="orange"
             fullWidth
-            icon={isFinalRound ? <Sparkles color="#FFF" size={20} /> : <ArrowRight color="#FFF" size={20} />}
+            icon={<Sparkles color="#FFF" size={20} />}
+          />
+        ) : isHost ? (
+          <Button
+            label={`Sonraki Tura Geç (Tur ${currentRound + 1})`}
+            onPress={handleNextRound}
+            variant="orange"
+            fullWidth
+            icon={<ArrowRight color="#FFF" size={20} />}
           />
         ) : (
           <View style={styles.waitingNotice}>
             <Text style={styles.waitingText}>
-              Oda kurucusunun {isFinalRound ? 'oyunu bitirmesi' : 'sonraki turu başlatması'} bekleniyor…
+              Oda kurucusunun sonraki turu başlatması bekleniyor…
             </Text>
           </View>
         )}
