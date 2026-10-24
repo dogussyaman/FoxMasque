@@ -22,7 +22,7 @@ import type { Player } from '@/types/game';
 export default function AuthScreen() {
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
-  const { service, setCurrentPlayer, isLive } = useGameStore();
+  const { service, setCurrentPlayer, isLive, currentPlayer, isInitialized, init } = useGameStore();
   const params = useLocalSearchParams<{
     returnTo?: string;
     code?: string;
@@ -105,9 +105,25 @@ export default function AuthScreen() {
   };
 
   useEffect(() => {
-    if (!isLive) router.replace('/onboarding');
-  }, [isLive]);
-  if (!isLive) return null;
+    void init();
+  }, [init]);
+
+  useEffect(() => {
+    if (!isLive) {
+      router.replace('/onboarding');
+      return;
+    }
+    if (!isInitialized || !currentPlayer?.id) return;
+    if (params.returnTo === '/join-room') {
+      router.replace({
+        pathname: '/join-room',
+        params: { code: params.code, invite: params.invite },
+      });
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [isLive, isInitialized, currentPlayer?.id, params.returnTo, params.code, params.invite]);
+  if (!isLive || (isInitialized && currentPlayer)) return null;
 
   return (
     <Screen gradient diagonalSlice>
@@ -254,7 +270,7 @@ export default function AuthScreen() {
               disabled={busy}
               style={styles.guest}
             >
-              <Text style={styles.guestText}>Hesap oluşturmadan misafir olarak oyna</Text>
+              <Text style={styles.guestText}>Karakter seçerek hemen oyna</Text>
             </Pressable>
           </View>
         </ScrollView>

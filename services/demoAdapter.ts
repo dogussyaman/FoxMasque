@@ -34,6 +34,8 @@ import type {
 } from './types';
 import { ServiceError } from './types';
 
+const demoPresetCharacterClaims = new Map<string, string>();
+
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let s = '';
@@ -95,11 +97,22 @@ export class DemoGameService implements GameService {
     return this.connection;
   }
 
+  async listTakenPresetCharacters(): Promise<string[]> {
+    return Array.from(demoPresetCharacterClaims.keys());
+  }
+
   private emit(event: ServiceEvent) {
     for (const h of this.handlers) h(event);
   }
 
   async signInAnonymously(name: string, avatarKey: string): Promise<Player> {
+    const alreadyClaimedBy = demoPresetCharacterClaims.get(avatarKey);
+    if (alreadyClaimedBy && alreadyClaimedBy !== this.currentPlayer?.id) {
+      throw new ServiceError('PRESET_CHARACTER_TAKEN', 'Bu karakter başka bir oyuncu tarafından seçildi. Lütfen boş bir karakter seç.');
+    }
+    if (this.currentPlayer && demoPresetCharacterClaims.get(this.currentPlayer.avatarKey) === this.currentPlayer.id) {
+      return this.currentPlayer;
+    }
     const player: Player = {
       id: `me-${Date.now()}-${this.playerSequence++}`,
       name: name.trim() || 'Sen',
@@ -117,6 +130,7 @@ export class DemoGameService implements GameService {
       lastBlockedPlayerId: null,
     };
     this.currentPlayer = player;
+    demoPresetCharacterClaims.set(avatarKey, player.id);
     return player;
   }
 
