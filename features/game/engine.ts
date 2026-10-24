@@ -68,7 +68,7 @@ export function clearRoundBlockState(players: Player[]): Record<PlayerId, Player
 }
 
 export function normalizeChoiceText(text: string): string {
-  return text.trim().normalize('NFKC').replace(/\\s+/g, ' ').toLocaleLowerCase('tr-TR');
+  return text.trim().normalize('NFKC').replace(/\s+/g, ' ').toLocaleLowerCase('tr-TR');
 }
 
 export type FakeAnswerValidationError = 'correct_answer' | 'duplicate_answer' | null;
