@@ -97,7 +97,7 @@ function createCharacterUsername(name: string): string {
     .replace(/^_+|_+$/g, '')
     .slice(0, 18) || 'oyuncu';
   // This is a public display handle, not an authentication secret.
-  const suffix = Math.random().toString(36).slice(2, 8).padEnd(6, '0');
+  const suffix = Math.random().toString(36).slice(2, 10).padEnd(8, '0');
   return `${base}_${suffix}`;
 }
 
