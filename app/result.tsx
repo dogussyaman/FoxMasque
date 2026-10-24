@@ -2,7 +2,7 @@ import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, Image } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { CheckCircle2, AlertTriangle, Zap, ShieldAlert, ArrowRight, HelpCircle } from 'lucide-react-native';
 import {
   Screen,
@@ -29,6 +29,23 @@ export default function ResultScreen() {
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
   const { roomState, currentPlayer, roomCode, service } = useGameStore();
+  const params = useLocalSearchParams<{ round?: string | string[]; questionId?: string | string[] }>();
+  const initialResultRef = useRef({
+    round: roomState?.currentRound ?? 1,
+    questionId: roomState?.currentQuestionId ?? null,
+  }).current;
+  const rawRound = Array.isArray(params.round) ? params.round[0] : params.round;
+  const rawQuestionId = Array.isArray(params.questionId) ? params.questionId[0] : params.questionId;
+  const parsedRound = rawRound ? Number(rawRound) : Number.NaN;
+  const resultRound = Number.isInteger(parsedRound) && parsedRound > 0
+    ? parsedRound
+    : initialResultRef.round;
+  const resultQuestionId = rawQuestionId || initialResultRef.questionId;
+  const isStaleResult = !!roomState && (
+    roomState.currentRound !== resultRound ||
+    (resultQuestionId !== null && roomState.currentQuestionId !== resultQuestionId) ||
+    !['reveal', 'scoreboard', 'game_over'].includes(roomState.phase)
+  );
   const { trigger } = useHaptics();
   const [advanceError, setAdvanceError] = useState<string | null>(null);
   const [advancing, setAdvancing] = useState(false);
@@ -37,12 +54,36 @@ export default function ResultScreen() {
   const [revealLoadError, setRevealLoadError] = useState<string | null>(null);
   const playedResultSound = useRef<string | null>(null);
 
-  const currentQId = roomState?.currentQuestionId || QUESTIONS[0].id;
+  const currentQId = resultQuestionId || roomState?.currentQuestionId || QUESTIONS[0].id;
   const localQuestion = QUESTIONS.find((q) => q.id === currentQId);
   const question: Question = loadedQuestion?.id === currentQId
     ? loadedQuestion
     : localQuestion || QUESTIONS[0];
   const currentRoomPhase = roomState?.phase;
+
+  useEffect(() => {
+    if (!isStaleResult || !roomState) return;
+    switch (roomState.phase) {
+      case 'ability_select':
+        router.replace('/ability-select');
+        break;
+      case 'fake_answer':
+      case 'guess':
+        router.replace('/question');
+        break;
+      case 'scoreboard':
+        router.replace('/scoreboard');
+        break;
+      case 'game_over':
+        router.replace('/game-over');
+        break;
+      case 'lobby':
+        router.replace('/lobby');
+        break;
+      default:
+        router.replace('/waiting');
+    }
+  }, [isStaleResult, roomState?.phase]);
 
   useEffect(() => {
     if (!roomCode || !['reveal','scoreboard','game_over'].includes(currentRoomPhase ?? '')) { setRevealChoices([]); return; }
@@ -92,8 +133,8 @@ export default function ResultScreen() {
   const didPick = myResult?.pickedText !== undefined && myResult?.pickedText !== null;
 
   useEffect(() => {
-    if (!myResult) return;
-    const resultSoundKey = `${roomCode ?? 'local'}:${roomState?.currentRound ?? 1}:${me?.id ?? 'unknown'}`;
+    if (isStaleResult || !myResult) return;
+    const resultSoundKey = `${roomCode ?? 'local'}:${resultRound}:${me?.id ?? 'unknown'}`;
     if (playedResultSound.current === resultSoundKey) return;
     playedResultSound.current = resultSoundKey;
 
@@ -109,7 +150,7 @@ export default function ResultScreen() {
     } else {
       trigger('warning');
     }
-  }, [myResult, isCorrect, zartaladın, zartalandın, trigger, roomCode, roomState?.currentRound, me?.id]);
+  }, [myResult, isCorrect, zartaladın, zartalandın, trigger, roomCode, resultRound, isStaleResult, me?.id]);
 
   const handleNext = async () => {
     trigger('medium');
@@ -127,6 +168,18 @@ export default function ResultScreen() {
     }
     router.replace('/scoreboard');
   };
+
+  if (isStaleResult) {
+    return (
+      <Screen gradient diagonalSlice>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <Text style={{ color: colors.textPrimary, textAlign: 'center', fontFamily: 'Poppins-SemiBold', fontSize: 16 }}>
+            Bu turun sonucu kapandı. Güncel oyun aşamasına yönlendiriliyorsun…
+          </Text>
+        </View>
+      </Screen>
+    );
+  }
 
   const trueAnswerText = question.correctAnswer;
 
