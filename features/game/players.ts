@@ -22,7 +22,7 @@ export type AvatarKey = keyof typeof AVATARS;
 
 export const AVATAR_KEYS = Object.keys(AVATARS) as AvatarKey[];
 
-export const DICEBEAR_STYLES = ['lorelei', 'bottts', 'adventurer'] as const;
+export const DICEBEAR_STYLES = ['lorelei', 'adventurer', 'bottts', 'fun-emoji', 'fashion', 'streetwear'] as const;
 export type DiceBearStyle = (typeof DICEBEAR_STYLES)[number];
 
 export function createDiceBearAvatarKey(style: DiceBearStyle, seed: string): string {
@@ -30,7 +30,7 @@ export function createDiceBearAvatarKey(style: DiceBearStyle, seed: string): str
 }
 
 export const DICEBEAR_AVATAR_KEYS = DICEBEAR_STYLES.flatMap((style) =>
-  Array.from({ length: 12 }, (_, index) =>
+  Array.from({ length: 16 }, (_, index) =>
     createDiceBearAvatarKey(style, `foxmasque-${(index + 1).toString().padStart(2, '0')}`)
   )
 );
@@ -54,6 +54,51 @@ export function createRandomDiceBearAvatarKey(style: DiceBearStyle = 'lorelei'):
   return createDiceBearAvatarKey(style, seed);
 }
 
+function customPortraitSvg(seed: string, style: 'fashion' | 'streetwear'): string {
+  const pick = <T,>(items: readonly T[], salt: number): T => {
+    const hash = Number.parseInt(hashSeed(seed, salt), 36) || 0;
+    return items[hash % items.length];
+  };
+  const skin = pick(['#F7D7C5', '#D9A17E', '#A86D50', '#F0C2A0', '#754833', '#E7B48F'] as const, 2166136261);
+  const hair = pick(['#211B2B', '#513126', '#D8A13D', '#A73555', '#BFC8D7', '#E8D6B5', '#3D627A', '#754B91'] as const, 2246822519);
+  const outfit = pick(['#FF4F9A', '#8057F5', '#21A6A1', '#FF784F', '#20243B', '#E0A72E', '#4E86E8', '#E8E9F4'] as const, 3266489917);
+  const backdrop = pick(['#FCE7F3', '#EDE9FE', '#DBF4F0', '#FFE8D9', '#DCEBFF', '#F4E8D5'] as const, 668265263);
+  const eye = pick(['#30243B', '#386A79', '#5B7549', '#6B4432'] as const, 374761393);
+  const hairShape = style === 'fashion'
+    ? '<path d="M24 65 Q14 18 64 13 Q113 16 104 69 L99 99 L83 76 L42 79 L28 100 Z" fill="' + hair + '"/>'
+    : '<path d="M24 56 Q21 19 64 18 Q105 18 104 57 L100 87 L86 70 L42 72 L28 88 Z" fill="' + hair + '"/>';
+  const fringe = style === 'fashion'
+    ? '<path d="M26 49 Q34 20 64 27 Q87 18 101 48 Q79 39 66 45 Q44 36 26 49 Z" fill="' + hair + '"/><path d="M83 26 Q103 40 96 67" fill="none" stroke="' + hair + '" stroke-width="7" stroke-linecap="round"/>'
+    : '<path d="M28 47 Q34 23 62 27 Q82 20 100 43 L89 39 L78 47 L65 36 L50 47 L40 40 Z" fill="' + hair + '"/><path d="M88 31 L96 54" stroke="' + hair + '" stroke-width="6" stroke-linecap="round"/>';
+  const accessory = style === 'fashion'
+    ? '<circle cx="31" cy="68" r="4" fill="#FFD166"/><circle cx="97" cy="68" r="4" fill="#FFD166"/><path d="M42 91 Q64 101 86 91" fill="none" stroke="#E98B9B" stroke-width="2" stroke-linecap="round"/><path d="M94 24 l3 -6 l3 6 l6 3 l-6 3 l-3 6 l-3 -6 l-6 -3 Z" fill="#FFF5B8"/>'
+    : '<path d="M18 52 Q13 29 31 27" fill="none" stroke="#25243A" stroke-width="5" stroke-linecap="round"/><path d="M97 27 Q115 31 110 52" fill="none" stroke="#25243A" stroke-width="5" stroke-linecap="round"/><path d="M27 30 Q64 9 101 30 L97 39 L31 39 Z" fill="' + outfit + '"/><path d="M38 31 Q64 22 90 31" fill="none" stroke="#FFFFFF" stroke-width="2" opacity=".7"/>';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+    <rect width="128" height="128" rx="64" fill="${backdrop}"/>
+    <circle cx="103" cy="23" r="13" fill="#FFFFFF" opacity=".42"/>
+    <path d="M13 128 Q17 91 43 87 L85 87 Q111 93 115 128 Z" fill="${outfit}"/>
+    <path d="M49 84 L64 100 L79 84" fill="#FFFFFF" opacity=".85"/>
+    ${hairShape}
+    <path d="M42 76 L42 92 Q64 106 86 92 L86 76 Z" fill="${skin}"/>
+    <ellipse cx="64" cy="58" rx="34" ry="39" fill="${skin}"/>
+    <ellipse cx="29" cy="63" rx="5" ry="9" fill="${skin}"/>
+    <ellipse cx="99" cy="63" rx="5" ry="9" fill="${skin}"/>
+    <path d="M43 54 Q49 50 55 54" stroke="${hair}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M73 54 Q79 50 85 54" stroke="${hair}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <ellipse cx="49" cy="60" rx="4" ry="5" fill="${eye}"/>
+    <ellipse cx="79" cy="60" rx="4" ry="5" fill="${eye}"/>
+    <circle cx="50" cy="58" r="1.4" fill="#FFFFFF"/>
+    <circle cx="80" cy="58" r="1.4" fill="#FFFFFF"/>
+    <path d="M63 62 L59 73 Q64 76 68 73" fill="none" stroke="#C18A78" stroke-width="2" stroke-linecap="round"/>
+    <path d="M53 81 Q64 88 75 81 Q64 94 53 81 Z" fill="${style === 'fashion' ? '#D94E79' : '#9C5361'}"/>
+    <circle cx="43" cy="72" r="5" fill="#F08B98" opacity=".45"/>
+    <circle cx="85" cy="72" r="5" fill="#F08B98" opacity=".45"/>
+    ${fringe}
+    ${accessory}
+    <path d="M53 104 L64 115 L75 104" fill="none" stroke="#FFFFFF" stroke-width="3" opacity=".8"/>
+  </svg>`;
+}
+
 const avatarSvgCache = new Map<string, string>();
 const MAX_CACHED_AVATARS = 128;
 
@@ -62,7 +107,7 @@ export function diceBearAvatarSvg(key: string): string | null {
   if (cached) return cached;
 
   let svg: string | null = null;
-  const selection = /^db:(lorelei|bottts|adventurer):([a-zA-Z0-9_-]{1,80})$/.exec(key);
+  const selection = /^db:(lorelei|bottts|adventurer|fun-emoji|fashion|streetwear):([a-zA-Z0-9_-]{1,80})$/.exec(key);
   if (selection) {
     const seed = selection[2];
     switch (selection[1] as DiceBearStyle) {
@@ -74,6 +119,13 @@ export function diceBearAvatarSvg(key: string): string | null {
         break;
       case 'adventurer':
         svg = createAvatar(adventurer, { seed }).toString();
+        break;
+      case 'fun-emoji':
+        svg = createAvatar(funEmoji, { seed }).toString();
+        break;
+      case 'fashion':
+      case 'streetwear':
+        svg = customPortraitSvg(seed, selection[1] as 'fashion' | 'streetwear');
         break;
     }
   } else {
