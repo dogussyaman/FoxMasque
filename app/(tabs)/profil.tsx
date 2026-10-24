@@ -3,7 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Switch, Pressabl
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut, Sun, Moon } from 'lucide-react-native';
+import { Shield, Zap, Award, Sparkles, Volume2, Vibrate, Globe, Check, Edit2, Flame, ImagePlus, LogOut, Sun, Moon, Shuffle } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, Badge, Input } from '@/components/ui';
 import { spacing, typography, radii, shadows } from '@/theme';
 import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
@@ -26,6 +26,7 @@ export default function ProfilScreen() {
   const [selectedAvatar, setSelectedAvatar] = useState(currentPlayer?.avatarKey ?? 'fox');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showAllAvatars, setShowAllAvatars] = useState(false);
+  const [selectedAvatarCategory, setSelectedAvatarCategory] = useState<'all' | 'people' | 'robots' | 'emoji' | 'animals' | 'fashion' | 'streetwear'>('all');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [statsPlayer, setStatsPlayer] = useState(currentPlayer);
@@ -145,13 +146,26 @@ export default function ProfilScreen() {
     }
   };
 
-  const avatarChoices: string[] = [...AVATAR_KEYS, ...DICEBEAR_AVATAR_KEYS];
+  const avatarChoices: string[] = [...DICEBEAR_AVATAR_KEYS, ...AVATAR_KEYS];
   if (!avatarChoices.includes(selectedAvatar)) avatarChoices.push(selectedAvatar);
+  const filteredAvatarChoices = avatarChoices.filter((key) => {
+    if (selectedAvatarCategory === 'all') return true;
+    if (selectedAvatarCategory === 'animals') return AVATAR_KEYS.includes(key as (typeof AVATAR_KEYS)[number]);
+    if (!key.startsWith('db:')) return false;
+    const style = key.split(':')[1];
+    if (selectedAvatarCategory === 'people') return style === 'lorelei' || style === 'adventurer';
+    if (selectedAvatarCategory === 'robots') return style === 'bottts';
+    if (selectedAvatarCategory === 'emoji') return style === 'fun-emoji';
+    if (selectedAvatarCategory === 'fashion') return style === 'fashion';
+    if (selectedAvatarCategory === 'streetwear') return style === 'streetwear';
+    return false;
+  });
   const visibleAvatarChoices = showAllAvatars
-    ? avatarChoices
+    ? filteredAvatarChoices
     : [
-        ...avatarChoices.slice(0, 10),
-        ...(avatarChoices.slice(0, 10).includes(selectedAvatar) ? [] : [selectedAvatar]),
+        ...filteredAvatarChoices.slice(0, 12),
+        ...(filteredAvatarChoices.slice(0, 12).includes(selectedAvatar)
+          || !filteredAvatarChoices.includes(selectedAvatar) ? [] : [selectedAvatar]),
       ];
 
   return (
@@ -231,7 +245,54 @@ export default function ProfilScreen() {
           </Pressable>
           {showAvatarPicker ? (
             <>
-              <Text style={styles.avatarStyles}>LORELEI · BOTTTS · ADVENTURER</Text>
+              <View style={styles.avatarPickerIntro}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.avatarStyles}>KARAKTERİNİ SEÇ</Text>
+                  <Text style={styles.avatarPickerCount}>{avatarChoices.length} farklı avatar · herkese uygun stiller</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Rastgele avatar seç"
+                  disabled={savingProfile}
+                  onPress={() => {
+                    const candidates = filteredAvatarChoices.filter((key) => key !== selectedAvatar);
+                    if (candidates.length) void handleAvatarSelect(candidates[Math.floor(Math.random() * candidates.length)]);
+                  }}
+                  style={styles.randomAvatarButton}
+                >
+                  <Shuffle color={colors.orange} size={16} />
+                  <Text style={styles.randomAvatarText}>Sürpriz</Text>
+                </Pressable>
+              </View>
+              <View style={styles.avatarFilters}>
+                {([
+                  { key: 'all', label: 'Tümü' },
+                  { key: 'people', label: 'Portreler' },
+                  { key: 'robots', label: 'Robotlar' },
+                  { key: 'emoji', label: 'Emoji' },
+                  { key: 'animals', label: 'Hayvanlar' },
+                  { key: 'fashion', label: 'Moda' },
+                  { key: 'streetwear', label: 'Sokak Stili' },
+                ] as const).map((filter) => {
+                  const active = selectedAvatarCategory === filter.key;
+                  return (
+                    <Pressable
+                      key={filter.key}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      onPress={() => {
+                        setSelectedAvatarCategory(filter.key);
+                        setShowAllAvatars(false);
+                      }}
+                      style={[styles.avatarFilterChip, active && styles.avatarFilterChipActive]}
+                    >
+                      <Text style={[styles.avatarFilterText, active && styles.avatarFilterTextActive]}>
+                        {filter.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               <View style={styles.avatarGrid}>
                 {visibleAvatarChoices.map((key) => {
                   const active = selectedAvatar === key;
@@ -255,17 +316,17 @@ export default function ProfilScreen() {
                   );
                 })}
               </View>
-              {avatarChoices.length > 10 ? (
+              {filteredAvatarChoices.length > 12 ? (
                 <Pressable
                   onPress={() => setShowAllAvatars((visible) => !visible)}
                   accessibilityRole="button"
                   accessibilityLabel={
-                    showAllAvatars ? 'Daha az avatar göster' : `Tüm ${avatarChoices.length} avatarı göster`
+                    showAllAvatars ? 'Daha az avatar göster' : `Tüm ${filteredAvatarChoices.length} avatarı göster`
                   }
                   style={styles.toggleAvatarsButton}
                 >
                   <Text style={styles.toggleAvatarsText}>
-                    {showAllAvatars ? 'Daha az göster' : `Daha fazla avatar göster (${avatarChoices.length - visibleAvatarChoices.length})`}
+                    {showAllAvatars ? 'Daha az göster' : `Daha fazla avatar göster (${Math.max(0, filteredAvatarChoices.length - visibleAvatarChoices.length)})`}
                   </Text>
                 </Pressable>
               ) : null}
@@ -648,13 +709,69 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 22,
     paddingHorizontal: spacing.xs,
   },
+  avatarPickerIntro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
   avatarStyles: {
+    fontFamily: 'Poppins-Bold',
+    fontSize: 11,
+    color: colors.textPrimary,
+    letterSpacing: 0.7,
+  },
+  avatarPickerCount: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  randomAvatarButton: {
+    minHeight: 38,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurfaceAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  randomAvatarText: {
+    ...typography.caption,
+    color: colors.orange,
     fontFamily: 'Poppins-SemiBold',
-    fontSize: 9,
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-    marginTop: -spacing.xs,
-    marginBottom: spacing.xs,
+  },
+  avatarFilters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: spacing.md,
+  },
+  avatarFilterChip: {
+    minHeight: 34,
+    paddingHorizontal: 10,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarFilterChipActive: {
+    backgroundColor: colors.orangeSurface,
+    borderColor: colors.orange,
+  },
+  avatarFilterText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontFamily: 'Poppins-Medium',
+  },
+  avatarFilterTextActive: {
+    color: colors.orange,
+    fontFamily: 'Poppins-Bold',
   },
   avatarGrid: {
     flexDirection: 'row',

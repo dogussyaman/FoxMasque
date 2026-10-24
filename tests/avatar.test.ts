@@ -33,7 +33,7 @@ describe('DiceBear avatars', () => {
   test('keeps legacy DiceBear keys renderable and safely handles missing profile data', () => {
     assert.ok(diceBearAvatarSvg('db-00'));
     assert.equal(diceBearAvatarSvg('db-99'), null);
-    assert.equal(DICEBEAR_AVATAR_KEYS.length, 36);
+    assert.equal(DICEBEAR_AVATAR_KEYS.length, 96);
     assert.equal(avatarOf(null).key, 'fox');
   });
 });
