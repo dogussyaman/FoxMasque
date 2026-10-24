@@ -16,6 +16,7 @@ test('fake-answer RPC locks the room before validating and inserting a submissio
   );
   assert.match(migration, /IF v_room\.phase <> 'fake_answer' THEN/i);
   assert.match(migration, /is_blocked_current_round\s*=\s*TRUE/i);
+  assert.match(migration, /IF v_trimmed IS NULL OR v_trimmed = '' OR length\(v_trimmed\) > 120 THEN/i);
   assert.match(
     migration,
     /PERFORM public\._set_room_phase\(v_room\.id,\s*'guess',\s*v_room\.round_seconds\)/i,

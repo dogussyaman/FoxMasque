@@ -30,7 +30,7 @@ BEGIN
         RAISE EXCEPTION 'Giriş yapmalısınız';
     END IF;
 
-    IF v_trimmed = '' OR length(v_trimmed) > 120 THEN
+    IF v_trimmed IS NULL OR v_trimmed = '' OR length(v_trimmed) > 120 THEN
         RAISE EXCEPTION 'Cevap 1-120 karakter arasında olmalıdır';
     END IF;
 
