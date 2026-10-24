@@ -151,6 +151,8 @@ export default function AbilitySelectScreen() {
       }
       await service.confirmAbilitySelection(roomCode);
       setConfirmed(true);
+      // Force a fresh authoritative read even if this client's Realtime event is missed.
+      await refreshRoom();
       // Do not rely exclusively on the Realtime event to navigate this player.
       await refreshRoom();
     } catch (e) {
