@@ -15,12 +15,24 @@ export default function Root({ children }: PropsWithChildren) {
         <style
           dangerouslySetInnerHTML={{
             __html: `
-              /* Reset default browser focus outline and shadow on inputs */
-              input, textarea, select, [contenteditable="true"] {
-                outline: none !important;
-                box-shadow: none !important;
-                -webkit-tap-highlight-color: transparent;
-              }
+                    /* Prevent mobile browsers from zooming the page when a field receives focus. */
+                    input, textarea, select, [contenteditable="true"] {
+                      box-sizing: border-box;
+                      width: auto;
+                      max-width: 100%;
+                      min-width: 0;
+                      font-size: 16px !important;
+                      line-height: 1.4;
+                      outline: none !important;
+                      box-shadow: none !important;
+                      -webkit-tap-highlight-color: transparent;
+                    }
+                    input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus {
+                      font-size: 16px !important;
+                      outline: none !important;
+                      box-shadow: none !important;
+                    }
+              
               body {
                 overflow-x: hidden;
                 background-color: #110D1B;
