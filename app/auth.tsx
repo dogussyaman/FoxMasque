@@ -22,7 +22,7 @@ import type { Player } from '@/types/game';
 export default function AuthScreen() {
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
-  const { service, setCurrentPlayer, isLive, currentPlayer, isInitialized } = useGameStore();
+  const { service, setCurrentPlayer, isLive, currentPlayer, isInitialized, init } = useGameStore();
   const params = useLocalSearchParams<{
     returnTo?: string;
     code?: string;
@@ -103,6 +103,10 @@ export default function AuthScreen() {
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    void init();
+  }, [init]);
 
   useEffect(() => {
     if (!isLive) {
