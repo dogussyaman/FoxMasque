@@ -1,6 +1,7 @@
 export interface SoundPoolPlayer {
   waitUntilReady: () => Promise<boolean>;
   play: () => void | Promise<void>;
+  playFromGesture?: (volume: number) => void | Promise<void>;
   pause: () => void;
   seekTo: (seconds: number) => Promise<void>;
   setVolume: (volume: number) => void;
@@ -86,6 +87,42 @@ export class SoundPool {
     } finally {
       entry.busy = false;
     }
+  }
+
+  public playFromGesture(effect: SoundEffectName, volume: number, defaultVolume: number): boolean {
+    if (!this.enabled || this.failedEffects.has(effect)) return false;
+
+    this.ensurePool(effect);
+    const pool = this.pools.get(effect);
+    if (!pool?.length) return false;
+
+    const startIndex = this.poolIndexes.get(effect) ?? 0;
+    for (let offset = 0; offset < pool.length; offset += 1) {
+      const candidateIndex = (startIndex + offset) % pool.length;
+      const entry = pool[candidateIndex];
+      if (entry.busy || !entry.player.playFromGesture) continue;
+
+      this.poolIndexes.set(effect, (candidateIndex + 1) % pool.length);
+      const generation = entry.generation;
+      entry.busy = true;
+      try {
+        const playback = entry.player.playFromGesture(clampVolume(volume, defaultVolume));
+        void Promise.resolve(playback)
+          .catch((error: unknown) => {
+            this.reportError(effect, 'play', error);
+          })
+          .finally(() => {
+            if (entry.generation === generation) entry.busy = false;
+          });
+        return true;
+      } catch (error) {
+        entry.busy = false;
+        this.reportError(effect, 'play', error);
+        return false;
+      }
+    }
+
+    return false;
   }
 
   public stop(effect?: SoundEffectName): void {

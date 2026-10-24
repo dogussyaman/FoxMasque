@@ -26,21 +26,10 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      /* Keep every web input at 16px to prevent iOS Safari focus zoom. */
       input, textarea, select, [contenteditable="true"] {
-        box-sizing: border-box;
-        max-width: 100%;
-        min-width: 0;
-        font-size: 16px !important;
-        line-height: 1.4;
         outline: none !important;
         box-shadow: none !important;
         -webkit-tap-highlight-color: transparent;
-      }
-      input:focus, textarea:focus, select:focus, [contenteditable="true"]:focus {
-        font-size: 16px !important;
-        outline: none !important;
-        box-shadow: none !important;
       }
     `;
     document.head.appendChild(style);

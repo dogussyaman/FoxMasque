@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { SoundPool, type SoundPoolPlayer } from '../services/soundPool';
 import { SoundPreference } from '../services/soundPreference';
+import { resolveAudioAssetUri } from '../services/audioSource';
 
 function createFakePlayer(options: {
   ready?: () => Promise<boolean>;
   play?: () => void;
+  playFromGesture?: (volume: number) => void | Promise<void>;
   seekTo?: (seconds: number) => Promise<void>;
 } = {}) {
   const state = {
@@ -21,6 +23,12 @@ function createFakePlayer(options: {
       state.plays += 1;
       options.play?.();
     },
+    playFromGesture: options.playFromGesture
+      ? (volume) => {
+          state.volumes.push(volume);
+          return options.playFromGesture?.(volume);
+        }
+      : undefined,
     pause: () => {
       state.pauses += 1;
     },
@@ -35,6 +43,30 @@ function createFakePlayer(options: {
   };
   return { player, state };
 }
+
+describe('web audio asset paths', () => {
+  test('uses Metro web asset URLs directly', () => {
+    const resolveAssetSource = () => {
+      throw new Error('String web paths must not use the native asset resolver.');
+    };
+
+    assert.equal(
+      resolveAudioAssetUri('/K-z-lkuyruk/assets/sound/click.wav', resolveAssetSource),
+      '/K-z-lkuyruk/assets/sound/click.wav',
+    );
+  });
+
+  test('resolves native asset identifiers through React Native', () => {
+    assert.equal(
+      resolveAudioAssetUri(42, (asset) => ({ uri: `asset://${asset}` })),
+      'asset://42',
+    );
+  });
+
+  test('rejects unsupported asset source values', () => {
+    assert.equal(resolveAudioAssetUri(null, () => null), null);
+  });
+});
 
 describe('SoundPool', () => {
   test('waits for readiness before seeking and playing', async () => {
@@ -53,6 +85,22 @@ describe('SoundPool', () => {
     assert.equal(await playback, true);
     assert.deepEqual(fake.state.seeks, [0]);
     assert.equal(fake.state.plays, 1);
+  });
+
+  test('starts web playback synchronously from the user gesture', () => {
+    let started = false;
+    const fake = createFakePlayer({
+      playFromGesture: () => {
+        started = true;
+      },
+    });
+    const pool = new SoundPool(() => fake.player, () => {}, { click: 1 });
+
+    const result = pool.playFromGesture('click', 0.75, 0.75);
+
+    assert.equal(result, true);
+    assert.equal(started, true);
+    assert.deepEqual(fake.state.volumes, [0.75]);
   });
 
   test('drops a repeated effect while its only pooled player is busy instead of queuing it', async () => {

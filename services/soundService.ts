@@ -3,6 +3,7 @@ import { Platform, Image, AppState, type AppStateStatus } from 'react-native';
 import { soundAssets, type SoundEffect } from '@/assets/sound';
 import { SoundPool, type SoundPoolPlayer } from './soundPool';
 import { SoundPreference } from './soundPreference';
+import { resolveAudioAssetUri } from './audioSource';
 
 const SOUND_PREFERENCE_KEY = '@foxmasque/sound-effects-enabled';
 const PLAYER_READY_TIMEOUT_MS = 5000;
@@ -143,7 +144,7 @@ class SoundService {
     }
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.Audio !== 'undefined') {
-      const resolved = Image.resolveAssetSource(source)?.uri;
+      const resolved = resolveAudioAssetUri(source, Image.resolveAssetSource);
       if (!resolved) return null;
 
       const audio = new window.Audio(resolved);
@@ -168,6 +169,11 @@ class SoundService {
             audio.addEventListener('canplaythrough', onReady, { once: true });
             audio.addEventListener('error', onError, { once: true });
           });
+        },
+        playFromGesture: (volume) => {
+          audio.volume = volume;
+          if (audio.readyState > 0) audio.currentTime = 0;
+          return audio.play();
         },
         play: () => {
           audio.currentTime = 0;
@@ -198,13 +204,23 @@ class SoundService {
   }
 
   public async play(effect: SoundEffect, customVolume?: number): Promise<boolean> {
+    const defaultVolume = effect === 'click' ? 0.75 : effect === 'clock' ? 0.55 : 1;
+    const volume = customVolume ?? defaultVolume;
+    if (
+      Platform.OS === 'web'
+      && this.preference.isReady()
+      && this.preference.isEnabled()
+      && this.pool.playFromGesture(effect, volume, defaultVolume)
+    ) {
+      return true;
+    }
+
     await this.preference.ready;
     if (!this.preference.isReady()) return false;
     if (!this.preference.isEnabled()) return false;
     await this.ensureAudioMode();
     if (!this.preference.isEnabled()) return false;
-    const defaultVolume = effect === 'click' ? 0.75 : effect === 'clock' ? 0.55 : 1;
-    return this.pool.play(effect, customVolume ?? defaultVolume, defaultVolume);
+    return this.pool.play(effect, volume, defaultVolume);
   }
 
   public stop(effect?: SoundEffect): void {
