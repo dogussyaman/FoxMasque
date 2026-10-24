@@ -1,6 +1,6 @@
 import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/theme/ThemeProvider';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Sparkles, ArrowRight, Shield, Zap, Target, Flame, Check } from 'lucide-react-native';
@@ -30,7 +30,7 @@ export default function OnboardingScreen() {
   ]);
   const [selectedAvatar, setSelectedAvatar] = useState(avatarOptions[0]);
   const [avatarCategory, setAvatarCategory] = useState<'special' | 'all' | 'people' | 'robots' | 'emoji' | 'animals' | 'fashion' | 'streetwear'>('special');
-  const filteredAvatarOptions = avatarOptions.filter((key) => {
+  const filteredAvatarOptions = useMemo(() => avatarOptions.filter((key) => {
     if (avatarCategory === 'all') return true;
     if (avatarCategory === 'special') return key.startsWith('special:');
     if (avatarCategory === 'animals') return AVATAR_KEYS.includes(key as (typeof AVATAR_KEYS)[number]);
@@ -42,7 +42,7 @@ export default function OnboardingScreen() {
     if (avatarCategory === 'fashion') return style === 'fashion';
     if (avatarCategory === 'streetwear') return style === 'streetwear';
     return false;
-  });
+  }), [avatarOptions, avatarCategory]);
   const selectedCharacter = getPresetCharacterIdentity(selectedAvatar);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export default function OnboardingScreen() {
       setSelectedAvatar(anyAvailable);
       setAvatarCategory('all');
     }
-  }, [takenAvatars, selectedAvatar, avatarCategory]);
+  }, [takenAvatars, selectedAvatar, filteredAvatarOptions, avatarOptions]);
 
   useEffect(() => {
     // A pending anonymous auth user is retained after a race for an occupied
