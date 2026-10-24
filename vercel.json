@@ -4,5 +4,10 @@
   "outputDirectory": "dist",
   "cleanUrls": true,
   "framework": null,
-  "rewrites": [{ "source": "/:path*", "destination": "/" }]
+  "rewrites": [
+    {
+      "source": "/((?!_expo/|assets/|.*\\.[a-zA-Z0-9]+$).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

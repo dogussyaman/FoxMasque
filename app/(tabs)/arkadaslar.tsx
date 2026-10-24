@@ -1,7 +1,7 @@
 import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/theme/ThemeProvider';
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Share, TextInput } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Share, TextInput, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { UserPlus, Share2, Send, Search, UserRoundX, UserRoundCheck } from 'lucide-react-native';
 import { Screen, ScreenHeader, Card, Button, Avatar, EmptyState, Badge } from '@/components/ui';
@@ -459,6 +459,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: radii.md,
     paddingHorizontal: spacing.md,
     fontFamily: 'Poppins-Regular',
+    fontSize: 16,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
   searchButton: {
     width: 44,

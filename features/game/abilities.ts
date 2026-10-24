@@ -18,7 +18,7 @@ export const ABILITIES: readonly Ability[] = [
     description: 'Hedef rakip bu tur sahte cevap yazamaz ama gerçek cevabı seçebilir. Aynı hedef art arda bloklanamaz.',
     targetRequired: true,
     creditCost: 1,
-    unlockRule: 'Bu tur kullanmak için 2 kredi harcanır.',
+    unlockRule: 'Bu tur kullanmak için 1 kredi harcanır.',
   },
   {
     id: 'shield',
@@ -27,7 +27,7 @@ export const ABILITIES: readonly Ability[] = [
     description: 'Seni bu tur bloklamaya karşı korur. Kullanıldığında harcanır.',
     targetRequired: false,
     creditCost: 1,
-    unlockRule: 'Bu tur kullanmak için 2 kredi harcanır.',
+    unlockRule: 'Bu tur kullanmak için 1 kredi harcanır.',
   },
 ] as const;
 

@@ -131,7 +131,7 @@ BEGIN
 
     PERFORM public._set_room_phase(p_room_id, 'reveal', NULL);
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.get_room_state_secure(p_room_code character varying)
@@ -316,7 +316,7 @@ BEGIN
     ) INTO v_state;
     RETURN v_state;
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.start_game_secure(p_room_code character varying)
@@ -376,7 +376,7 @@ BEGIN
     WHERE id = v_room.id;
     PERFORM public._set_room_phase(v_room.id, 'ability_select', v_room.round_seconds);
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.advance_round_secure(p_room_code character varying)
@@ -475,7 +475,7 @@ BEGIN
         RAISE EXCEPTION 'Bu aşama elle ilerletilemez';
     END IF;
 END;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.use_ability_secure(p_room_code character varying, p_ability ability_type, p_target_id uuid DEFAULT NULL::uuid)
@@ -565,5 +565,5 @@ BEGIN
     UPDATE public.rooms SET state_version = state_version + 1, updated_at = now()
     WHERE id = v_room.id;
 END;
-$function$
+$function$;
 

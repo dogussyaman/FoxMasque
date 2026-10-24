@@ -310,7 +310,7 @@ export default function WaitingScreen() {
             <Text style={styles.tipTitle}>Kızılkuyruk Taktik İpucu</Text>
           </View>
           <Text style={styles.tipBody}>
-            Ne kadar çok rakibi kendi uydurduğun cevaba inandırırsan, kişi başı +50 puan ve 3 kişide Blok hakkı kazanırsın!
+            Ne kadar çok rakibi kendi uydurduğun cevaba inandırırsan, kişi başı +1 puan kaparsın! Puan topladıkça maçlık kredi kazanıp Blok ve Kalkan yeteneklerini kullanabilirsin.
           </Text>
         </Card>
 

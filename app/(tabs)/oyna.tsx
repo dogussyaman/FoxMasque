@@ -148,7 +148,7 @@ export default function OynaScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.tipTitle}>Kızılkuyruk Blöf Taktikleri</Text>
             <Text style={styles.tipCopy}>
-              Gerçek cevabı bulmak +100 puan; ancak kendi uydurduğun cevaba arkadaşlarını tuzağa düşürmek rakip başına +50 puan! 3 kişiyi kandırırsan Blok yeteneği kazanırsın!
+              Gerçek cevabı bulmak +2 puan; ancak kendi uydurduğun cevaba arkadaşlarını tuzağa düşürmek rakip başına +1 puan! Puan kazandıkça kredi toplayıp Kalkan ve Blok yeteneklerini kullanabilirsin!
             </Text>
           </View>
         </Card>

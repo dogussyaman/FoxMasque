@@ -171,9 +171,9 @@ export default function OnboardingScreen() {
                   <Target color={colors.lime} size={24} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.featureTitle}>1. Gerçek Cevabı Bul (+100)</Text>
+                  <Text style={styles.featureTitle}>1. Gerçek Cevabı Bul (+2)</Text>
                   <Text style={styles.featureDesc}>
-                    Karışık cevap havuzundan doğrusunu tahmin et, hanene +100 puanı yazdır.
+                    Karışık cevap havuzundan doğrusunu tahmin et, hanene +2 puanı yazdır.
                   </Text>
                 </View>
               </Card>
@@ -183,9 +183,9 @@ export default function OnboardingScreen() {
                   <Zap color={colors.orange} size={24} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.featureTitle}>2. Sahteni Yuttur & Tuzağa Düşür (+50)</Text>
+                  <Text style={styles.featureTitle}>2. Sahteni Yuttur & Tuzağa Düşür (+1)</Text>
                   <Text style={styles.featureDesc}>
-                    İnandırıcı bir blöf yaz. Sahtene kanan ve tuzağa düşürdüğün her rakip için +50 puan kap!
+                    İnandırıcı bir blöf yaz. Sahtene kanan her rakip için +1 puan kap! Yanılsan da puan kaybetmezsin.
                   </Text>
                 </View>
               </Card>
@@ -197,7 +197,7 @@ export default function OnboardingScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.featureTitle}>3. Kalkan & Blok Yetenekleri</Text>
                   <Text style={styles.featureDesc}>
-                    3 doğru bildiğinde Kalkan, 3 kişiyi kandırdığında rakibi pas geçiren Blok açılır!
+                    Puan kazandıkça maçlık kredi topla; Kalkan ve rakibi pas geçiren Blok yeteneklerini satın al!
                   </Text>
                 </View>
               </Card>

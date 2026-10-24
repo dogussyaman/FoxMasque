@@ -639,6 +639,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: spacing.md,
     color: colors.textPrimary,
     fontFamily: 'Poppins-Medium',
+    fontSize: 16,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
   passwordVisibilityButton: {
     minWidth: 48,

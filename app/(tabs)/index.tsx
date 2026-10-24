@@ -22,7 +22,7 @@ import {
   ChevronRight,
   Flame,
   CheckCircle2,
-  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { Screen, Button, Card, Badge, Avatar, MascotFloat, PulseView } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
@@ -37,7 +37,7 @@ import { categoryOptionImages } from '@/assets/categories/options';
 const QUICK_SCORING_RULES = [
   {
     key: 'correct',
-    score: '+100',
+    score: '+2',
     label: 'Doğru Bil',
     icon: CheckCircle2,
     color: colors.lime,
@@ -45,7 +45,7 @@ const QUICK_SCORING_RULES = [
   },
   {
     key: 'trap',
-    score: '+50',
+    score: '+1',
     label: 'Tuzağa Düşürme',
     icon: Zap,
     color: colors.orange,
@@ -53,11 +53,11 @@ const QUICK_SCORING_RULES = [
   },
   {
     key: 'victim',
-    score: '-40',
+    score: '0',
     label: 'Tuzağa Düşme',
-    icon: ShieldAlert,
-    color: colors.dangerSoft,
-    iconBg: colors.dangerSurface,
+    icon: ShieldCheck,
+    color: colors.purpleSoft,
+    iconBg: colors.purpleSurface,
   },
 ];
 
@@ -388,7 +388,7 @@ export default function HomeScreen() {
               <View style={styles.howToText}>
                 <Text style={styles.howToTitle}>3. Tuzağa Düşür & Tuzağa Düşme!</Text>
                 <Text style={styles.howToDesc}>
-                  Doğru cevaba +100 puan; sahtene kanan her rakip için +50 puan kap! Başkasının sahtesine kanarsan -40 puan.
+                  Doğru cevaba +2 puan; sahtene kanan her rakip için +1 puan kap! Yanılsan da puan kaybetmezsin.
                 </Text>
               </View>
             </View>
