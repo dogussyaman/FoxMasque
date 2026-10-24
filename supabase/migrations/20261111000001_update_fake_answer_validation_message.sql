@@ -1,8 +1,11 @@
 -- Update fake answer validation exception messages to be user-friendly and polite
+-- Drop both old signatures to prevent PostgreSQL function overload ambiguity:
+DROP FUNCTION IF EXISTS public.submit_fake_answer_secure(character varying, text);
+DROP FUNCTION IF EXISTS public.submit_fake_answer_secure(text, text);
 
 CREATE OR REPLACE FUNCTION public.submit_fake_answer_secure(
-    p_room_code TEXT,
-    p_fake_answer TEXT
+    p_room_code character varying,
+    p_fake_answer text
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -170,3 +173,6 @@ BEGIN
     END IF;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.submit_fake_answer_secure(character varying, text) TO authenticated, anon;
+
