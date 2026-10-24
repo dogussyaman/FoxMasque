@@ -157,13 +157,8 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     choicesByIndex.set(c.choiceIndex, c);
   }
 
-  const activeOpponentsCount = Math.max(1, players.filter((p) => p.isOnline).length - 1);
-
-  // 1. Process defensive abilities (Shields, Counters)
-  const shieldedPlayers = new Set<PlayerId>();
-  const counters = new Set<PlayerId>();
+  // 1. Register purchased abilities for this round
   const blocksByTarget = new Map<PlayerId, PlayerId[]>();
-  const penaltiesByTarget = new Map<PlayerId, PlayerId[]>();
   const abilityUsesByPlayer = new Map<PlayerId, Record<string, number>>();
 
   for (const action of abilityActions) {
@@ -172,18 +167,10 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     const uses = abilityUsesByPlayer.get(action.playerId) ?? {};
     uses[action.abilityId] = (uses[action.abilityId] ?? 0) + 1;
     abilityUsesByPlayer.set(action.playerId, uses);
-    if (action.abilityId === 'shield') {
-      shieldedPlayers.add(action.playerId);
-    } else if (action.abilityId === 'counter') {
-      counters.add(action.playerId);
-    } else if (action.abilityId === 'block' && action.targetId) {
+    if (action.abilityId === 'block' && action.targetId) {
       const attackers = blocksByTarget.get(action.targetId) ?? [];
       attackers.push(action.playerId);
       blocksByTarget.set(action.targetId, attackers);
-    } else if (action.abilityId === 'penalty' && action.targetId) {
-      const attackers = penaltiesByTarget.get(action.targetId) ?? [];
-      attackers.push(action.playerId);
-      penaltiesByTarget.set(action.targetId, attackers);
     }
   }
 
@@ -205,8 +192,6 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
   const rows: Record<PlayerId, RoundResultRow> = {};
   const rowsList: RoundResultRow[] = [];
   const updatedPlayers: Record<PlayerId, Player> = {};
-  const reflectedPenalties = new Map<PlayerId, number>();
-  const penaltiesByPlayer = new Map<PlayerId, number>();
 
   for (const p of players) {
     const isBlocked = !!p.isBlockedCurrentRound;
@@ -227,27 +212,9 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
       choseRivalFake,
     });
 
-    let pointsDelta = outcome.pointsEarned;
+    const pointsDelta = outcome.pointsEarned;
+    const penaltyDelta = 0;
 
-    // Apply Penalty ability if targeted
-    const penaltyAttackers = penaltiesByTarget.get(p.id) ?? [];
-    if (penaltyAttackers.length > 0) {
-      if (shieldedPlayers.has(p.id)) {
-        // Shield absorbs penalty
-      } else if (counters.has(p.id)) {
-        for (const attackerId of penaltyAttackers) {
-          reflectedPenalties.set(attackerId, (reflectedPenalties.get(attackerId) ?? 0) - 30);
-        }
-      } else if (!answeredCorrectly) {
-        const penaltyDelta = -30 * penaltyAttackers.length;
-        pointsDelta += penaltyDelta;
-        penaltiesByPlayer.set(p.id, penaltyDelta);
-      }
-    }
-
-    const incomingPenalty = reflectedPenalties.get(p.id) ?? 0;
-    pointsDelta += incomingPenalty;
-    const penaltyDelta = (penaltiesByPlayer.get(p.id) ?? 0) + incomingPenalty;
     const row: RoundResultRow = {
       playerId: p.id,
       outcome,
@@ -264,41 +231,24 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     rows[p.id] = row;
     rowsList.push(row);
 
-    // Progressive ability unlocks
-    let consecutiveCorrect = answeredCorrectly ? p.consecutiveCorrect + 1 : 0;
-    let shieldsAvailable = p.shieldsAvailable;
-    let blocksAvailable = p.blocksAvailable;
-
-    // 3 in a row unlocks Shield
-    if (consecutiveCorrect >= 3) {
-      shieldsAvailable += 1;
-      consecutiveCorrect = 0;
-    }
-
-    // Tricking >= 3 rivals OR > 50% of opponents unlocks Block
-    if (pickIndex !== undefined
-      && (victimsCount >= 3 || (victimsCount / activeOpponentsCount > 0.5))) {
-      blocksAvailable += 1;
-    }
-
-    // Consume shield if player used it this round
-    const usedShield = abilityUsesByPlayer.get(p.id)?.shield ?? 0;
-    if (usedShield > 0) {
-      shieldsAvailable = Math.max(0, shieldsAvailable - usedShield);
-    }
-    blocksAvailable = Math.max(
-      0,
-      blocksAvailable - (abilityUsesByPlayer.get(p.id)?.block ?? 0)
-    );
+    // Abilities are purchased with credits, not unlocked by score streaks.
+    const consecutiveCorrect = answeredCorrectly ? p.consecutiveCorrect + 1 : 0;
+    const shieldsAvailable = p.shieldsAvailable;
+    const blocksAvailable = p.blocksAvailable;
 
     const abilityUsedCounts = { ...p.abilityUsedCounts };
     for (const [abilityId, usedCount] of Object.entries(abilityUsesByPlayer.get(p.id) ?? {})) {
       abilityUsedCounts[abilityId as keyof typeof abilityUsedCounts] += usedCount;
     }
 
+    const nextScore = Math.max(0, p.score + pointsDelta);
+    const reachedMilestones = nextScore >= 15 ? 3 : nextScore >= 10 ? 2 : nextScore >= 5 ? 1 : 0;
+    const milestonesAwarded = p.creditMilestonesAwarded ?? 0;
     updatedPlayers[p.id] = {
       ...p,
-      score: Math.max(0, p.score + pointsDelta),
+      score: nextScore,
+      credits: (p.credits ?? 0) + Math.max(0, reachedMilestones - milestonesAwarded),
+      creditMilestonesAwarded: Math.max(milestonesAwarded, reachedMilestones),
       abilityUsedCounts,
       consecutiveCorrect,
       shieldsAvailable,
@@ -310,17 +260,7 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     };
   }
 
-  for (const [playerId, pointsDelta] of reflectedPenalties) {
-    const row = rows[playerId];
-    const player = players.find((candidate) => candidate.id === playerId);
-    if (!row || !player) continue;
-    row.pointsDelta += pointsDelta;
-    row.penaltyDelta = (row.penaltyDelta ?? 0) + pointsDelta;
-    updatedPlayers[playerId] = {
-      ...updatedPlayers[playerId],
-      score: Math.max(0, player.score + row.pointsDelta),
-    };
-  }
+  // Legacy penalty/counter action payloads can no longer subtract score.
 
   for (const [targetId, attackerIds] of blocksByTarget) {
     for (const attackerId of attackerIds) {
@@ -380,7 +320,15 @@ export function applyRoundToPlayers(
   for (const id of Object.keys(players)) {
     const p = players[id];
     const delta = rows[id]?.pointsDelta ?? 0;
-    next[id] = { ...p, score: Math.max(0, p.score + delta) };
+    const score = Math.max(0, p.score + delta);
+    const reachedMilestones = score >= 15 ? 3 : score >= 10 ? 2 : score >= 5 ? 1 : 0;
+    const milestonesAwarded = p.creditMilestonesAwarded ?? 0;
+    next[id] = {
+      ...p,
+      score,
+      credits: (p.credits ?? 0) + Math.max(0, reachedMilestones - milestonesAwarded),
+      creditMilestonesAwarded: Math.max(milestonesAwarded, reachedMilestones),
+    };
   }
   return next;
 }

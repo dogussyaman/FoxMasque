@@ -34,7 +34,6 @@ import type {
 } from './types';
 import { ServiceError } from './types';
 
-const demoPresetCharacterClaims = new Map<string, string>();
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -98,7 +97,9 @@ export class DemoGameService implements GameService {
   }
 
   async listTakenPresetCharacters(): Promise<string[]> {
-    return Array.from(demoPresetCharacterClaims.keys());
+    // Demo mode has no shared account/database authority. Global uniqueness
+    // is enforced by the Supabase adapter and its atomic claim RPC.
+    return [];
   }
 
   private emit(event: ServiceEvent) {
@@ -106,13 +107,8 @@ export class DemoGameService implements GameService {
   }
 
   async signInAnonymously(name: string, avatarKey: string): Promise<Player> {
-    const alreadyClaimedBy = demoPresetCharacterClaims.get(avatarKey);
-    if (alreadyClaimedBy && alreadyClaimedBy !== this.currentPlayer?.id) {
-      throw new ServiceError('PRESET_CHARACTER_TAKEN', 'Bu karakter başka bir oyuncu tarafından seçildi. Lütfen boş bir karakter seç.');
-    }
-    if (this.currentPlayer && demoPresetCharacterClaims.get(this.currentPlayer.avatarKey) === this.currentPlayer.id) {
-      return this.currentPlayer;
-    }
+    // Demo mode represents guest switching locally for previews/tests. It does
+    // not provide globally shared identities; Supabase owns production claims.
     const player: Player = {
       id: `me-${Date.now()}-${this.playerSequence++}`,
       name: name.trim() || 'Sen',
@@ -121,6 +117,8 @@ export class DemoGameService implements GameService {
       isReady: false,
       isOnline: true,
       score: 0,
+      credits: 0,
+      creditMilestonesAwarded: 0,
       abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
       consecutiveCorrect: 0,
       shieldsAvailable: 0,
@@ -130,7 +128,6 @@ export class DemoGameService implements GameService {
       lastBlockedPlayerId: null,
     };
     this.currentPlayer = player;
-    demoPresetCharacterClaims.set(avatarKey, player.id);
     return player;
   }
 
@@ -485,6 +482,11 @@ export class DemoGameService implements GameService {
     const readyCount = Object.values(room.players).filter((p) => p.isReady).length;
     if (readyCount < 2) throw new ServiceError('NOT_ENOUGH_READY', 'En az 2 oyuncu hazır olmalı.');
 
+    room.players = Object.fromEntries(Object.entries(room.players).map(([id, player]) => [
+      id,
+      { ...player, score: 0, credits: 0, creditMilestonesAwarded: 0 },
+    ]));
+    if (this.currentPlayer && room.players[this.currentPlayer.id]) this.currentPlayer = room.players[this.currentPlayer.id];
     this.prepareRoundQuestions(room);
     this.setPhase(room, 'ability_select', room.config.roundSeconds);
     room.currentRound = 1;
@@ -546,15 +548,18 @@ export class DemoGameService implements GameService {
       await this.advanceExpiredPhase(code);
       throw new ServiceError('PHASE_EXPIRED', 'Yetenek seçimi süresi doldu.');
     }
-    if (room.abilityActions.some((used) =>
-      used.playerId === action.playerId && used.abilityId === action.abilityId
-    )) {
-      throw new ServiceError('ABILITY_ALREADY_USED', 'Bu yeteneği bu tur zaten kullandın.');
+    const existingAction = room.abilityActions.find((used) => used.playerId === action.playerId);
+    if (existingAction) {
+      if (existingAction.abilityId === action.abilityId && (existingAction.targetId ?? null) === (action.targetId ?? null)) {
+        return; // Idempotent retry: do not charge the player twice.
+      }
+      throw new ServiceError('ABILITY_ALREADY_USED', 'Bu tur yalnızca bir yetenek satın alıp kullanabilirsin.');
     }
     const allowance = canUseAbility(
       {
         playerId: player.id,
         usedCounts: player.abilityUsedCounts,
+        credits: player.credits ?? 0,
         shieldsAvailable: player.shieldsAvailable,
         blocksAvailable: player.blocksAvailable,
         isBlockedCurrentRound: player.isBlockedCurrentRound,
@@ -572,6 +577,12 @@ export class DemoGameService implements GameService {
     } else if (action.targetId) {
       throw new ServiceError('ABILITY_TARGET_INVALID', 'Bu yetenek hedef kabul etmiyor.');
     }
+    const creditCost = action.abilityId === 'block' || action.abilityId === 'shield' ? 1 : 0;
+    if ((room.players[player.id].credits ?? 0) < creditCost) {
+      throw new ServiceError('INSUFFICIENT_CREDITS', `Bu yetenek için ${creditCost} kredi gerekiyor.`);
+    }
+    room.players[player.id] = { ...room.players[player.id], credits: (room.players[player.id].credits ?? 0) - creditCost };
+    this.currentPlayer = { ...player, credits: room.players[player.id].credits };
     room.abilityActions.push(action);
     this.emit({ type: 'ability_used', payload: { code, action } });
     this.emit({ type: 'state', payload: this.snapshot(code) });
@@ -762,6 +773,7 @@ export class DemoGameService implements GameService {
 
     room.roundResults = rows;
     room.players = updatedPlayers;
+    if (this.currentPlayer && room.players[this.currentPlayer.id]) this.currentPlayer = room.players[this.currentPlayer.id];
     this.setPhase(room, 'reveal');
 
     this.emit({ type: 'round_resolved', payload: { code, rows } });
@@ -835,6 +847,8 @@ export class DemoGameService implements GameService {
       room.players[id] = {
         ...room.players[id],
         score: 0,
+        credits: 0,
+        creditMilestonesAwarded: 0,
         isReady: room.players[id].isHost,
         abilityUsedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
         consecutiveCorrect: 0,

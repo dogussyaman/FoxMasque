@@ -179,7 +179,7 @@ export default function ScoreboardScreen() {
                       {player.name} {isMe ? '(Sen)' : ''}
                     </Text>
                     <Text style={styles.playerMeta}>
-                      {player.isHost ? 'Oda Kurucusu' : `Sıralama: ${index + 1}.`}
+                      {player.isHost ? 'Oda Kurucusu' : `Sıralama: ${index + 1}.`} · 🪙 {player.credits ?? 0} kredi
                     </Text>
                   </View>
 

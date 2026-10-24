@@ -12,6 +12,9 @@ export interface Player {
   isReady: boolean;
   isOnline: boolean;
   score: number;
+  /** Spendable wallet for this match; resets when the next match starts. */
+  credits?: number;
+  creditMilestonesAwarded?: number;
   avatarUrl?: string | null;
   gamesPlayed?: number;
   gamesWon?: number;

@@ -1,7 +1,7 @@
 export type OutcomeKind =
-  | 'correct' // DOĞRU BİLDİN (+100)
-  | 'zartaladın' // ZARTALADIN (+50 per victim tricked by your fake answer)
-  | 'zartalandın' // ZARTALANDIN (-40 when you chose another player's fake answer)
+  | 'correct' // DOĞRU BİLDİN (+2)
+  | 'zartaladın' // ZARTALADIN (+1 per victim tricked by your fake answer)
+  | 'zartalandın' // TUZAĞA DÜŞTÜN; no score deduction
   | 'blocked'; // Turu atladın / bloklandın
 
 export interface RoundOutcome {
@@ -20,14 +20,14 @@ export type OutcomeLabel =
   | { kind: 'blocked'; text: 'BLOKLANDIN'; detail: string; tone: 'neutral' };
 
 export const POINTS = {
-  correct: 100,
-  fakeChosenBonus: 50, // bonus per victim choosing your fake answer
-  zartaladınBonus: 50, // alias for backward-compatibility
-  tuzakKurdunBonus: 50, // alias
-  tuzağaDüşürdünBonus: 50, // alias
-  victimPenalty: -40, // penalty when you choose someone else's fake answer
-  zartalandınPenalty: -40, // alias for backward-compatibility
-  tuzağaDüştünPenalty: -40, // alias
+  correct: 2,
+  fakeChosenBonus: 1,
+  zartaladınBonus: 1,
+  tuzakKurdunBonus: 1,
+  tuzağaDüşürdünBonus: 1,
+  victimPenalty: 0,
+  zartalandınPenalty: 0,
+  tuzağaDüştünPenalty: 0,
   wrong: 0,
 } as const;
 
@@ -35,10 +35,10 @@ export const POINTS = {
  * Compute the outcome for a single player in a TUZAK round.
  *
  * Rules:
- * - If you chose the real answer: DOĞRU BİLDİN (+100)
- * - For each rival that chose your fake answer: TUZAĞA DÜŞÜRDÜN (+50 per victim)
- * - If you chose another player's fake answer: TUZAĞA DÜŞTÜN (-40 penalty, never show DOĞRU BİLDİN)
- * - Both can occur in the same round: correct (+100) + tricks (e.g. 2 x +50 = +100) => +200!
+ * - If you chose the real answer: DOĞRU BİLDİN (+2)
+ * - For each rival that chose your fake answer: TUZAĞA DÜŞÜRDÜN (+1 per victim)
+ * - If you chose another player's fake answer: TUZAĞA DÜŞTÜN (no score penalty)
+ * - Both can occur in the same round: correct (+2) + tricks (e.g. 2 x +1) => +4!
  */
 export function computeOutcome(input: {
   answeredCorrectly: boolean;
@@ -75,7 +75,7 @@ export function computeOutcome(input: {
     labels.push({
       kind: 'correct',
       text: 'DOĞRU BİLDİN',
-      detail: 'Gerçek cevabı buldun, +100 puan!',
+      detail: 'Gerçek cevabı buldun, +2 puan!',
       tone: 'success',
     });
   }
@@ -98,7 +98,7 @@ export function computeOutcome(input: {
     labels.push({
       kind: 'zartalandın',
       text: 'TUZAĞA DÜŞTÜN',
-      detail: 'Bir rakibin tuzağına düştün, -40 puan.',
+      detail: 'Bu tur doğru cevabı bulamadın; puan kaybetmedin.',
       tone: 'danger',
     });
   }

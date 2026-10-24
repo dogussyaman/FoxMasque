@@ -7,6 +7,7 @@ export interface Ability {
   description: string;
   targetRequired: boolean;
   unlockRule: string;
+  creditCost: number;
 }
 
 export const ABILITIES: readonly Ability[] = [
@@ -14,33 +15,19 @@ export const ABILITIES: readonly Ability[] = [
     id: 'block',
     name: 'Bloklama',
     emoji: '🛑',
-    description: 'Hedef rakip bu tur sahte cevap yazamaz ama gerçek cevabı seçebilir. Art arda aynı hedefe uygulanamaz.',
+    description: 'Hedef rakip bu tur sahte cevap yazamaz ama gerçek cevabı seçebilir. Aynı hedef art arda bloklanamaz.',
     targetRequired: true,
-    unlockRule: 'Sahte cevabını en az 3 rakip veya rakiplerin yarısından fazlası seçtiğinde açılır.',
+    creditCost: 1,
+    unlockRule: 'Bu tur kullanmak için 2 kredi harcanır.',
   },
   {
     id: 'shield',
     name: 'Koruma Kalkanı',
     emoji: '🛡️',
-    description: 'Seni bu tur gelen hedefli bloklama veya ceza yeteneklerine karşı korur. Kullanıldığında harcanır.',
+    description: 'Seni bu tur bloklamaya karşı korur. Kullanıldığında harcanır.',
     targetRequired: false,
-    unlockRule: 'Arka arkaya 3 soruyu doğru bildiğinde 1 kalkan hakkı kazanırsın.',
-  },
-  {
-    id: 'penalty',
-    name: 'Ceza',
-    emoji: '⚡',
-    description: 'Hedef rakip soruyu bilemezse fazladan -30 puan ceza alır.',
-    targetRequired: true,
-    unlockRule: 'Özel stratejik hamle.',
-  },
-  {
-    id: 'counter',
-    name: 'Karşı Hamle',
-    emoji: '🔁',
-    description: 'Sana yöneltilen ceza veya saldırı hamlesini tersine çevirir.',
-    targetRequired: false,
-    unlockRule: 'Özel savunma hamlesi.',
+    creditCost: 1,
+    unlockRule: 'Bu tur kullanmak için 2 kredi harcanır.',
   },
 ] as const;
 
@@ -50,6 +37,7 @@ export function getAbility(id: AbilityId): Ability {
 
 export interface AbilityState {
   playerId: string;
+  credits: number;
   usedCounts: Record<AbilityId, number>;
   shieldsAvailable: number;
   blocksAvailable: number;
@@ -61,6 +49,7 @@ export interface AbilityState {
 export function freshAbilityState(playerId: string): AbilityState {
   return {
     playerId,
+    credits: 0,
     usedCounts: { block: 0, shield: 0, penalty: 0, counter: 0 },
     shieldsAvailable: 0,
     blocksAvailable: 0,
@@ -75,10 +64,16 @@ export function canUseAbility(
   id: AbilityId,
   targetId?: string
 ): { allowed: boolean; reason?: string } {
+  if (id !== 'block' && id !== 'shield') {
+    return { allowed: false, reason: 'Bu yetenek kredi mağazasından kaldırıldı.' };
+  }
+
+  const cost = id === 'block' || id === 'shield' ? 1 : 0;
+  if (state.credits < cost) {
+    return { allowed: false, reason: `Yetersiz kredi. Bu hamle ${cost} kredi gerektiriyor.` };
+  }
+
   if (id === 'block') {
-    if (state.blocksAvailable <= 0) {
-      return { allowed: false, reason: 'Bloklama hakkın henüz açılmadı.' };
-    }
     if (!targetId) {
       return { allowed: false, reason: 'Bloklamak için bir rakip seçmelisin.' };
     }
@@ -86,38 +81,9 @@ export function canUseAbility(
       return { allowed: false, reason: 'Kendini bloklayamazsın!' };
     }
     if (state.lastBlockedPlayerId === targetId) {
-      return { allowed: false, reason: 'Aynı oyuncuyu arka arkaya iki tur bloklayamazsın.' };
+      return { allowed: false, reason: 'Aynı oyuncuyu art arda iki tur bloklayamazsın.' };
     }
-    return { allowed: true };
   }
-
-  if (id === 'shield') {
-    if (state.shieldsAvailable <= 0) {
-      return { allowed: false, reason: 'Kalkan hakkın henüz açılmadı.' };
-    }
-    return { allowed: true };
-  }
-
-  if (id === 'penalty') {
-    if (state.usedCounts.penalty >= 1) {
-      return { allowed: false, reason: 'Ceza yeteneği oyun başına maksimum 1 kez kullanılabilir.' };
-    }
-    if (!targetId) {
-      return { allowed: false, reason: 'Ceza vermek için bir rakip seçmelisin.' };
-    }
-    if (targetId === state.playerId) {
-      return { allowed: false, reason: 'Kendine ceza veremezsin!' };
-    }
-    return { allowed: true };
-  }
-
-  if (id === 'counter') {
-    if (state.usedCounts.counter >= 1) {
-      return { allowed: false, reason: 'Karşı hamle maksimum 1 kez kullanılabilir.' };
-    }
-    return { allowed: true };
-  }
-
   return { allowed: true };
 }
 
