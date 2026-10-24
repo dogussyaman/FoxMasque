@@ -10,14 +10,15 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
   Image,
   ImageBackground,
 } from 'react-native';
 import { router } from 'expo-router';
-import { ChevronLeft, Sparkles, Check, Clock, Layers, Flame, Eye, EyeOff } from 'lucide-react-native';
+import { ChevronLeft, Sparkles, Check, Clock, Layers, Flame, Eye, EyeOff, Edit2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Screen, Button, Card, Avatar, Badge, StickyActionBar, Input } from '@/components/ui';
-import { colors, spacing, typography, radii, shadows } from '@/theme';
+import { spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import {
@@ -41,6 +42,8 @@ export default function CreateRoomScreen() {
   const { trigger } = useHaptics();
 
   const [hostName, setHostName] = useState(currentPlayer?.name ?? 'Ev Sahibi');
+  const [nameDraft, setNameDraft] = useState(currentPlayer?.name ?? 'Ev Sahibi');
+  const [showNameModal, setShowNameModal] = useState(false);
   const [avatarKey, setAvatarKey] = useState(currentPlayer?.avatarKey ?? 'fox');
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [rounds, setRounds] = useState(5);
@@ -196,16 +199,23 @@ export default function CreateRoomScreen() {
                 </View>
               </Pressable>
 
-              <Input
-                value={hostName}
-                onChangeText={setHostName}
-                placeholder="Oda Sahibinin İsmi"
-                placeholderTextColor={colors.textMuted}
-                style={styles.hostInput}
-                maxLength={16}
-                variant="surface"
-                focusedBorderColor={colors.orange}
-              />
+              <View style={styles.hostNameContainer}>
+                <Text style={styles.hostName} numberOfLines={1}>
+                  {hostName || 'Ev Sahibi'}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Oda sahibinin ismini güncelle"
+                  onPress={() => {
+                    setNameDraft(hostName);
+                    setShowNameModal(true);
+                  }}
+                  style={styles.editHostNameButton}
+                >
+                  <Edit2 color={colors.orange} size={16} />
+                  <Text style={styles.editHostNameText}>İsmi düzenle</Text>
+                </Pressable>
+              </View>
             </View>
 
             {/* Avatar Picker Drawer */}
@@ -452,6 +462,60 @@ export default function CreateRoomScreen() {
           />
         </StickyActionBar>
       </KeyboardAvoidingView>
+      <Modal
+        visible={showNameModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNameModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.nameModalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable
+            accessibilityLabel="İsim güncelleme penceresini kapat"
+            onPress={() => setShowNameModal(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.nameModal}>
+            <Text style={styles.nameModalTitle}>İsmini güncelle</Text>
+            <Text style={styles.nameModalHint}>Lobide oyuncular seni bu isimle görecek.</Text>
+            <Input
+              accessibilityLabel="Yeni oyuncu adı"
+              autoCapitalize="words"
+              autoCorrect={false}
+              autoFocus
+              maxLength={16}
+              onChangeText={setNameDraft}
+              onSubmitEditing={() => {
+                setHostName(nameDraft.trim() || 'Ev Sahibi');
+                setShowNameModal(false);
+              }}
+              placeholder="Oyuncu adı"
+              returnKeyType="done"
+              style={styles.nameModalInput}
+              value={nameDraft}
+            />
+            <View style={styles.nameModalActions}>
+              <Button
+                label="Vazgeç"
+                onPress={() => setShowNameModal(false)}
+                variant="secondary"
+                size="md"
+              />
+              <Button
+                label="Kaydet"
+                onPress={() => {
+                  setHostName(nameDraft.trim() || 'Ev Sahibi');
+                  setShowNameModal(false);
+                }}
+                variant="orange"
+                size="md"
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </Screen>
   );
 }
@@ -605,6 +669,71 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 14,
     marginTop: spacing.xs,
   },
+  hostNameContainer: {
+    flex: 1,
+    minWidth: 0,
+    gap: spacing.xs,
+  },
+  hostName: {
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+  },
+  editHostNameButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 32,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.bgSurfaceAlt,
+  },
+  editHostNameText: {
+    ...typography.caption,
+    color: colors.orange,
+    fontFamily: 'Poppins-SemiBold',
+  },
+  nameModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(8,7,18,0.72)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  nameModal: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  nameModalTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+  },
+  nameModalHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  nameModalInput: {
+    minHeight: 48,
+    borderWidth: 1.5,
+    borderColor: colors.orange,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    color: colors.textPrimary,
+    backgroundColor: colors.bgSurfaceAlt,
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 16,
+  },
+  nameModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   avatarButton: {
     alignItems: 'center',
   },
@@ -632,9 +761,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   avatarPickItemActive: {
     borderWidth: 2,
     borderColor: colors.orange,
-  },
-  hostInput: {
-    flex: 1,
   },
   optionRow: {
     flexDirection: 'row',
