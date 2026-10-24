@@ -379,6 +379,45 @@ END;
 $function$
 
 
+CREATE OR REPLACE FUNCTION public.rematch_room_secure(p_room_code character varying)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_room public.rooms;
+BEGIN
+    IF v_user_id IS NULL THEN RAISE EXCEPTION 'Oturum açılması gerekiyor'; END IF;
+    SELECT * INTO v_room FROM public.rooms WHERE code = upper(p_room_code) FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Oda bulunamadı'; END IF;
+    IF v_room.host_id <> v_user_id THEN RAISE EXCEPTION 'Yalnızca oda kurucusu yeni oyun başlatabilir'; END IF;
+    IF v_room.phase <> 'game_over' THEN RAISE EXCEPTION 'Oyun henüz tamamlanmadı'; END IF;
+    DELETE FROM public.round_fake_answers WHERE room_id = v_room.id;
+    DELETE FROM public.round_choices WHERE room_id = v_room.id;
+    DELETE FROM public.round_picks WHERE room_id = v_room.id;
+    DELETE FROM public.round_results WHERE room_id = v_room.id;
+    DELETE FROM public.ability_actions WHERE room_id = v_room.id;
+    DELETE FROM public.round_answers WHERE room_id = v_room.id;
+    DELETE FROM public.room_round_questions WHERE room_id = v_room.id AND game_number = v_room.game_number;
+    UPDATE public.room_players SET
+        is_ready = is_host, is_active = is_online, score = 0,
+        credits = 0, credit_milestones_awarded = 0,
+        consecutive_correct = 0, shields_available = 0, blocks_available = 0,
+        is_blocked_current_round = FALSE, is_blocked_next_round = FALSE,
+        last_blocked_player_id = NULL,
+        ability_ready_round = 0,
+        ability_uses = '{"block":0,"shield":0,"penalty":0,"counter":0}'::JSONB
+    WHERE room_id = v_room.id;
+    UPDATE public.rooms SET game_number = game_number + 1, current_round = 1,
+        current_question_id = NULL, finished_at = NULL
+    WHERE id = v_room.id;
+    PERFORM public._set_room_phase(v_room.id, 'lobby', NULL);
+END;
+$function$
+
+
 CREATE OR REPLACE FUNCTION public.advance_round_secure(p_room_code character varying)
  RETURNS void
  LANGUAGE plpgsql
