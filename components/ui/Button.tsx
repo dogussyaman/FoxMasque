@@ -100,21 +100,27 @@ export function Button({
     <Pressable
       onPress={handlePress}
       disabled={disabled || loading}
-      style={({ pressed, hovered }) => [
-        styles.base,
-        v.shadow,
-        {
-          height,
-          backgroundColor: hovered && variant === 'orange' ? themeColors.orangeDeep : v.bg,
-          borderColor: hovered && variant === 'secondary' ? themeColors.purple : v.border,
-          borderBottomColor: v.bottomBorder,
-          borderBottomWidth: disabled ? 1 : 3.5,
-          transform: [{ translateY: pressed ? 2.5 : 0 }, { scale: pressed ? 0.97 : 1 }],
-          opacity: disabled ? 0.45 : pressed ? 0.92 : hovered ? 0.98 : 1,
-        },
-        fullWidth && { width: '100%' },
-        style,
-      ]}
+      style={(state) => {
+        // React Native's shared PressableStateCallbackType exposes `pressed`;
+        // React Native Web may additionally supply `hovered` at runtime.
+        const hovered = 'hovered' in state && state.hovered === true;
+        const { pressed } = state;
+        return [
+          styles.base,
+          v.shadow,
+          {
+            height,
+            backgroundColor: hovered && variant === 'orange' ? themeColors.orangeDeep : v.bg,
+            borderColor: hovered && variant === 'secondary' ? themeColors.purple : v.border,
+            borderBottomColor: v.bottomBorder,
+            borderBottomWidth: disabled ? 1 : 3.5,
+            transform: [{ translateY: pressed ? 2.5 : 0 }, { scale: pressed ? 0.97 : 1 }],
+            opacity: disabled ? 0.45 : pressed ? 0.92 : hovered ? 0.98 : 1,
+          },
+          fullWidth && { width: '100%' },
+          style,
+        ];
+      }}
     >
       {loading ? (
         <ActivityIndicator color={v.fg} />

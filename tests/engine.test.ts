@@ -22,6 +22,7 @@ import { estimateServerClockOffsetMs, getRemainingSeconds } from '../services/se
 import { pickQuestions, questionsForCategory } from '../features/game/questions';
 import type { Player, RoundChoice } from '../types/game';
 import type { Question } from '../features/game/questions';
+import { getPlayerAchievements } from '../features/game/achievements';
 import './soundService.test';
 import './avatar.test';
 
@@ -740,5 +741,47 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         assert.ok(Object.values(state?.roundResults ?? {}).every((row) => row.pointsDelta === 0));
       });
     });
+  });
+});
+
+
+describe('Player achievements', () => {
+  test('starts locked and shows zero progress when player stats are missing', () => {
+    const achievements = getPlayerAchievements(undefined);
+
+    assert.equal(achievements.length, 10);
+    assert.ok(achievements.every((achievement) => !achievement.unlocked));
+    assert.ok(achievements.every((achievement) => achievement.progress === 0));
+    assert.ok(achievements.every((achievement) => achievement.progressPercent === 0));
+  });
+
+  test('unlocks milestones from persisted player stats and caps displayed progress', () => {
+    const achievements = getPlayerAchievements({
+      gamesPlayed: 75,
+      gamesWon: 8,
+      successfulTraps: 30,
+      correctAnswers: 140,
+    });
+
+    assert.ok(achievements.every((achievement) => achievement.unlocked));
+    assert.ok(achievements.every((achievement) => achievement.progressPercent === 100));
+    assert.ok(achievements.every((achievement) => achievement.progress === achievement.target));
+  });
+
+  test('does not allow negative, fractional, or non-finite statistics to inflate progress', () => {
+    const achievements = getPlayerAchievements({
+      gamesPlayed: -2,
+      gamesWon: 1.9,
+      successfulTraps: Number.NaN,
+      correctAnswers: Number.POSITIVE_INFINITY,
+    });
+    const byId = Object.fromEntries(achievements.map((achievement) => [achievement.id, achievement]));
+
+    assert.equal(byId['first-match'].progress, 0);
+    assert.equal(byId['first-win'].progress, 1);
+    assert.equal(byId['first-win'].unlocked, true);
+    assert.equal(byId['first-trap'].progress, 0);
+    assert.equal(byId['sharp-mind'].progress, 0);
+    assert.equal(byId['wise-fox'].progressPercent, 0);
   });
 });
