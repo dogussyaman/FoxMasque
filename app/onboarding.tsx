@@ -19,7 +19,7 @@ import { getPresetCharacterIdentity } from '@/features/game/characterCatalog';
 export default function OnboardingScreen() {
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
-  const { setCurrentPlayer, service, currentPlayer, isInitialized } = useGameStore();
+  const { setCurrentPlayer, service, currentPlayer, isInitialized, init } = useGameStore();
   const { trigger } = useHaptics();
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -46,6 +46,10 @@ export default function OnboardingScreen() {
   const selectedCharacter = getPresetCharacterIdentity(selectedAvatar);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void init();
+  }, [init]);
 
   useEffect(() => {
     if (isInitialized && currentPlayer?.id) {
