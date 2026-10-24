@@ -41,7 +41,7 @@ export default function ResultScreen() {
     ? parsedRound
     : initialResultRef.round;
   const resultQuestionId = rawQuestionId || initialResultRef.questionId;
-  const isStaleResult = !!roomState && (
+  const isStaleResult = !roomState || (
     roomState.currentRound !== resultRound ||
     (resultQuestionId !== null && roomState.currentQuestionId !== resultQuestionId) ||
     !['reveal', 'scoreboard', 'game_over'].includes(roomState.phase)
@@ -83,7 +83,7 @@ export default function ResultScreen() {
       default:
         router.replace('/waiting');
     }
-  }, [isStaleResult, roomState?.phase]);
+  }, [isStaleResult, roomState]);
 
   useEffect(() => {
     if (!roomCode || !['reveal','scoreboard','game_over'].includes(currentRoomPhase ?? '')) { setRevealChoices([]); return; }
@@ -174,7 +174,7 @@ export default function ResultScreen() {
       <Screen gradient diagonalSlice>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>
           <Text style={{ color: colors.textPrimary, textAlign: 'center', fontFamily: 'Poppins-SemiBold', fontSize: 16 }}>
-            Bu turun sonucu kapandı. Güncel oyun aşamasına yönlendiriliyorsun…
+            {roomState ? 'Bu turun sonucu kapandı. Güncel oyun aşamasına yönlendiriliyorsun…' : 'Tur bilgileri eşitleniyor…'}
           </Text>
         </View>
       </Screen>
@@ -208,7 +208,7 @@ export default function ResultScreen() {
 
           <View style={styles.roundBadge}>
             <Text style={styles.roundText}>
-              Tur {roomState?.currentRound ?? 1} / {roomState?.config.totalRounds ?? 5} Sonucu
+              Tur {resultRound} / {roomState?.config.totalRounds ?? 5} Sonucu
             </Text>
           </View>
 
