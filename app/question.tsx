@@ -285,7 +285,13 @@ export default function QuestionScreen() {
     const requestId = ++choicesRequestId.current;
     if (roomState?.phase === 'reveal') {
       soundService.stop('clock');
-      router.replace('/result');
+      router.replace({
+        pathname: '/result',
+        params: {
+          round: String(roomState.currentRound),
+          questionId: String(roomState.currentQuestionId),
+        },
+      });
       return;
     }
     if (roomState?.phase === 'scoreboard') {
