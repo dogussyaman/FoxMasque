@@ -196,7 +196,7 @@ export default function AbilitySelectScreen() {
         </View>
         <Text style={styles.screenTitle}>Strateji & Yetenek</Text>
         <Text style={styles.subtitle}>
-          Bu tur için gizli bir hamle seç ya da hakkını sonraki turlara sakla.
+          Bu tur 2 krediyle bir hamle satın alabilir ya da kredini sonraki turlar için saklayabilirsin.
         </Text>
         {roomState?.phaseDeadlineAt ? (
           <View style={styles.timer}>

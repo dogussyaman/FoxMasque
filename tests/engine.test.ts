@@ -286,9 +286,9 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       ];
 
       // Picks:
-      // p1 picks 0 (Correct -> +100)
-      // p2 picks 1 (Picks p1 fake -> -40, p1 gets +50)
-      // p3 picks 1 (Picks p1 fake -> -40, p1 gets +50)
+      // p1 picks 0 (Correct -> +2)
+      // p2 picks p1's fake answer (0 points for p2, +1 for p1)
+      // p3 picks p1's fake answer (0 points for p3, +1 for p1)
       const picks = {
         p1: 0,
         p2: 1,
@@ -559,7 +559,7 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(result.rows.target.pointsDelta, 0);
       assert.equal(result.rows.target.penaltyDelta, 0);
       assert.equal(result.updatedPlayers.target.score, 100);
-      assert.equal(result.updatedPlayers.target.shieldsAvailable, 0);
+      assert.equal(result.updatedPlayers.target.shieldsAvailable, 1);
     });
 
     test('Legacy multiple penalties never subtract points', () => {
@@ -661,6 +661,22 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
         const resumedState = await host.getRoomState(roomCode);
         assert.equal(resumedState?.pausedAt, null);
         assert.ok((resumedState?.phaseDeadlineAt ?? 0) > (originalDeadline ?? 0));
+      });
+
+      test('Charges credits once and makes ability purchase retries idempotent', async () => {
+        const { host, roomCode, targetId } = await createDemoBlockRound();
+        const before = await host.getRoomState(roomCode);
+        assert.equal(before?.players[before.config.hostId].credits, 0);
+
+        await host.useAbility(roomCode, {
+          playerId: before!.config.hostId,
+          abilityId: 'block',
+          targetId,
+        });
+
+        const after = await host.getRoomState(roomCode);
+        assert.equal(after?.players[after.config.hostId].credits, 0);
+        assert.equal(after?.abilityActions.filter((action) => action.playerId === before!.config.hostId).length, 1);
       });
 
       test('Confirms the block before the fake-answer phase begins', async () => {

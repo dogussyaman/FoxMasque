@@ -144,21 +144,9 @@ BEGIN
                         WHEN greatest(0, score + v_delta) >= 5 THEN 1
                         ELSE 0
                     END),
-                shields_available = CASE
-                    WHEN v_correct AND consecutive_correct + 1 >= 3
-                    THEN shields_available + 1
-                    ELSE shields_available
-                END,
                 consecutive_correct = CASE
-                    WHEN v_correct AND consecutive_correct + 1 >= 3
-                    THEN 0
                     WHEN NOT v_correct THEN 0
                     ELSE consecutive_correct + 1
-                END,
-                blocks_available = CASE
-                    WHEN v_victims >= 3 OR v_victims::NUMERIC / v_total_opponents > 0.5
-                    THEN blocks_available + 1
-                    ELSE blocks_available
                 END
             WHERE room_id = p_room_id AND player_id = v_player.player_id;
         END IF;
