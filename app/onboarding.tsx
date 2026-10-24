@@ -48,7 +48,7 @@ export default function OnboardingScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isInitialized && currentPlayer) {
+    if (isInitialized && currentPlayer?.id) {
       router.replace('/(tabs)');
     }
   }, [currentPlayer?.id, isInitialized]);
