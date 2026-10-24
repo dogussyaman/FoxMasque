@@ -320,7 +320,15 @@ export function applyRoundToPlayers(
   for (const id of Object.keys(players)) {
     const p = players[id];
     const delta = rows[id]?.pointsDelta ?? 0;
-    next[id] = { ...p, score: Math.max(0, p.score + delta) };
+    const score = Math.max(0, p.score + delta);
+    const reachedMilestones = score >= 15 ? 3 : score >= 10 ? 2 : score >= 5 ? 1 : 0;
+    const milestonesAwarded = p.creditMilestonesAwarded ?? 0;
+    next[id] = {
+      ...p,
+      score,
+      credits: (p.credits ?? 0) + Math.max(0, reachedMilestones - milestonesAwarded),
+      creditMilestonesAwarded: Math.max(milestonesAwarded, reachedMilestones),
+    };
   }
   return next;
 }

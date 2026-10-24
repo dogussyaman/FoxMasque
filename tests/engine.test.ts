@@ -355,6 +355,11 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       assert.equal(result.updatedPlayers.milestone.credits, 1);
       assert.equal(result.updatedPlayers.milestone.creditMilestonesAwarded, 1);
 
+      const applied = applyRoundToPlayers({ milestone: player }, result.rows);
+      assert.equal(applied.milestone.score, 6);
+      assert.equal(applied.milestone.credits, 1);
+      assert.equal(applied.milestone.creditMilestonesAwarded, 1);
+
       const next = resolveZartoRound({
         question: sampleQuestion,
         players: [result.updatedPlayers.milestone],
@@ -636,6 +641,29 @@ describe('TUZAK Game Engine — Bluff & Scoring Tests', () => {
       const repeatBlock = canUseAbility(state, 'block', 'p2');
       assert.equal(repeatBlock.allowed, false);
     });
+
+      test('Starting a new demo match resets score, credits and milestone progress', async () => {
+        const host = new DemoGameService();
+        await host.connect();
+        const room = await host.createRoom({
+          hostName: 'Host',
+          avatarKey: 'fox',
+          totalRounds: 2,
+          roundSeconds: 30,
+          categories: ['genel-kultur'],
+        });
+        const lobby = await host.getRoomState(room.code);
+        assert.ok(lobby);
+        lobby.players[room.playerId].score = 17;
+        lobby.players[room.playerId].credits = 4;
+        lobby.players[room.playerId].creditMilestonesAwarded = 3;
+
+        await host.startGame(room.code);
+        const started = await host.getRoomState(room.code);
+        assert.equal(started?.players[room.playerId].score, 0);
+        assert.equal(started?.players[room.playerId].credits, 0);
+        assert.equal(started?.players[room.playerId].creditMilestonesAwarded, 0);
+      });
 
     describe('Block phase integration in demo mode', () => {
       test('Pauses the shared round timer and resumes with the remaining time intact', async () => {

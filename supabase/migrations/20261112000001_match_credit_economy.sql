@@ -26,13 +26,7 @@ DECLARE
     v_victims INTEGER;
     v_delta INTEGER;
     v_penalty INTEGER;
-    v_penalty_count INTEGER;
-    v_attacker_id UUID;
     v_blocked BOOLEAN;
-    v_shielded BOOLEAN;
-    v_counter BOOLEAN;
-    v_total_opponents INTEGER;
-    v_remaining INTEGER;
     v_result_created BOOLEAN;
     v_insert_count INTEGER;
 BEGIN
@@ -46,11 +40,6 @@ BEGIN
 
     
 
-    SELECT count(*)::INTEGER INTO v_total_opponents
-    FROM public.room_players rp
-    WHERE rp.room_id = p_room_id AND rp.is_active;
-    v_total_opponents := greatest(v_total_opponents - 1, 1);
-
     FOR v_player IN
         SELECT * FROM public.room_players
         WHERE room_id = p_room_id AND is_active
@@ -62,19 +51,7 @@ BEGIN
         v_victims := 0;
         v_delta := 0;
         v_penalty := 0;
-        v_penalty_count := 0;
         v_blocked := v_player.is_blocked_current_round;
-        v_shielded := EXISTS (
-            SELECT 1 FROM public.ability_actions a
-            WHERE a.room_id = p_room_id AND a.round_number = p_round_number
-              AND a.player_id = v_player.player_id AND a.ability = 'shield'
-        );
-        v_counter := EXISTS (
-            SELECT 1 FROM public.ability_actions a
-            WHERE a.room_id = p_room_id AND a.round_number = p_round_number
-              AND a.player_id = v_player.player_id AND a.ability = 'counter'
-        );
-
         SELECT * INTO v_pick FROM public.round_picks
         WHERE room_id = p_room_id AND round_number = p_round_number
           AND player_id = v_player.player_id;
