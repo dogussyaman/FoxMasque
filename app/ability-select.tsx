@@ -55,6 +55,7 @@ export default function AbilitySelectScreen() {
     const reconcileAbilityPhase = async () => {
       if (requestInFlight || disposed) return;
       requestInFlight = true;
+      let phaseAdvanceFailed = false;
 
       try {
         const deadline = roomState.phaseDeadlineAt;
@@ -64,6 +65,7 @@ export default function AbilitySelectScreen() {
             // current server phase/deadline under a row lock.
             await service.advanceExpiredPhase(roomCode);
           } catch (cause) {
+            phaseAdvanceFailed = true;
             if (!disposed) {
               setError((cause as Error).message || 'Tur süresi tamamlanamadı. Sunucu yeniden kontrol ediliyor.');
             }
@@ -72,6 +74,7 @@ export default function AbilitySelectScreen() {
 
         try {
           await refreshRoom();
+          if (!disposed && !phaseAdvanceFailed) setError(null);
         } catch (cause) {
           if (!disposed) {
             setError((cause as Error).message || 'Oyun durumu eşitlenemedi. Yeniden deneniyor.');
