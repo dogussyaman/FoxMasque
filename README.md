@@ -132,6 +132,18 @@ not changed by a Supabase CSV import.
 The profile row uses the same UUID as `auth.users.id`; no separate Google or
 email account table is created.
 
+
+### Follow-up migrations for the current multiplayer rules
+
+For both fresh and existing Supabase projects, apply all remaining migrations that
+have not already run in timestamp order. In particular, migrations newer than
+`20261105000001_room_invite_tokens.sql` must not be skipped. Apply
+`20261114000001_restore_fake_answer_room_lock.sql` after the earlier pending
+migrations: it restores the room-row lock in the secure fake-answer RPC while
+preserving its user-friendly validation errors and shared guess-phase deadline
+reset. This is a forward-only migration; do not edit or re-run
+`supabase/schema.sql` on an existing database.
+
 ## Google OAuth setup
 
 1. In Google Cloud Console, create an OAuth client for the application
