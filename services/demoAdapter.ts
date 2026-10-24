@@ -4,6 +4,7 @@ import { canUseAbility } from '../features/game/abilities';
 import {
   applyRoundBlockEffects,
   blendChoices,
+  validateFakeAnswer,
   clearRoundBlockState,
   resolveZartoRound,
 } from '../features/game/engine';
@@ -606,6 +607,20 @@ export class DemoGameService implements GameService {
     if (!clean || clean.length > 120) {
       throw new ServiceError('INVALID_FAKE_ANSWER', 'Cevap 1-120 karakter arasında olmalıdır.');
     }
+    const question = QUESTIONS.find((q) => q.id === room.currentQuestionId) || QUESTIONS[0];
+    const validation = validateFakeAnswer(
+      question,
+      clean,
+      Object.entries(room.fakeAnswers)
+        .filter(([playerId]) => playerId !== meId)
+        .map(([, answer]) => answer)
+    );
+    if (validation === 'correct_answer') {
+      throw new ServiceError('FAKE_ANSWER_IS_CORRECT', 'Gerçek cevabı sahte cevap olarak gönderemezsin. Başka bir cevap yaz.');
+    }
+    if (validation === 'duplicate_answer') {
+      throw new ServiceError('FAKE_ANSWER_DUPLICATE', 'Bu cevap başka bir oyuncu tarafından gönderildi. Farklı bir cevap yaz.');
+    }
     if (room.fakeAnswers[meId] !== undefined) {
       if (room.fakeAnswers[meId] !== clean) {
         throw new ServiceError('ANSWER_ALREADY_SUBMITTED', 'Bu tur cevabın zaten gönderildi.');
@@ -615,7 +630,6 @@ export class DemoGameService implements GameService {
     room.fakeAnswers[meId] = clean;
 
     // Auto-populate clever bot fake answers
-    const question = QUESTIONS.find((q) => q.id === room.currentQuestionId) || QUESTIONS[0];
     const botAnswers = [
       'Bence bu cevap farklı olmalı',
       'Kaynağa göre başka bir yanıt',
