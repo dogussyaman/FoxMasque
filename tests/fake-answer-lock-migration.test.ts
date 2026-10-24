@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 
 const migration = readFileSync(
-  new URL('../supabase/migrations/20261114000001_restore_fake_answer_room_lock.sql', import.meta.url),
+  resolve(process.cwd(), 'supabase/migrations/20261114000001_restore_fake_answer_room_lock.sql'),
   'utf8'
 );
 
@@ -14,7 +15,7 @@ test('fake-answer RPC locks the room before validating and inserting a submissio
     'the room row lock is required to serialize concurrent submissions'
   );
   assert.match(migration, /IF v_room\.phase <> 'fake_answer' THEN/i);
-  assert.match(migration, /v_player\.is_blocked_current_round/i);
+  assert.match(migration, /is_blocked_current_round\s*=\s*TRUE/i);
   assert.match(
     migration,
     /PERFORM public\._set_room_phase\(v_room\.id,\s*'guess',\s*v_room\.round_seconds\)/i,
