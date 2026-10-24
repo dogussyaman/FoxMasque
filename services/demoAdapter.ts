@@ -553,7 +553,11 @@ export class DemoGameService implements GameService {
       await this.advanceExpiredPhase(code);
       throw new ServiceError('PHASE_EXPIRED', 'Yetenek seçimi süresi doldu.');
     }
-    if (room.abilityActions.some((used) => used.playerId === action.playerId)) {
+    const existingAction = room.abilityActions.find((used) => used.playerId === action.playerId);
+    if (existingAction) {
+      if (existingAction.abilityId === action.abilityId && (existingAction.targetId ?? null) === (action.targetId ?? null)) {
+        return; // Idempotent retry: do not charge the player twice.
+      }
       throw new ServiceError('ABILITY_ALREADY_USED', 'Bu tur yalnızca bir yetenek satın alıp kullanabilirsin.');
     }
     const allowance = canUseAbility(

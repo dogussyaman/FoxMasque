@@ -157,9 +157,7 @@ export function resolveZartoRound(input: ZartoRoundInput): ZartoRoundResolution 
     choicesByIndex.set(c.choiceIndex, c);
   }
 
-  const activeOpponentsCount = Math.max(1, players.filter((p) => p.isOnline).length - 1);
-
-  // 1. Process defensive abilities (Shields, Counters)
+  // 1. Register purchased abilities for this round
   const blocksByTarget = new Map<PlayerId, PlayerId[]>();
   const abilityUsesByPlayer = new Map<PlayerId, Record<string, number>>();
 

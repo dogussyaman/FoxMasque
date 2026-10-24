@@ -1,7 +1,7 @@
 export type OutcomeKind =
   | 'correct' // DOĞRU BİLDİN (+2)
-  | 'zartaladın' // ZARTALADIN (+50 per victim tricked by your fake answer)
-  | 'zartalandın' // ZARTALANDIN (-40 when you chose another player's fake answer)
+  | 'zartaladın' // ZARTALADIN (+1 per victim tricked by your fake answer)
+  | 'zartalandın' // TUZAĞA DÜŞTÜN; no score deduction
   | 'blocked'; // Turu atladın / bloklandın
 
 export interface RoundOutcome {

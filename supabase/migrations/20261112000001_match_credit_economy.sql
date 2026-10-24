@@ -529,6 +529,7 @@ DECLARE
     v_target public.room_players;
     v_uses INTEGER;
     v_ability_cost INTEGER;
+    v_existing_action public.ability_actions;
 BEGIN
     IF v_user_id IS NULL THEN RAISE EXCEPTION 'Oturum açılması gerekiyor'; END IF;
     SELECT * INTO v_room FROM public.rooms WHERE code = upper(p_room_code) FOR UPDATE;
@@ -545,11 +546,17 @@ BEGIN
     IF p_ability::TEXT NOT IN ('block', 'shield') THEN
         RAISE EXCEPTION 'Bu yetenek kredi mağazasında kullanılamıyor';
     END IF;
-    IF EXISTS (
-        SELECT 1 FROM public.ability_actions
-        WHERE room_id = v_room.id AND round_number = v_room.current_round
-          AND player_id = v_user_id
-    ) THEN
+    SELECT * INTO v_existing_action
+    FROM public.ability_actions
+    WHERE room_id = v_room.id AND round_number = v_room.current_round
+      AND player_id = v_user_id
+    FOR UPDATE;
+
+    IF FOUND THEN
+        IF v_existing_action.ability = p_ability
+           AND v_existing_action.target_id IS NOT DISTINCT FROM p_target_id THEN
+            RETURN; -- Idempotent retry; the original request already charged credits.
+        END IF;
         RAISE EXCEPTION 'Bu tur yalnızca bir yetenek satın alıp kullanabilirsin';
     END IF;
 
