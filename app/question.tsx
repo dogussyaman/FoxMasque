@@ -79,6 +79,7 @@ export default function QuestionScreen() {
   const [error, setError] = useState<string | null>(null);
   const [topToast, setTopToast] = useState<{ title: string; message: string; tone?: 'warning' | 'danger' } | null>(null);
   const [blockedPrankRevealed, setBlockedPrankRevealed] = useState(false);
+  const [blockedPrankSending, setBlockedPrankSending] = useState(false);
   const [pauseUpdating, setPauseUpdating] = useState(false);
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const [leavingGame, setLeavingGame] = useState(false);
@@ -199,6 +200,7 @@ export default function QuestionScreen() {
     setFakeSubmitted(false);
     setFakeAnswerText('');
     setBlockedPrankRevealed(false);
+    setBlockedPrankSending(false);
     blockedFeedbackRoundRef.current = null;
     if (blockedPrankTimeoutRef.current) clearTimeout(blockedPrankTimeoutRef.current);
     setChoices([]);
@@ -450,11 +452,11 @@ export default function QuestionScreen() {
       if (blockedFeedbackRoundRef.current === roundKey) return;
       blockedFeedbackRoundRef.current = roundKey;
       setError(null);
-      setSubmitting(true);
+      setBlockedPrankSending(true);
       showTopToast('Cevabın havuza gidiyor… gözünü kırpma! 🙈', 'Cevap gönderiliyor', 'warning');
       if (blockedPrankTimeoutRef.current) clearTimeout(blockedPrankTimeoutRef.current);
       blockedPrankTimeoutRef.current = setTimeout(() => {
-        setSubmitting(false);
+        setBlockedPrankSending(false);
         setBlockedPrankRevealed(true);
         showTopToast(
           'Aynen aynen… cevap gitti sandın 😏 Bu tur bloklandın; blöfün sunucuya gönderilmedi.',
@@ -483,7 +485,7 @@ export default function QuestionScreen() {
       const rawMsg = (e as Error).message || '';
       const normalizedMessage = rawMsg.toLocaleLowerCase('tr-TR');
       let friendlyMsg = rawMsg;
-      if (normalizedMessage.includes('bloklan') || normalizedMessage.includes('blöf gönderemez')) {
+      if (normalizedMessage.includes('bloklan') || normalizedMessage.includes('blöf gönderemez') || normalizedMessage.includes('bu tur cevap gönderemezsiniz')) {
         friendlyMsg = 'Aynen aynen, cevap gitti sandın 😏 Bu tur bloklandın; blöfün gönderilmedi. Gerçek cevabı seçme aşamasında devam edebilirsin.';
         setBlockedPrankRevealed(true);
         showTopToast(friendlyMsg, 'Tilki seni işletti! 🦊', 'danger');
@@ -807,11 +809,11 @@ export default function QuestionScreen() {
           <StickyActionBar>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <Button
-              label={submitting ? 'Tilki cevabını kontrol ediyor…' : 'Sahte Cevabını Kilitle!'}
+              label={blockedPrankSending ? 'Tilki cevabını kontrol ediyor…' : submitting ? 'Cevabın gönderiliyor…' : 'Sahte Cevabını Kilitle!'}
               onPress={handleFakeSubmit}
               variant="orange"
-              loading={submitting}
-              disabled={submitting || fakeAnswerText.trim().length === 0}
+              loading={submitting || blockedPrankSending}
+              disabled={submitting || blockedPrankSending || fakeAnswerText.trim().length === 0}
               fullWidth
               icon={<Send color="#FFF" size={18} />}
             />
