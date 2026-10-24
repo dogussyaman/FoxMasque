@@ -1,6 +1,6 @@
 import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/theme/ThemeProvider';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Sparkles, ArrowRight, Shield, Zap, Target, Flame, Check } from 'lucide-react-native';
@@ -46,16 +46,53 @@ export default function OnboardingScreen() {
   const selectedCharacter = getPresetCharacterIdentity(selectedAvatar);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [takenAvatars, setTakenAvatars] = useState<string[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+
+  const refreshTakenCharacters = useCallback(async () => {
+    setAvailabilityLoading(true);
+    setAvailabilityError(null);
+    try {
+      setTakenAvatars(await service.listTakenPresetCharacters());
+    } catch (cause) {
+      setAvailabilityError(cause instanceof Error
+        ? cause.message
+        : 'Karakterlerin uygunluğu kontrol edilemedi. Tekrar dene.');
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  }, [service]);
 
   useEffect(() => {
     void init();
   }, [init]);
 
   useEffect(() => {
-    if (isInitialized && currentPlayer?.id) {
+    void refreshTakenCharacters();
+  }, [refreshTakenCharacters]);
+
+  useEffect(() => {
+    if (!takenAvatars.includes(selectedAvatar)) return;
+    const availableInFilter = filteredAvatarOptions.find((key) => !takenAvatars.includes(key));
+    if (availableInFilter) {
+      setSelectedAvatar(availableInFilter);
+      return;
+    }
+    const anyAvailable = avatarOptions.find((key) => !takenAvatars.includes(key));
+    if (anyAvailable) {
+      setSelectedAvatar(anyAvailable);
+      setAvatarCategory('all');
+    }
+  }, [takenAvatars, selectedAvatar, avatarCategory]);
+
+  useEffect(() => {
+    // A pending anonymous auth user is retained after a race for an occupied
+    // character, so the player can choose again without creating another account.
+    if (isInitialized && currentPlayer?.id && currentPlayer.avatarKey !== 'pending_character') {
       router.replace('/(tabs)');
     }
-  }, [currentPlayer?.id, isInitialized]);
+  }, [currentPlayer?.id, currentPlayer?.avatarKey, isInitialized]);
 
   const handleNext = () => {
     trigger('light');
@@ -63,8 +100,17 @@ export default function OnboardingScreen() {
   };
 
   const handleFinish = async () => {
-    if (currentPlayer) {
+    if (currentPlayer && currentPlayer.avatarKey !== 'pending_character') {
       router.replace('/(tabs)');
+      return;
+    }
+    if (availabilityLoading || availabilityError) {
+      setError(availabilityError ?? 'Karakter uygunluğu kontrol ediliyor.');
+      return;
+    }
+    if (takenAvatars.includes(selectedAvatar)) {
+      setError('Bu karakter dolu. Boş karakterlerden birini seç.');
+      await refreshTakenCharacters();
       return;
     }
     trigger('medium');
@@ -75,7 +121,13 @@ export default function OnboardingScreen() {
       setCurrentPlayer(player);
       router.replace('/(tabs)');
     } catch (authError) {
-      setError((authError as Error).message || 'Misafir oturumu başlatılamadı.');
+      const authCode = (authError as { code?: string })?.code;
+      if (authCode === 'PRESET_CHARACTER_TAKEN') {
+        await refreshTakenCharacters();
+        setError('Bu karakter sen seçene kadar başka bir oyuncu tarafından alındı. Güncel listeden başka birini seç.');
+      } else {
+        setError((authError as Error).message || 'Misafir oturumu başlatılamadı.');
+      }
     } finally {
       setBusy(false);
     }
@@ -173,7 +225,9 @@ export default function OnboardingScreen() {
             </View>
 
             {/* Avatar Grid */}
-            <Text style={styles.sectionLabel}>AVATARINI SEÇ · {filteredAvatarOptions.length} SEÇENEK</Text>
+            <Text style={styles.sectionLabel}>
+              KARAKTERİNİ SEÇ · {filteredAvatarOptions.filter((key) => !takenAvatars.includes(key)).length} / {filteredAvatarOptions.length} BOŞ
+            </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.avatarFilters}>
               {([
                 { key: 'special', label: '⭐ Özel Avatarlar' },
@@ -206,19 +260,24 @@ export default function OnboardingScreen() {
                   <Pressable
                     key={key}
                     accessibilityRole="button"
-                    accessibilityLabel={`${key.startsWith('db:') ? key.split(':')[1] : key} avatarını seç`}
-                    accessibilityState={{ selected: active }}
+                    accessibilityLabel={`${getPresetCharacterIdentity(key).displayName} ${takenAvatars.includes(key) ? 'karakteri dolu' : 'karakterini seç'}`}
+                    accessibilityState={{ selected: active, disabled: takenAvatars.includes(key) }}
+                    disabled={busy || availabilityLoading || takenAvatars.includes(key)}
                     onPress={() => {
                       trigger('light');
                       setSelectedAvatar(key);
                     }}
-                    style={[styles.avatarBox, active && styles.avatarBoxActive]}
+                    style={[styles.avatarBox, active && styles.avatarBoxActive, takenAvatars.includes(key) && styles.avatarBoxTaken]}
                   >
                     <Avatar avatarKey={key} size={42} />
                     <Text numberOfLines={1} style={[styles.avatarName, active && styles.avatarNameActive]}>
                       {getPresetCharacterIdentity(key).displayName}
                     </Text>
-                    {active ? (
+                    {takenAvatars.includes(key) ? (
+                      <View style={styles.avatarTakenBadge}>
+                        <Text style={styles.avatarTakenBadgeText}>DOLU</Text>
+                      </View>
+                    ) : active ? (
                       <View style={styles.avatarSelectedMark}>
                         <Check color="#FFF" size={12} strokeWidth={3} />
                       </View>
@@ -231,8 +290,20 @@ export default function OnboardingScreen() {
             <View style={styles.identityNote}>
               <Text style={styles.identityNoteTitle}>Hesabın otomatik hazırlanacak</Text>
               <Text style={styles.identityNoteText}>
-                Karakter adı profilinde saklanır; kullanıcı etiketi hesabın oluşturulurken benzersiz olarak üretilir. Gerçek e-posta veya şifre gerekmez.
+                Her karakter yalnızca bir oyuncuya atanabilir. Dolu karakterler tekrar seçilemez; hesabın gerçek e-posta veya şifre gerektirmeden otomatik hazırlanır.
               </Text>
+              {availabilityLoading ? <Text style={styles.availabilityHint}>Karakterlerin uygunluğu kontrol ediliyor…</Text> : null}
+              {availabilityError ? (
+                <>
+                  <Text accessibilityRole="alert" style={styles.error}>{availabilityError}</Text>
+                  <Pressable onPress={() => void refreshTakenCharacters()} style={styles.retryAvailability}>
+                    <Text style={styles.retryAvailabilityText}>Karakter listesini tekrar yükle</Text>
+                  </Pressable>
+                </>
+              ) : null}
+              {!availabilityLoading && !availabilityError && avatarOptions.every((key) => takenAvatars.includes(key)) ? (
+                <Text style={styles.error}>Şu anda boş karakter kalmadı.</Text>
+              ) : null}
             </View>
 
           </ScrollView>
@@ -249,11 +320,11 @@ export default function OnboardingScreen() {
             />
           ) : (
             <Button
-              label="Partiye Başla!"
+              label={busy ? 'Karakter hazırlanıyor…' : availabilityLoading ? 'Karakterler yükleniyor…' : availabilityError ? 'Karakter listesi gerekli' : avatarOptions.every((key) => takenAvatars.includes(key)) ? 'Boş karakter kalmadı' : 'Partiye Başla!'}
               onPress={handleFinish}
               variant="orange"
               fullWidth
-              disabled={busy}
+              disabled={busy || availabilityLoading || !!availabilityError || takenAvatars.includes(selectedAvatar) || avatarOptions.every((key) => takenAvatars.includes(key))}
               icon={busy ? <ActivityIndicator color="#FFF" /> : <Sparkles color="#FFF" size={20} />}
             />
           )}
@@ -409,6 +480,42 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     textAlign: 'center',
   },
   avatarNameActive: {
+    color: colors.orange,
+    fontFamily: 'Poppins-Bold',
+  },
+  avatarBoxTaken: {
+    opacity: 0.42,
+    backgroundColor: colors.bgSurface,
+  },
+  avatarTakenBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: radii.xs,
+    backgroundColor: colors.bgDark,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  avatarTakenBadgeText: {
+    color: colors.textMuted,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 7,
+    letterSpacing: 0.2,
+  },
+  availabilityHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+  },
+  retryAvailability: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    paddingVertical: 4,
+  },
+  retryAvailabilityText: {
+    ...typography.caption,
     color: colors.orange,
     fontFamily: 'Poppins-Bold',
   },
