@@ -46,6 +46,7 @@ export default function GameOverScreen() {
 
   const myRankIndex = playersList.findIndex((p) => p.id === currentPlayer?.id);
   const myRank = myRankIndex >= 0 ? myRankIndex + 1 : null;
+  const myCredits = playersList.find((p) => p.id === currentPlayer?.id)?.credits ?? currentPlayer?.credits ?? 0;
   const isMeWinner = winner?.id === currentPlayer?.id;
   const isHost = currentPlayer?.isHost || playersList.find((p) => p.id === currentPlayer?.id)?.isHost;
 
@@ -113,6 +114,11 @@ export default function GameOverScreen() {
                   Sıralaman: #{myRank} • {currentPlayer?.score ?? 0} Puan
                 </Badge>
               ) : null}
+              <View style={styles.matchCreditPill}>
+                <Sparkles color={colors.lime} size={16} />
+                <Text style={styles.matchCreditText}>Maç kredin: {myCredits}</Text>
+                <Text style={styles.matchCreditHint}>· Yeni maçta sıfırlanır</Text>
+              </View>
             </View>
           </PopView>
           </Pressable>
@@ -286,6 +292,29 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 16,
     color: colors.orange,
     marginTop: 2,
+  },
+  matchCreditPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.bgSurface,
+  },
+  matchCreditText: {
+    ...typography.small,
+    color: colors.lime,
+    fontFamily: 'Poppins-Bold',
+  },
+  matchCreditHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
   },
   podiumContainer: {
     flexDirection: 'row',
