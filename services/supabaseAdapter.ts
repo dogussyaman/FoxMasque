@@ -9,7 +9,7 @@ import type {
   GameService,
   LeaderboardScope,
   RelationshipStatus,
-  RoomSummary,
+  RoomSummary,\n  RoundRevealChoice,
   RoomAccessPreflight,
   SocialPlayer,
   ServiceEvent,
@@ -822,6 +822,14 @@ export class SupabaseGameService implements GameService {
       choiceIndex: d.choice_index,
       text: d.choice_text,
       isOwnFake: d.is_own_fake,
+    }));
+  }
+
+  async getRoundReveal(code: string): Promise<RoundRevealChoice[]> {
+    const { data, error } = await ensureSupabase().rpc('get_round_reveal_secure', { p_room_code: code.toUpperCase() });
+    if (error) throw new ServiceError('ROUND_REVEAL_FAILED', error.message);
+    return (data ?? []).map((r: {choice_index:number;choice_text:string;author_id:string|null;is_correct:boolean;picked_by:string[]|null}) => ({
+      choiceIndex:r.choice_index,text:r.choice_text,authorId:r.author_id,isCorrect:r.is_correct,pickedBy:r.picked_by ?? [],
     }));
   }
 

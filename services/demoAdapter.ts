@@ -654,6 +654,15 @@ export class DemoGameService implements GameService {
   }
 
   // Step 2 of round: Submit choice / guess
+  async getRoundReveal(code: string) {
+    const state = this.rooms.get(code.toUpperCase());
+    if (!state) return [];
+    return (state.choices ?? []).map((c) => ({
+      choiceIndex:c.choiceIndex,text:c.text,authorId:c.authorId ?? null,isCorrect:!!c.isCorrect,
+      pickedBy:Object.entries(state.picks ?? {}).filter(([,i])=>i===c.choiceIndex).map(([id])=>id),
+    }));
+  }
+
   async submitPick(code: string, choiceIndex: number): Promise<void> {
     const room = this.rooms.get(code);
     if (!room) throw new ServiceError('ROOM_NOT_FOUND', 'Oda bulunamadı.');
