@@ -58,7 +58,13 @@ export default function WaitingScreen() {
   useEffect(() => {
     if (roomState?.phase === 'reveal') {
       trigger('success');
-      router.replace('/result');
+      router.replace({
+        pathname: '/result',
+        params: {
+          round: String(roomState.currentRound),
+          questionId: String(roomState.currentQuestionId),
+        },
+      });
     } else if (roomState?.phase === 'scoreboard') {
       router.replace('/scoreboard');
     }
@@ -69,7 +75,13 @@ export default function WaitingScreen() {
     if (!waitingPhase || !roomState || roomState.phase === waitingPhase) return;
     prototype.finishWaiting(prototype.waitingStage!.id);
     if (roomState.phase === 'reveal') {
-      router.replace('/result');
+      router.replace({
+        pathname: '/result',
+        params: {
+          round: String(roomState.currentRound),
+          questionId: String(roomState.currentQuestionId),
+        },
+      });
     } else if (roomState.phase === 'game_over' || roomState.phase === 'scoreboard') {
       router.replace('/scoreboard');
     } else if (roomState.phase === 'guess' || roomState.phase === 'fake_answer') {
