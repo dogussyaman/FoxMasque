@@ -1,5 +1,4 @@
 import { AVATARS } from './players';
-import { SPECIAL_AVATARS } from './specialAvatars';
 
 export interface PresetCharacterIdentity {
   avatarKey: string;
@@ -20,24 +19,26 @@ const ANIMAL_CHARACTERS: Record<string, { displayName: string; avatarLabel: stri
   rabbit: { displayName: 'Tavşan Zıpır', avatarLabel: 'Tavşan' },
 };
 
-const SPECIAL_CHARACTERS: Record<string, string> = {
-  'special:photographer': 'Lens Avcısı',
-  'special:alien': 'Uzaylı Zeno',
-  'special:pirate': 'Kaptan Kara',
-  'special:gorilla': 'Gogo',
-  'special:gold-woman': 'Altın Diva',
-  'special:cute-girl': 'Papatya',
-  'special:boy': 'Mert Vites',
-  'special:anime-girl': 'Hikari',
-  'special:gold-girl': 'Aurora',
-  'special:hijab-girl': 'Ayla',
-  'special:purple-woman': 'Violet',
-  'special:pink-white-girl': 'Lalin',
-  'special:pink-watercolor': 'Pembe Bulut',
-  'special:witch': 'Gece Cadısı',
-  'special:abstract': 'Soyut Rüya',
-  'special:yellow-blue-girl': 'Maviş',
+const SPECIAL_CHARACTERS: Record<string, { displayName: string; avatarLabel: string }> = {
+  'special:photographer': { displayName: 'Lens Avcısı', avatarLabel: 'Fotoğrafçı' },
+  'special:alien': { displayName: 'Uzaylı Zeno', avatarLabel: 'Uzaylı' },
+  'special:pirate': { displayName: 'Kaptan Kara', avatarLabel: 'Korsan' },
+  'special:gorilla': { displayName: 'Gogo', avatarLabel: 'Goril' },
+  'special:gold-woman': { displayName: 'Altın Diva', avatarLabel: 'Altın Kadın' },
+  'special:cute-girl': { displayName: 'Papatya', avatarLabel: 'Sevimli Kız' },
+  'special:boy': { displayName: 'Mert Vites', avatarLabel: 'Genç Çocuk' },
+  'special:anime-girl': { displayName: 'Hikari', avatarLabel: 'Anime Kız' },
+  'special:gold-girl': { displayName: 'Aurora', avatarLabel: 'Parıltılı Kız' },
+  'special:hijab-girl': { displayName: 'Ayla', avatarLabel: 'Tropik Güzel' },
+  'special:purple-woman': { displayName: 'Violet', avatarLabel: 'Mor Kadın' },
+  'special:pink-white-girl': { displayName: 'Lalin', avatarLabel: 'Zarif Kız' },
+  'special:pink-watercolor': { displayName: 'Pembe Bulut', avatarLabel: 'Sulu Boya' },
+  'special:witch': { displayName: 'Gece Cadısı', avatarLabel: 'Cadı' },
+  'special:abstract': { displayName: 'Soyut Rüya', avatarLabel: 'Soyut Rüya' },
+  'special:yellow-blue-girl': { displayName: 'Maviş', avatarLabel: 'Mavi Şapkalı' },
 };
+
+export const PRESET_SPECIAL_AVATAR_KEYS = Object.keys(SPECIAL_CHARACTERS);
 
 const DICEBEAR_CHARACTER_NAMES: Record<string, readonly string[]> = {
   lorelei: ['Ada', 'Alara', 'Arya', 'Defne', 'Duru', 'Eylül', 'İdil', 'Lara', 'Luna', 'Mina', 'Mira', 'Narin', 'Nova', 'Peri', 'Rüya', 'Vera'],
@@ -66,13 +67,9 @@ export function getPresetCharacterIdentity(avatarKey: string): PresetCharacterId
     return { avatarKey, displayName: animal.displayName, avatarLabel: animal.avatarLabel };
   }
 
-  const specialName = SPECIAL_CHARACTERS[avatarKey];
-  if (specialName && avatarKey in SPECIAL_AVATARS) {
-    return {
-      avatarKey,
-      displayName: specialName,
-      avatarLabel: SPECIAL_AVATARS[avatarKey].label,
-    };
+  const special = SPECIAL_CHARACTERS[avatarKey];
+  if (special) {
+    return { avatarKey, displayName: special.displayName, avatarLabel: special.avatarLabel };
   }
 
   const diceBearMatch = /^db:(lorelei|adventurer|bottts|fun-emoji|fashion|streetwear):([a-zA-Z0-9_-]{1,80})$/.exec(avatarKey);
