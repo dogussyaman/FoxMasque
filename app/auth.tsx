@@ -109,7 +109,7 @@ export default function AuthScreen() {
       router.replace('/onboarding');
       return;
     }
-    if (!isInitialized || !currentPlayer) return;
+    if (!isInitialized || !currentPlayer?.id) return;
     if (params.returnTo === '/join-room') {
       router.replace({
         pathname: '/join-room',
