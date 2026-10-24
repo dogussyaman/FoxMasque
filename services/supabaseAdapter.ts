@@ -88,6 +88,19 @@ interface FriendRequestRow {
   created_at: string;
 }
 
+function createCharacterUsername(name: string): string {
+  const base = name
+    .normalize('NFKD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 18) || 'oyuncu';
+  // This is a public display handle, not an authentication secret.
+  const suffix = Math.random().toString(36).slice(2, 8).padEnd(6, '0');
+  return `${base}_${suffix}`;
+}
+
 function decodeBase64(value: string): Uint8Array {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   const output = new Uint8Array(Math.ceil((value.length * 3) / 4));
@@ -246,9 +259,32 @@ export class SupabaseGameService implements GameService {
 
   async signInAnonymously(name: string, avatarKey: string): Promise<Player> {
     const sb = ensureSupabase();
+
+    // Reuse an existing persisted identity. Calling signInAnonymously again would
+    // create a different auth user and detach this browser from its saved games.
+    const { data: sessionData, error: sessionError } = await sb.auth.getSession();
+    if (sessionError) throw new ServiceError('AUTH_SESSION_FAILED', sessionError.message);
+    if (sessionData.session?.user) {
+      const existingProfile = await this.loadProfile(sessionData.session.user.id);
+      if (!existingProfile) {
+        throw new ServiceError('PROFILE_NOT_FOUND', 'Mevcut oturumun profili bulunamadı. Tekrar giriş yapmayı dene.');
+      }
+      this.cachedPlayer = existingProfile;
+      return existingProfile;
+    }
+
+    const displayName = name.trim().slice(0, 32) || 'Oyuncu';
+    const username = createCharacterUsername(displayName);
+    const characterKey = avatarKey.trim().slice(0, 128) || 'fox';
     const { data, error } = await sb.auth.signInAnonymously({
       options: {
-        data: { name: name.trim(), avatarKey },
+        data: {
+          name: displayName,
+          avatarKey: characterKey,
+          characterKey,
+          username,
+          accountType: 'character',
+        },
       },
     });
     if (error) throw new ServiceError('AUTH_FAILED', error.message);
