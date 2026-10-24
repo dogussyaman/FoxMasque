@@ -34,7 +34,6 @@ import type {
 } from './types';
 import { ServiceError } from './types';
 
-const demoPresetCharacterClaims = new Map<string, string>();
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -98,7 +97,9 @@ export class DemoGameService implements GameService {
   }
 
   async listTakenPresetCharacters(): Promise<string[]> {
-    return Array.from(demoPresetCharacterClaims.keys());
+    // Demo mode has no shared account/database authority. Global uniqueness
+    // is enforced by the Supabase adapter and its atomic claim RPC.
+    return [];
   }
 
   private emit(event: ServiceEvent) {
@@ -106,13 +107,8 @@ export class DemoGameService implements GameService {
   }
 
   async signInAnonymously(name: string, avatarKey: string): Promise<Player> {
-    const alreadyClaimedBy = demoPresetCharacterClaims.get(avatarKey);
-    if (alreadyClaimedBy && alreadyClaimedBy !== this.currentPlayer?.id) {
-      throw new ServiceError('PRESET_CHARACTER_TAKEN', 'Bu karakter başka bir oyuncu tarafından seçildi. Lütfen boş bir karakter seç.');
-    }
-    if (this.currentPlayer && demoPresetCharacterClaims.get(this.currentPlayer.avatarKey) === this.currentPlayer.id) {
-      return this.currentPlayer;
-    }
+    // Demo mode represents guest switching locally for previews/tests. It does
+    // not provide globally shared identities; Supabase owns production claims.
     const player: Player = {
       id: `me-${Date.now()}-${this.playerSequence++}`,
       name: name.trim() || 'Sen',
@@ -132,7 +128,6 @@ export class DemoGameService implements GameService {
       lastBlockedPlayerId: null,
     };
     this.currentPlayer = player;
-    demoPresetCharacterClaims.set(avatarKey, player.id);
     return player;
   }
 
