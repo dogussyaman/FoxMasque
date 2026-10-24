@@ -29,6 +29,19 @@ export default function OnboardingScreen() {
     ...DICEBEAR_AVATAR_KEYS,
   ]);
   const [selectedAvatar, setSelectedAvatar] = useState(avatarOptions[0]);
+  const [avatarCategory, setAvatarCategory] = useState<'all' | 'people' | 'robots' | 'emoji' | 'animals' | 'fashion' | 'streetwear'>('all');
+  const filteredAvatarOptions = avatarOptions.filter((key) => {
+    if (avatarCategory === 'all') return true;
+    if (avatarCategory === 'animals') return AVATAR_KEYS.includes(key as (typeof AVATAR_KEYS)[number]);
+    if (!key.startsWith('db:')) return false;
+    const style = key.split(':')[1];
+    if (avatarCategory === 'people') return style === 'lorelei' || style === 'adventurer';
+    if (avatarCategory === 'robots') return style === 'bottts';
+    if (avatarCategory === 'emoji') return style === 'fun-emoji';
+    if (avatarCategory === 'fashion') return style === 'fashion';
+    if (avatarCategory === 'streetwear') return style === 'streetwear';
+    return false;
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -143,9 +156,33 @@ export default function OnboardingScreen() {
             </View>
 
             {/* Avatar Grid */}
-            <Text style={styles.sectionLabel}>AVATARINI SEÇ</Text>
+            <Text style={styles.sectionLabel}>AVATARINI SEÇ · {filteredAvatarOptions.length} SEÇENEK</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.avatarFilters}>
+              {([
+                { key: 'all', label: 'Tümü' },
+                { key: 'people', label: 'Portreler' },
+                { key: 'robots', label: 'Robotlar' },
+                { key: 'emoji', label: 'Emoji' },
+                { key: 'animals', label: 'Hayvanlar' },
+                { key: 'fashion', label: 'Moda' },
+                { key: 'streetwear', label: 'Sokak Stili' },
+              ] as const).map((filter) => {
+                const active = avatarCategory === filter.key;
+                return (
+                  <Pressable
+                    key={filter.key}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => setAvatarCategory(filter.key)}
+                    style={[styles.avatarFilterChip, active && styles.avatarFilterChipActive]}
+                  >
+                    <Text style={[styles.avatarFilterText, active && styles.avatarFilterTextActive]}>{filter.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
             <View style={styles.avatarGrid}>
-              {avatarOptions.map((key) => {
+              {filteredAvatarOptions.map((key) => {
                 const active = selectedAvatar === key;
                 return (
                   <Pressable
@@ -323,6 +360,31 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 8,
     marginTop: 12,
+  },
+  avatarFilters: {
+    gap: 8,
+    paddingVertical: 4,
+    marginBottom: spacing.sm,
+  },
+  avatarFilterChip: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.bgCard,
+  },
+  avatarFilterChipActive: {
+    borderColor: colors.orange,
+    backgroundColor: 'rgba(255, 113, 59, 0.16)',
+  },
+  avatarFilterText: {
+    color: colors.textSecondary,
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 12,
+  },
+  avatarFilterTextActive: {
+    color: colors.orange,
   },
   avatarGrid: {
     flexDirection: 'row',
