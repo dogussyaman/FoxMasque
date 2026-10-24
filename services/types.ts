@@ -85,6 +85,7 @@ export interface GameService {
   subscribe(handler: ServiceEventHandler): () => void;
 
   getConnectionState(): ConnectionState;
+  listTakenPresetCharacters(): Promise<string[]>;
 
   // Auth
   signInAnonymously(name: string, avatarKey: string): Promise<Player>;
