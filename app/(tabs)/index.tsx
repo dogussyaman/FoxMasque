@@ -23,6 +23,7 @@ import {
   Flame,
   CheckCircle2,
   ShieldCheck,
+  X,
 } from 'lucide-react-native';
 import { Screen, Button, Card, Badge, Avatar, MascotFloat, PulseView } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
@@ -109,6 +110,12 @@ export default function HomeScreen() {
     if (isLive && authStatus === 'signed_out') router.replace('/auth');
   }, [isLive, authStatus]);
 
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [error, setError]);
+
   const handleContinueGame = async () => {
     if (recovering) return;
     setRecovering(true);
@@ -168,13 +175,17 @@ export default function HomeScreen() {
         </View>
       </Modal>
       {error ? (
-        <Pressable
-          onPress={() => setError(null)}
-          style={styles.storeError}
-          accessibilityRole="alert"
-        >
+        <View style={styles.storeError} accessibilityRole="alert">
           <Text style={styles.storeErrorText}>{error}</Text>
-        </Pressable>
+          <Pressable
+            onPress={() => setError(null)}
+            hitSlop={8}
+            style={styles.storeErrorClose}
+            accessibilityLabel="Kapat"
+          >
+            <X size={16} color={colors.dangerSoft} />
+          </Pressable>
+        </View>
       ) : null}
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -464,16 +475,26 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   storeError: {
     marginHorizontal: spacing.md,
     marginTop: spacing.sm,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: radii.md,
     backgroundColor: colors.dangerSurface,
     borderWidth: 1,
     borderColor: colors.danger,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   storeErrorText: {
     ...typography.caption,
     color: colors.dangerSoft,
-    textAlign: 'center',
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  storeErrorClose: {
+    padding: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   recoveryCard: {
     gap: spacing.md,

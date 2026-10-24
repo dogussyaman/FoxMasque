@@ -125,7 +125,6 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
           if (p?.code === 'ROOM_MEMBERSHIP_INVALID') {
             updateRoomCode(null);
             applyRoomState(null);
-            setError('Bu oyuna artık erişilemiyor. Yeni bir oda oluşturabilir veya katılabilirsin.');
           } else if (p?.message) {
             setError(p.message);
           }
@@ -158,7 +157,6 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
           if ((cause as { code?: string })?.code === 'ROOM_MEMBERSHIP_INVALID') {
             updateRoomCode(null);
             applyRoomState(null);
-            setError('Bu oyuna artık erişilemiyor. Yeni bir oda oluşturabilir veya katılabilirsin.');
           } else {
             setError(cause instanceof Error ? cause.message : 'Oda durumu yenilenemedi.');
           }
@@ -220,7 +218,6 @@ export function GameStoreProvider({ children }: { children: ReactNode }) {
           setRecoveryCode(null);
           setRecoveryRoom(null);
           setRecoveryStatus('none');
-          setError('Kayıtlı oda artık hesabına açık değil. Yeni bir oda oluşturabilir veya katılabilirsin.');
         } else {
           setError(restoreError instanceof Error ? restoreError.message : 'Oyun durumu yenilenemedi.');
           setRecoveryStatus('available');

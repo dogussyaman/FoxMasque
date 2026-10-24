@@ -644,7 +644,7 @@ export default function QuestionScreen() {
           {/* STAGE 1: ENTER FAKE ANSWER */}
           {!isGuessPhase ? (
             <View style={styles.stageWrap}>
-              {isBlocked && blockedPrankRevealed ? (
+              {isBlocked ? (
                 <View style={styles.blockedStage}>
                   <Image
                     source={mascotImages.shocked}
@@ -653,9 +653,9 @@ export default function QuestionScreen() {
                     accessibilityLabel="Bloklandığı için şaşırmış tilki"
                   />
                   <View style={styles.blockedStageCopy}>
-                    <Text style={styles.blockNoticeTitle}>Aynen aynen… cevap gitti sandın! 😏</Text>
+                    <Text style={styles.blockNoticeTitle}>Bu Tur Bloklandın! 🦊</Text>
                     <Text style={styles.blockNoticeText}>
-                      {blockerName ? `${blockerName} seni blokladı. ` : ''}Kusura bakma, bu tur blöfün sunucuya gönderilmedi. Şıklar açılınca gerçek cevabı seçerek devam edebilirsin.
+                      {blockerName ? `${blockerName} seni blokladı. ` : ''}Bu tur sahte cevap gönderemezsin. Diğer oyuncuların cevapları bekleniyor; şıklar açıldığında doğru cevabı seçerek +2 puan kazanabilirsin.
                     </Text>
                   </View>
                 </View>
@@ -678,11 +678,6 @@ export default function QuestionScreen() {
                       onSubmitEditing={handleFakeSubmit}
                       focusedBorderColor={colors.purple}
                     />
-                    {isBlocked ? (
-                      <Text style={styles.blockNoticeText}>
-                        Tilki bu tur biraz fazla sinsi… Cevabını yaz, Gönder’e bas ve gör bakalım. 🦊
-                      </Text>
-                    ) : null}
                   </View>
                 </>
               ) : (
@@ -700,26 +695,6 @@ export default function QuestionScreen() {
           ) : (
             /* STAGE 2: GUESS FROM BLENDED CHOICES */
             <View style={styles.stageWrap}>
-              <View style={styles.cunningBanner}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cunningTitle}>Şıkları dikkatle incele!</Text>
-                  <Text style={styles.cunningDesc}>
-                    Gerçek cevap +2 puan kazandırır. Her rakip senin blöfünü seçerse +1 puan alırsın; yanlış tahminde puan kaybetmezsin.
-                  </Text>
-                </View>
-              </View>
-
-              {(isBlocked || !fakeAnswerText.trim()) && (
-                <View style={styles.noFakeNotice}>
-                  <Info color={colors.orange} size={16} />
-                  <Text style={styles.noFakeNoticeText}>
-                    {isBlocked
-                      ? 'Aynen aynen, blöfün gitmedi! 🦊 Bu tur bloklandın; gerçek cevabı seçersen +2 puan kazanabilirsin.'
-                      : 'Bu tur blöf gönderemediğin için tuzak puanı alamazsın, ama gerçek cevabı bulup +2 puan kazanabilirsin!'}
-                  </Text>
-                </View>
-              )}
-
               <View style={styles.choicesList}>
                 {choices.map((choice, idx) => {
                   const letter = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'][idx] || `${idx + 1}`;
@@ -805,15 +780,15 @@ export default function QuestionScreen() {
               icon={<CheckCircle2 color="#FFF" size={20} />}
             />
           </StickyActionBar>
-        ) : !hasSubmittedFake ? (
+        ) : !isBlocked && !hasSubmittedFake ? (
           <StickyActionBar>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <Button
-              label={blockedPrankSending ? 'Tilki cevabını kontrol ediyor…' : submitting ? 'Cevabın gönderiliyor…' : 'Sahte Cevabını Kilitle!'}
+              label={submitting ? 'Cevabın gönderiliyor…' : 'Sahte Cevabını Kilitle!'}
               onPress={handleFakeSubmit}
               variant="orange"
-              loading={submitting || blockedPrankSending}
-              disabled={submitting || blockedPrankSending || fakeAnswerText.trim().length === 0}
+              loading={submitting}
+              disabled={submitting || fakeAnswerText.trim().length === 0}
               fullWidth
               icon={<Send color="#FFF" size={18} />}
             />
