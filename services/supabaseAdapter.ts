@@ -32,6 +32,7 @@ import { defaultDiceBearAvatarKey } from '../features/game/players';
 import type { Question } from '../features/game/questions';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getWebAppUrl } from '../lib/webAppUrl';
+import { syncServerClockFromRoundTrip } from './serverClock';
 
 interface ProfilePayload {
   id: string;
@@ -623,9 +624,25 @@ export class SupabaseGameService implements GameService {
 
   async getRoomState(code: string): Promise<GameState | null> {
     const sb = ensureSupabase();
-    const { data, error } = await sb.rpc('get_room_state_secure', {
-      p_room_code: code.trim().toUpperCase(),
-    });
+    const clockRequestStartedAt = Date.now();
+    const clockPromise = sb.rpc('get_server_time_secure').then((response) => ({
+      ...response,
+      receivedAt: Date.now(),
+    }));
+    const [roomResponse, clockResponse] = await Promise.all([
+      sb.rpc('get_room_state_secure', {
+        p_room_code: code.trim().toUpperCase(),
+      }),
+      clockPromise,
+    ]);
+    if (!clockResponse.error && clockResponse.data !== null) {
+      syncServerClockFromRoundTrip(
+        clockResponse.data,
+        clockRequestStartedAt,
+        clockResponse.receivedAt,
+      );
+    }
+    const { data, error } = roomResponse;
     if (error) {
       if (error.message.toLowerCase().includes('oda bulunamadı veya erişim izniniz yok')) {
         throw new ServiceError('ROOM_MEMBERSHIP_INVALID', 'Kayıtlı oda artık hesabına açık değil.');
