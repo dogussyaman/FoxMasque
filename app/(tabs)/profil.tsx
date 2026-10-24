@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Switch, Pressable, TextInput, Platform, Modal, KeyboardAvoidingView } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Switch, Pressable, Platform, Modal, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -179,7 +179,16 @@ export default function ProfilScreen() {
             <View style={{ flex: 1 }}>
               <View style={styles.nameDisplayRow}>
                 <Text style={styles.playerName}>{currentPlayer?.name ?? 'Kızılkuyruk Ustası'}</Text>
-                <Pressable onPress={() => {setTempName(currentPlayer?.name ?? '');setProfileError(null);setEditingName(true);}} style={styles.editIconBtn}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="İsmini güncelle"
+                  onPress={() => {
+                    setTempName(currentPlayer?.name ?? '');
+                    setProfileError(null);
+                    setEditingName(true);
+                  }}
+                  style={styles.editIconBtn}
+                >
                   <Edit2 color={colors.orange} size={16} />
                 </Pressable>
               </View>
@@ -434,6 +443,61 @@ export default function ProfilScreen() {
           </View>
         ) : null}
       </ScrollView>
+      <Modal
+        visible={editingName}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingName(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable
+            accessibilityLabel="İsim güncelleme penceresini kapat"
+            onPress={() => setEditingName(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.nameModal}>
+            <Text style={styles.nameModalTitle}>İsmini güncelle</Text>
+            <Text style={styles.nameModalHint}>Oyuncular seni bu isimle görecek.</Text>
+            <Input
+              accessibilityLabel="Yeni oyuncu adı"
+              autoCapitalize="words"
+              autoCorrect={false}
+              autoFocus
+              maxLength={32}
+              onChangeText={setTempName}
+              onSubmitEditing={() => void handleSaveProfile()}
+              placeholder="Oyuncu adı"
+              returnKeyType="done"
+              style={styles.nameModalInput}
+              value={tempName}
+              editable={!savingProfile}
+            />
+            {profileError ? (
+              <Text accessibilityRole="alert" style={styles.profileError}>{profileError}</Text>
+            ) : null}
+            <View style={styles.nameModalActions}>
+              <Button
+                label="Vazgeç"
+                onPress={() => setEditingName(false)}
+                variant="secondary"
+                size="md"
+                disabled={savingProfile}
+              />
+              <Button
+                label="Kaydet"
+                onPress={() => void handleSaveProfile()}
+                variant="orange"
+                size="md"
+                loading={savingProfile}
+                disabled={savingProfile}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </Screen>
   );
 }
@@ -463,12 +527,46 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 16,
     marginBottom: spacing.md,
   },
-  modalBackdrop:{flex:1,backgroundColor:'rgba(8,7,18,0.72)',justifyContent:'center',padding:spacing.lg},
-  nameModal:{backgroundColor:colors.bgCard,borderRadius:radii.xl,borderWidth:1,borderColor:colors.borderStrong,padding:spacing.lg,gap:spacing.sm},
-  nameModalTitle:{...typography.h3,color:colors.textPrimary,fontFamily:'Poppins-Bold'},
-  nameModalHint:{...typography.caption,color:colors.textSecondary},
-  nameModalInput:{minHeight:48,borderWidth:1.5,borderColor:colors.orange,borderRadius:radii.md,paddingHorizontal:spacing.md,color:colors.textPrimary,backgroundColor:colors.bgSurfaceAlt,fontFamily:'Poppins-SemiBold',fontSize:16},
-  nameModalActions:{flexDirection:'row',justifyContent:'flex-end',gap:spacing.sm,marginTop:spacing.sm},
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(8,7,18,0.72)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  nameModal: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  nameModalTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+  },
+  nameModalHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  nameModalInput: {
+    minHeight: 48,
+    borderWidth: 1.5,
+    borderColor: colors.orange,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    color: colors.textPrimary,
+    backgroundColor: colors.bgSurfaceAlt,
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 16,
+  },
+  nameModalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
   nameDisplayRow: {
     flexDirection: 'row',
     alignItems: 'center',
