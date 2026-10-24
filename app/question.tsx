@@ -342,7 +342,14 @@ export default function QuestionScreen() {
     setSubmitting(true);
     service.advanceExpiredPhase(roomCode)
       .then(() => refreshRoom())
-      .catch((e) => setError((e as Error).message))
+      .catch((e) => {
+        // Allow another attempt if the timeout RPC failed. Keeping the stage
+        // latched here would permanently suppress recovery for this deadline.
+        if (expirationRequested.current === stage) {
+          expirationRequested.current = null;
+        }
+        setError((e as Error).message || 'Tur süresi tamamlanamadı. Yeniden deneniyor.');
+      })
       .finally(() => setSubmitting(false));
   }, [roomCode, roomState?.currentRound, roomState?.phase, roomState?.phaseDeadlineAt, submitting, service, refreshRoom]);
 
