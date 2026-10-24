@@ -68,8 +68,8 @@ BEGIN
     END IF;
 
     -- Case-insensitive and whitespace-insensitive matching; preserve punctuation.
-    v_normalized := lower(regexp_replace(btrim(v_trimmed), '[[:space:]]+', ' ', 'g'));
-    v_correct_normalized := lower(regexp_replace(btrim(v_q.correct_answer), '[[:space:]]+', ' ', 'g'));
+    v_normalized := lower(regexp_replace(normalize(btrim(v_trimmed), NFKC), '[[:space:]]+', ' ', 'g'));
+    v_correct_normalized := lower(regexp_replace(normalize(btrim(v_q.correct_answer), NFKC), '[[:space:]]+', ' ', 'g'));
 
     IF v_normalized = v_correct_normalized THEN
         RAISE EXCEPTION 'Gerçek cevabı sahte cevap olarak gönderemezsiniz. Başka bir cevap yazın';
@@ -82,7 +82,7 @@ BEGIN
         WHERE fa.room_id = v_room.id
           AND fa.round_number = v_room.current_round
           AND fa.player_id <> v_user_id
-          AND lower(regexp_replace(btrim(fa.fake_answer), '[[:space:]]+', ' ', 'g')) = v_normalized
+          AND lower(regexp_replace(normalize(btrim(fa.fake_answer), NFKC), '[[:space:]]+', ' ', 'g')) = v_normalized
     ) THEN
         RAISE EXCEPTION 'Bu cevap başka bir oyuncu tarafından gönderildi. Farklı bir cevap yazın';
     END IF;
@@ -129,8 +129,8 @@ BEGIN
         LOOP
             IF NOT EXISTS (
                 SELECT 1 FROM temp_blended_choices t
-                WHERE lower(regexp_replace(btrim(t.choice_text), '[[:space:]]+', ' ', 'g'))
-                    = lower(regexp_replace(btrim(v_rec.fake_answer), '[[:space:]]+', ' ', 'g'))
+                WHERE lower(regexp_replace(normalize(btrim(t.choice_text), NFKC), '[[:space:]]+', ' ', 'g'))
+                    = lower(regexp_replace(normalize(btrim(v_rec.fake_answer), NFKC), '[[:space:]]+', ' ', 'g'))
             ) THEN
                 INSERT INTO temp_blended_choices (choice_text, author_id, is_correct)
                 VALUES (btrim(v_rec.fake_answer), v_rec.player_id, FALSE);
@@ -144,8 +144,8 @@ BEGIN
                 END IF;
                 IF NOT EXISTS (
                     SELECT 1 FROM temp_blended_choices t
-                    WHERE lower(regexp_replace(btrim(t.choice_text), '[[:space:]]+', ' ', 'g'))
-                        = lower(regexp_replace(btrim(v_q.default_decoys[v_i]), '[[:space:]]+', ' ', 'g'))
+                    WHERE lower(regexp_replace(normalize(btrim(t.choice_text), NFKC), '[[:space:]]+', ' ', 'g'))
+                        = lower(regexp_replace(normalize(btrim(v_q.default_decoys[v_i]), NFKC), '[[:space:]]+', ' ', 'g'))
                 ) THEN
                     INSERT INTO temp_blended_choices (choice_text, author_id, is_correct)
                     VALUES (btrim(v_q.default_decoys[v_i]), NULL, FALSE);
