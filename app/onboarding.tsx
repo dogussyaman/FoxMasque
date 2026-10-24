@@ -1,32 +1,30 @@
 import { useTheme, useThemeStyles } from '@/theme/ThemeProvider';
 import type { ThemeColors } from '@/theme/ThemeProvider';
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, ScrollView, TextInput, Pressable, Image } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View, ScrollView, Pressable, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Sparkles, ArrowRight, Shield, Zap, Target, Flame, Check } from 'lucide-react-native';
-import { Screen, Button, Avatar, Card, StickyActionBar, Input } from '@/components/ui';
+import { Screen, Button, Avatar, Card, StickyActionBar } from '@/components/ui';
 import { colors, spacing, typography, radii, shadows } from '@/theme';
 import { useGameStore } from '@/store/gameStore';
 import { useHaptics } from '@/hooks/useHaptics';
 import {
   AVATAR_KEYS,
   DICEBEAR_AVATAR_KEYS,
-  createRandomDiceBearAvatarKey,
 } from '@/features/game/players';
 import { SPECIAL_AVATAR_KEYS } from '@/features/game/specialAvatars';
 import { mascotImages } from '@/assets/illustrations';
+import { getPresetCharacterIdentity } from '@/features/game/characterCatalog';
 
 export default function OnboardingScreen() {
   const { colors } = useTheme();
   const styles = useThemeStyles(createStyles);
-  const { setCurrentPlayer, service } = useGameStore();
+  const { setCurrentPlayer, service, currentPlayer, isInitialized } = useGameStore();
   const { trigger } = useHaptics();
 
   const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState('');
   const [avatarOptions] = useState(() => [
     ...SPECIAL_AVATAR_KEYS,
-    createRandomDiceBearAvatarKey(),
     ...AVATAR_KEYS,
     ...DICEBEAR_AVATAR_KEYS,
   ]);
@@ -45,8 +43,15 @@ export default function OnboardingScreen() {
     if (avatarCategory === 'streetwear') return style === 'streetwear';
     return false;
   });
+  const selectedCharacter = getPresetCharacterIdentity(selectedAvatar);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isInitialized && currentPlayer) {
+      router.replace('/(tabs)');
+    }
+  }, [currentPlayer?.id, isInitialized]);
 
   const handleNext = () => {
     trigger('light');
@@ -54,12 +59,15 @@ export default function OnboardingScreen() {
   };
 
   const handleFinish = async () => {
+    if (currentPlayer) {
+      router.replace('/(tabs)');
+      return;
+    }
     trigger('medium');
     setBusy(true);
     setError(null);
     try {
-      const finalName = name.trim() || 'Parti Ustası';
-      const player = await service.signInAnonymously(finalName, selectedAvatar);
+      const player = await service.signInAnonymously(selectedCharacter.displayName, selectedAvatar);
       setCurrentPlayer(player);
       router.replace('/(tabs)');
     } catch (authError) {
@@ -149,13 +157,15 @@ export default function OnboardingScreen() {
             <View style={styles.headerWrap}>
               <Text style={styles.title}>Karakterini Seç</Text>
               <Text style={styles.subtitle}>
-                Arkadaşlarının seni nasıl tanıyacağını ve avatarını belirle.
+                Her avatarın kendi karakter adı var. Seçtiğinde e-posta gerektirmeyen, sana özel bir oyun kimliği otomatik hazırlanır.
               </Text>
             </View>
 
             {/* Preview Avatar */}
             <View style={styles.previewAvatarWrap}>
               <Avatar avatarKey={selectedAvatar} size={90} ring />
+              <Text style={styles.selectedCharacterName}>{selectedCharacter.displayName}</Text>
+              <Text style={styles.selectedCharacterHint}>Karakterin · {selectedCharacter.avatarLabel}</Text>
             </View>
 
             {/* Avatar Grid */}
@@ -200,7 +210,10 @@ export default function OnboardingScreen() {
                     }}
                     style={[styles.avatarBox, active && styles.avatarBoxActive]}
                   >
-                    <Avatar avatarKey={key} size={46} />
+                    <Avatar avatarKey={key} size={42} />
+                    <Text numberOfLines={1} style={[styles.avatarName, active && styles.avatarNameActive]}>
+                      {getPresetCharacterIdentity(key).displayName}
+                    </Text>
                     {active ? (
                       <View style={styles.avatarSelectedMark}>
                         <Check color="#FFF" size={12} strokeWidth={3} />
@@ -211,17 +224,12 @@ export default function OnboardingScreen() {
               })}
             </View>
 
-            {/* Name Input */}
-            <Text style={styles.sectionLabel}>KULLANICI ADIN</Text>
-            <Input
-              value={name}
-              onChangeText={setName}
-              placeholder="Örn: TuzakUstası"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              maxLength={16}
-              focusedBorderColor={colors.orange}
-            />
+            <View style={styles.identityNote}>
+              <Text style={styles.identityNoteTitle}>Hesabın otomatik hazırlanacak</Text>
+              <Text style={styles.identityNoteText}>
+                Karakter adı profilinde saklanır; kullanıcı etiketi hesabın oluşturulurken benzersiz olarak üretilir. Gerçek e-posta veya şifre gerekmez.
+              </Text>
+            </View>
 
           </ScrollView>
         )}
@@ -357,6 +365,49 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     marginVertical: spacing.md,
   },
+  selectedCharacterName: {
+    ...typography.h3,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    marginTop: spacing.sm,
+  },
+  selectedCharacterHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  identityNote: {
+    padding: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.bgSurface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  identityNoteTitle: {
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
+    fontFamily: 'Poppins-Bold',
+    marginBottom: 4,
+  },
+  identityNoteText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  avatarName: {
+    maxWidth: '100%',
+    marginTop: 4,
+    color: colors.textSecondary,
+    fontFamily: 'Poppins-Medium',
+    fontSize: 9,
+    textAlign: 'center',
+  },
+  avatarNameActive: {
+    color: colors.orange,
+    fontFamily: 'Poppins-Bold',
+  },
   sectionLabel: {
     fontFamily: 'Poppins-Bold',
     fontSize: 11,
@@ -398,10 +449,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: spacing.md,
   },
   avatarBox: {
-    width: '18%',
-    aspectRatio: 1,
+    width: '22%',
+    minHeight: 78,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 3,
+    paddingVertical: 5,
     borderRadius: radii.lg,
     borderWidth: 2,
     borderColor: 'transparent',
@@ -421,18 +474,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.orange,
-  },
-  input: {
-    backgroundColor: colors.bgCard,
-    borderWidth: 1.5,
-    borderColor: colors.borderStrong,
-    borderRadius: radii.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: colors.textPrimary,
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 16,
-    marginBottom: spacing.lg,
   },
   error: { ...typography.caption, color: colors.dangerSoft, textAlign: 'center', paddingHorizontal: spacing.md },
 });
